@@ -1,0 +1,477 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER MANAGEMENT ====================
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String
+  role              UserRole
+  isActive          Boolean   @default(true)
+  emailVerified     Boolean   @default(false)
+  mfaEnabled        Boolean   @default(false)
+  mfaSecret         String?
+  backupCodes       String[]
+  lastLoginAt       DateTime?
+  loginAttempts     Int       @default(0)
+  lockoutUntil      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  profile           Profile?
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  sentMessages      Message[]   @relation("SentMessages")
+  receivedMessages  Message[]   @relation("ReceivedMessages")
+  
+  // Role-specific relations
+  student           Student?
+  faculty           Faculty?
+  admin             Admin?
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  firstName   String
+  lastName    String
+  phone       String?
+  avatar      String?
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  postalCode  String?
+  dateOfBirth DateTime?
+  gender      Gender?
+  theme       String    @default("dark")
+  language    String    @default("en")
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  deviceInfo   String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ==================== ROLE-BASED MODELS ====================
+model Admin {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  permissions String[] @default([])
+  department  String?
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admins")
+}
+
+model Faculty {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  employeeId    String   @unique
+  designation   String
+  departmentId  String
+  joiningDate   DateTime
+  specialization String?
+  qualifications String[]
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department    Department @relation(fields: [departmentId], references: [id])
+  classes       Class[]    @relation("ClassIncharge")
+  subjects      Subject[]  @relation("FacultySubjects")
+  timetable     TimetableEntry[]
+  leaveRequests LeaveRequest[] @relation("FacultyApproved")
+
+  @@map("faculty")
+}
+
+model Student {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  enrollmentId    String   @unique
+  departmentId    String
+  classId         String
+  batchYear       Int
+  semester        Int
+  faceData        String?  // Face embedding data
+  faceRegistered  Boolean  @default(false)
+  guardianName    String?
+  guardianPhone   String?
+  guardianEmail   String?
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department      Department @relation(fields: [departmentId], references: [id])
+  class           Class      @relation(fields: [classId], references: [id])
+  attendance      Attendance[]
+  leaveRequests   LeaveRequest[]
+  grades          Grade[]
+
+  @@map("students")
+}
+
+// ==================== ACADEMIC STRUCTURE ====================
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  hodId       String?
+  createdAt   DateTime @default(now())
+  
+  faculty     Faculty[]
+  students    Student[]
+  courses     Course[]
+  classes     Class[]
+
+  @@map("departments")
+}
+
+model Course {
+  id           String   @id @default(uuid())
+  name         String
+  code         String   @unique
+  credits      Int
+  semester     Int
+  departmentId String
+  description  String?
+  createdAt    DateTime @default(now())
+  
+  department   Department @relation(fields: [departmentId], references: [id])
+  subjects     Subject[]
+  classes      Class[]
+
+  @@map("courses")
+}
+
+model Subject {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  credits     Int
+  courseId    String
+  facultyId   String?
+  
+  course      Course   @relation(fields: [courseId], references: [id])
+  faculty     Faculty? @relation("FacultySubjects", fields: [facultyId], references: [id])
+  timetable   TimetableEntry[]
+  grades      Grade[]
+
+  @@map("subjects")
+}
+
+model Class {
+  id            String   @id @default(uuid())
+  name          String
+  section       String
+  departmentId  String
+  courseId      String
+  inchargeId    String
+  roomNumber    String?
+  capacity      Int
+  academicYear  String
+  
+  department    Department @relation(fields: [departmentId], references: [id])
+  course        Course     @relation(fields: [courseId], references: [id])
+  incharge      Faculty    @relation("ClassIncharge", fields: [inchargeId], references: [id])
+  students      Student[]
+  timetable     TimetableEntry[]
+
+  @@unique([name, section, academicYear])
+  @@map("classes")
+}
+
+// ==================== TIMETABLE ====================
+model TimetableEntry {
+  id        String   @id @default(uuid())
+  classId   String
+  subjectId String
+  facultyId String
+  dayOfWeek Int      // 0-6 (Sunday-Saturday)
+  startTime String   // HH:MM format
+  endTime   String   // HH:MM format
+  roomNumber String?
+  
+  class     Class    @relation(fields: [classId], references: [id])
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  faculty   Faculty  @relation(fields: [facultyId], references: [id])
+
+  @@map("timetable_entries")
+}
+
+// ==================== ATTENDANCE SYSTEM ====================
+model Attendance {
+  id              String           @id @default(uuid())
+  studentId       String
+  subjectId       String?
+  date            DateTime
+  status          AttendanceStatus
+  method          AttendanceMethod
+  confidenceScore Float?
+  location        Json?            // {lat, lng, accuracy}
+  deviceInfo      String?
+  ipAddress       String?
+  verifiedBy      String?          // Faculty ID for manual override
+  justification   String?
+  blockchainHash  String?          // SHA-256 hash for integrity
+  previousHash    String?          // Link to previous block
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  student         Student          @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, date, subjectId])
+  @@map("attendance")
+}
+
+// ==================== LEAVE MANAGEMENT ====================
+model LeaveRequest {
+  id          String      @id @default(uuid())
+  studentId   String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  type        LeaveType
+  status      LeaveStatus @default(PENDING)
+  documents   String[]    // File URLs
+  approvedBy  String?
+  approvedAt  DateTime?
+  comments    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  student     Student     @relation(fields: [studentId], references: [id])
+  approver    Faculty?    @relation("FacultyApproved", fields: [approvedBy], references: [id])
+
+  @@map("leave_requests")
+}
+
+// ==================== GRADES ====================
+model Grade {
+  id          String   @id @default(uuid())
+  studentId   String
+  subjectId   String
+  semester    Int
+  internalMarks Float?
+  externalMarks Float?
+  totalMarks    Float?
+  grade       String?
+  attendanceImpact Float @default(0)
+  
+  student     Student  @relation(fields: [studentId], references: [id])
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+
+  @@unique([studentId, subjectId, semester])
+  @@map("grades")
+}
+
+// ==================== NOTICE BOARD ====================
+model Notice {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  priority    Priority @default(MEDIUM)
+  targetRoles UserRole[]
+  targetDepartments String[]
+  targetClasses String[]
+  attachments String[]
+  expiryDate  DateTime?
+  publishedBy String
+  readCount   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("notices")
+}
+
+model NoticeRead {
+  id        String   @id @default(uuid())
+  noticeId  String
+  userId    String
+  readAt    DateTime @default(now())
+
+  @@unique([noticeId, userId])
+  @@map("notice_reads")
+}
+
+// ==================== NOTIFICATIONS ====================
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  data      Json?    // Additional context
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ==================== MESSAGING ====================
+model Message {
+  id          String   @id @default(uuid())
+  senderId    String
+  receiverId  String
+  content     String
+  attachments String[]
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+  
+  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  @@map("messages")
+}
+
+// ==================== AUDIT LOGS ====================
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  String   // e.g., "student", "attendance", "notice"
+  entityId    String?
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+  
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ==================== BACKUP & SETTINGS ====================
+model Backup {
+  id          String   @id @default(uuid())
+  filename    String
+  size        Int
+  type        String   // automatic, manual
+  status      String   // completed, failed, in_progress
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@map("backups")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("system_settings")
+}
+
+// ==================== SECURITY ALERTS ====================
+model SecurityAlert {
+  id          String   @id @default(uuid())
+  type        String   // face_mismatch, suspicious_login, geo_anomaly, etc.
+  severity    Severity
+  userId      String?
+  description String
+  data        Json?
+  resolved    Boolean  @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("security_alerts")
+}
+
+// ==================== ENUMS ====================
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  FACULTY
+  CLASS_INCHARGE
+  STUDENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  ON_LEAVE
+}
+
+enum AttendanceMethod {
+  AI_FACE
+  MANUAL
+  QR_CODE
+  BIOMETRIC
+}
+
+enum LeaveType {
+  SICK
+  PERSONAL
+  FAMILY_EMERGENCY
+  ACADEMIC
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationType {
+  ATTENDANCE
+  LEAVE
+  NOTICE
+  SECURITY
+  SYSTEM
+  MESSAGE
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
