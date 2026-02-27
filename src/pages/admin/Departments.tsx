@@ -20,7 +20,15 @@ export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [newDepartment, setNewDepartment] = useState({
+    name: '',
+    code: '',
+    description: '',
+  });
+  const [editForm, setEditForm] = useState({
     name: '',
     code: '',
     description: '',
@@ -77,6 +85,54 @@ export default function DepartmentsPage() {
       console.error('Error creating department:', error);
       toast.error('Failed to create department');
     }
+  };
+
+  const handleEditDepartment = async () => {
+    if (!selectedDept) return;
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`${API_URL}/admin/departments/${selectedDept.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(editForm),
+      });
+      if (response.ok) {
+        toast.success('Department updated successfully');
+        setIsEditDialogOpen(false);
+        fetchDepartments();
+      } else {
+        toast.error('Failed to update department');
+      }
+    } catch (error) {
+      toast.error('Failed to update department');
+    }
+  };
+
+  const handleDeleteDepartment = async () => {
+    if (!selectedDept) return;
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`${API_URL}/admin/departments/${selectedDept.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        toast.success('Department deleted');
+        setIsDeleteDialogOpen(false);
+        setSelectedDept(null);
+        fetchDepartments();
+      } else {
+        toast.error('Failed to delete department');
+      }
+    } catch (error) {
+      toast.error('Failed to delete department');
+    }
+  };
+
+  const openEditDialog = (dept: Department) => {
+    setSelectedDept(dept);
+    setEditForm({ name: dept.name, code: dept.code, description: dept.description || '' });
+    setIsEditDialogOpen(true);
   };
 
   return (
@@ -165,10 +221,10 @@ export default function DepartmentsPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEditDialog(dept)}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={() => { setSelectedDept(dept); setIsDeleteDialogOpen(true); }}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -189,6 +245,50 @@ export default function DepartmentsPage() {
           ))
         )}
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">Edit Department</DialogTitle>
+            <DialogDescription className="text-slate-400">Update department details</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-slate-300">Department Name</Label>
+              <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-slate-300">Department Code</Label>
+              <Input value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-slate-300">Description</Label>
+              <Input value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditDepartment} className="bg-violet-600 hover:bg-violet-700">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">Delete Department</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Are you sure you want to delete <span className="text-white font-medium">{selectedDept?.name}</span>? This will affect all associated courses and students.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteDepartment}>Delete Department</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
