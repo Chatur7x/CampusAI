@@ -1,73 +1,52 @@
-# React + TypeScript + Vite
+# AI-SmartAttendance
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A campus management experience that fuses AI face/biometric tools, blockchain-backed audit trails, and realtime analytics for admins, faculty, and students. The workspace includes:
 
-Currently, two official plugins are available:
+- A **React + TypeScript + Vite** front-end with modular dashboards, context providers, and a fully themed UI kit.
+- A **Node/Express** backend that unwraps authentication, attendance, timetable, analytics, and notification services plus Prisma/SQL models.
+- **Supabase functions** and migrations wiring blockchain verification, analytics, and face verification helpers for serverless tooling.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Key Capabilities
 
-## React Compiler
+1. **Auto role detection login** removes manual dropdowns and routes users to their portal based on JWT-scoped roles sent by the server.
+2. **Dual attendance experience** lets faculty choose manual grids or smart face/biometric recognition with live present/absent stats and bulk support.
+3. **Timetable-integrated workflows** enable faculty to launch attendance sessions from a weekly view while students see ✅/❌/⏳ indicators per slot.
+4. **Student registration** is a guided multi-step intake with India-specific address autofill, notifications, and credential emails.
+5. **Student dashboard** keeps attendance front and center with a large gauge, safe-absence math, and contextual notices.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Languages
 
-## Expanding the ESLint configuration
+The codebase primarily uses:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **TypeScript** – React components, backend controllers, hooks, contexts, services, and CLI tooling across `src/` and `server/src/`.
+- **SQL / Prisma schema** – Supabase migrations, functions, and ORM layers (Prisma models, raw SQL migrations) for data shape and RLS.
+- **JavaScript/TypeScript configs & JSON** – build tooling (`vite`, ESLint, tsconfig), Supabase function manifests, and mock helpers.
+- **Markdown** – documentation, feature briefs, and guides in `/README*.md` and `/docs`.
+- **Shell / PowerShell** scripts – workspace utilities, CI helpers, and devOps snippets (PowerShell module uses). 
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+```bash
+# install workspace deps
+npm install
+cd server && npm install
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# run both apps (use your preferred terminal multiplexer)
+npm run dev      # front-end
+cd server && npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Set up Supabase locally (see `/supabase/`), run migrations, and seed data as needed. Supabase functions live under `/supabase/functions` and can be deployed via `supabase deploy` if you push to a hosted project.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Folder Highlights
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- `src/` – Vite React app with dashboards, hooks, context, components, and pages.
+- `server/src/` – Express controllers, Prisma integration, attendance/timetable services, and audit logging.
+- `supabase/` – migrations, SQL seed scripts, and edge functions for analytics, notifications, bulk flows, and face verification.
+- `docs/` – supplemental guides (if present); `README_COMPLETE.md`, `QUICK_START.md`, and others expand the story.
+
+## Next Steps
+
+- Re-run `npm run lint` and `npm run test` if new logic is added.
+- Push changes to `main` and monitor GitHub language stats; feel free to add `.gitattributes` to control Linguist if needed.
+- Connect to Supabase or Postgres with `.env.local` to hydrate services and run the Prisma client migrations.
