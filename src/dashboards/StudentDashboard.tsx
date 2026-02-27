@@ -57,7 +57,7 @@ export default function StudentDashboard() {
   const handleLogout = () => {
     logout();
     toast.success('Logged out successfully');
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   const getInitials = (name: string) => {
@@ -131,7 +131,8 @@ export default function StudentDashboard() {
                   <p className="text-sm font-medium text-white">
                     {user?.profile?.firstName} {user?.profile?.lastName}
                   </p>
-                  <p className="text-xs text-slate-400">{student?.enrollmentId}</p>
+                  <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
+                  <p className="text-[11px] text-slate-500">{student?.enrollmentId}</p>
                 </div>
                 <ChevronDown className="w-4 h-4 text-slate-400" />
               </Button>
@@ -157,6 +158,9 @@ export default function StudentDashboard() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button onClick={handleLogout} className="mt-3 w-full" variant="secondary">
+            Logout
+          </Button>
         </div>
       </aside>
 

@@ -4,32 +4,38 @@ import { Clock, MapPin, User } from 'lucide-react';
 
 const schedule = {
   1: [
-    { time: '9:00 - 10:30', subject: 'Data Structures', faculty: 'Dr. Smith', room: '301' },
-    { time: '11:00 - 12:30', subject: 'Algorithms', faculty: 'Dr. Johnson', room: '302' },
-    { time: '14:00 - 15:30', subject: 'Database Systems', faculty: 'Dr. Williams', room: '303' },
+    { time: '9:00 - 10:30', subject: 'Data Structures', faculty: 'Dr. Smith', room: '301', status: 'PRESENT' },
+    { time: '11:00 - 12:30', subject: 'Algorithms', faculty: 'Dr. Johnson', room: '302', status: 'ABSENT' },
+    { time: '14:00 - 15:30', subject: 'Database Systems', faculty: 'Dr. Williams', room: '303', status: 'UPCOMING' },
   ],
   2: [
-    { time: '9:00 - 10:30', subject: 'Web Development', faculty: 'Prof. Brown', room: '401' },
-    { time: '11:00 - 12:30', subject: 'Data Structures', faculty: 'Dr. Smith', room: '301' },
+    { time: '9:00 - 10:30', subject: 'Web Development', faculty: 'Prof. Brown', room: '401', status: 'PRESENT' },
+    { time: '11:00 - 12:30', subject: 'Data Structures', faculty: 'Dr. Smith', room: '301', status: 'PRESENT' },
   ],
   3: [
-    { time: '9:00 - 10:30', subject: 'Algorithms', faculty: 'Dr. Johnson', room: '302' },
-    { time: '11:00 - 12:30', subject: 'Database Systems', faculty: 'Dr. Williams', room: '303' },
-    { time: '14:00 - 15:30', subject: 'Web Development', faculty: 'Prof. Brown', room: '401' },
+    { time: '9:00 - 10:30', subject: 'Algorithms', faculty: 'Dr. Johnson', room: '302', status: 'UPCOMING' },
+    { time: '11:00 - 12:30', subject: 'Database Systems', faculty: 'Dr. Williams', room: '303', status: 'UPCOMING' },
+    { time: '14:00 - 15:30', subject: 'Web Development', faculty: 'Prof. Brown', room: '401', status: 'UPCOMING' },
   ],
   4: [
-    { time: '9:00 - 10:30', subject: 'Data Structures', faculty: 'Dr. Smith', room: '301' },
-    { time: '11:00 - 12:30', subject: 'Algorithms', faculty: 'Dr. Johnson', room: '302' },
+    { time: '9:00 - 10:30', subject: 'Data Structures', faculty: 'Dr. Smith', room: '301', status: 'UPCOMING' },
+    { time: '11:00 - 12:30', subject: 'Algorithms', faculty: 'Dr. Johnson', room: '302', status: 'UPCOMING' },
   ],
   5: [
-    { time: '9:00 - 10:30', subject: 'Database Systems', faculty: 'Dr. Williams', room: '303' },
-    { time: '11:00 - 12:30', subject: 'Web Development', faculty: 'Prof. Brown', room: '401' },
+    { time: '9:00 - 10:30', subject: 'Database Systems', faculty: 'Dr. Williams', room: '303', status: 'UPCOMING' },
+    { time: '11:00 - 12:30', subject: 'Web Development', faculty: 'Prof. Brown', room: '401', status: 'UPCOMING' },
   ],
 };
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 export default function StudentTimetablePage() {
+  const renderStatus = (status: string) => {
+    if (status === 'PRESENT') return <span className="text-emerald-400">✅ Present</span>;
+    if (status === 'ABSENT') return <span className="text-red-400">❌ Absent</span>;
+    return <span className="text-slate-400">⏳ Upcoming</span>;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -64,6 +70,7 @@ export default function StudentTimetablePage() {
                         <MapPin className="w-3 h-3" />
                         Room {slot.room}
                       </span>
+                      <span className="ml-auto text-xs font-semibold">{renderStatus(slot.status)}</span>
                     </div>
                   </div>
                 )) || (

@@ -45,5 +45,5 @@ export const onAuthStateChange = (callback: (event: string, session: unknown) =>
 };
 
 // Export types
-export type { Database } from './database.types';
+export type { Database } from './database.types.ts';
 export type SupabaseClient = typeof supabase;

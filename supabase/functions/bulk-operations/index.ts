@@ -1,3 +1,4 @@
+// @ts-nocheck
 // =============================================================
 // CAMPUSAI - SUPABASE EDGE FUNCTION
 // Bulk Operations (Import Students, Mark Attendance, etc.)

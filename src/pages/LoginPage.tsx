@@ -1,15 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
-import { Github, Mail, Loader } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
+import { Loader, Sparkles, Shield, Fingerprint, ScanFace } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, signInWithOAuth } = useSupabaseAuth();
+  const { user, isLoading: authLoading, login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [detectedRole, setDetectedRole] = useState<string>("Awaiting input");
+
+  const detectRoleFromEmail = (value: string) => {
+    const lower = value.toLowerCase();
+    if (!value) return "Awaiting input";
+    if (lower.includes("admin")) return "ADMIN";
+    if (lower.includes("super")) return "SUPER_ADMIN";
+    if (lower.includes("faculty") || lower.includes("prof") || lower.includes("teacher")) return "FACULTY";
+    if (lower.includes("incharge") || lower.includes("class")) return "CLASS_INCHARGE";
+    return "STUDENT";
+  };
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -24,53 +35,27 @@ export default function LoginPage() {
     }
   }, [user, authLoading, navigate]);
 
-  const handleGitHubLogin = async () => {
-    setError("");
-    setIsLoading(true);
-
-    try {
-      const result = await signInWithOAuth("github");
-      if (!result.success) {
-        setError(result.error || "GitHub login failed");
-      }
-      // Supabase OAuth handles redirect automatically
-    } catch (err) {
-      setError("GitHub login error. Please try again.");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMagicLinkLogin = async (e: React.FormEvent) => {
+  const handleCredentialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
 
-    if (!email) {
-      setError("Please enter your email");
+    if (!email || !password) {
+      setError("Email and password are required");
       setIsLoading(false);
       return;
     }
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (signInError) {
-        setError(signInError.message);
-      } else {
-        setError(""); // Clear error on success
-        // Show success message instead
-        alert("Check your email for the login link!");
-        setEmail("");
+      const result = await login(email, password);
+      if (result.detectedRole) {
+        setDetectedRole(result.detectedRole);
+      }
+      if (!result.success) {
+        setError(result.message || "Login failed");
       }
     } catch (err) {
-      setError("Magic link error. Please try again.");
+      setError("Login error. Please try again.");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -92,90 +77,95 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center px-4 py-10">
-      <div className="grid w-full max-w-5xl grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left: Hero */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900/80 to-slate-950 p-8 shadow-2xl">
-          <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_20%_20%,rgba(88,28,135,0.35),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(45,212,191,0.35),transparent_30%),radial-gradient(circle_at_50%_80%,rgba(99,102,241,0.35),transparent_30%)]" />
-          <div className="relative flex h-full flex-col justify-between gap-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-emerald-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                Secure AI-Powered Access
+    <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center px-4 py-10 relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.15),transparent_35%),radial-gradient(circle_at_70%_10%,rgba(14,165,233,0.15),transparent_30%),radial-gradient(circle_at_50%_80%,rgba(99,102,241,0.12),transparent_30%)]" />
+      <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
+      <div className="absolute -right-16 top-1/3 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
+
+      <div className="grid w-full max-w-6xl grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 items-stretch">
+        {/* Left: 3D hero */}
+        <div className="relative overflow-hidden rounded-3xl border border-slate-800/70 bg-gradient-to-br from-slate-900 via-slate-900/60 to-slate-950 p-8 shadow-[0_25px_80px_rgba(0,0,0,0.45)] transform-gpu">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.16),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(59,130,246,0.22),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.06),transparent_20%)]" />
+          <div className="absolute inset-8 rounded-2xl border border-white/5 pointer-events-none" />
+          <div className="relative flex h-full flex-col justify-between gap-8">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-emerald-200 shadow-inner shadow-emerald-500/20">
+                <Shield className="w-3.5 h-3.5" />
+                Zero-click role detection
               </div>
-              <h1 className="text-3xl font-semibold leading-tight text-white">
-                AI-SmartAttendance
-              </h1>
-              <p className="text-sm text-slate-300">
-                Campus management system with AI-powered face recognition, blockchain verification, and real-time analytics.
-              </p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-emerald-300">
+                  <Sparkles className="w-4 h-4" />
+                  AI-SmartAttendance
+                </div>
+                <h1 className="text-4xl lg:text-5xl font-semibold leading-tight text-white">Glassmorphic 3D Access</h1>
+                <p className="text-sm text-slate-300 max-w-2xl">
+                  Secure entry with automatic role discovery. Facial or biometric verification ready, blockchain-backed audit, and instant routing to the right portal.
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-4 text-sm text-slate-300">
-              <div className="flex gap-3">
-                <div className="h-5 w-5 rounded bg-emerald-400/20 flex items-center justify-center text-emerald-400 flex-shrink-0">✓</div>
-                <div>Real-time attendance tracking with AI face recognition</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 backdrop-blur">
+                <div className="flex items-center gap-2 text-emerald-300 text-sm mb-2">
+                  <ScanFace className="w-4 h-4" /> AI Face / Device Biometrics
+                </div>
+                <p className="text-slate-200 text-sm leading-relaxed">Smart attendance, liveness checks, and instant percentage updates.</p>
               </div>
-              <div className="flex gap-3">
-                <div className="h-5 w-5 rounded bg-emerald-400/20 flex items-center justify-center text-emerald-400 flex-shrink-0">✓</div>
-                <div>Blockchain-verified attendance records</div>
-              </div>
-              <div className="flex gap-3">
-                <div className="h-5 w-5 rounded bg-emerald-400/20 flex items-center justify-center text-emerald-400 flex-shrink-0">✓</div>
-                <div>Advanced analytics and reporting</div>
+              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 backdrop-blur">
+                <div className="flex items-center gap-2 text-cyan-300 text-sm mb-2">
+                  <Fingerprint className="w-4 h-4" /> Blockchain-grade security
+                </div>
+                <p className="text-slate-200 text-sm leading-relaxed">Immutable records, audit-ready trails, and role-aware routing.</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Right: Login Form */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl backdrop-blur">
-          <div className="mb-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Welcome</p>
-            <h2 className="text-2xl font-semibold text-white">Sign in to your account</h2>
-          </div>
-
-          {error && (
-            <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {/* GitHub OAuth */}
-            <button
-              onClick={handleGitHubLogin}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-slate-700 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isLoading ? (
-                <Loader className="w-4 h-4 animate-spin" />
-              ) : (
-                <Github className="w-4 h-4" />
-              )}
-              {isLoading ? "Connecting..." : "Continue with GitHub"}
-            </button>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-800" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-slate-900 px-2 text-slate-500">Or</span>
+        <div className="relative rounded-3xl border border-slate-800/70 bg-slate-900/70 backdrop-blur-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.45)] transform-gpu">
+          <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-white/3 via-transparent to-white/2 pointer-events-none" />
+          <div className="relative space-y-6">
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Welcome back</p>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-2xl font-semibold text-white">Sign in</h2>
+                <div className="rounded-full border border-slate-700 bg-slate-800/70 px-3 py-1 text-xs text-slate-300">
+                  Auto-detected: <span className="text-emerald-300 font-semibold">{detectedRole}</span>
+                </div>
               </div>
             </div>
 
-            {/* Magic Link Form */}
-            <form onSubmit={handleMagicLinkLogin} className="space-y-3">
+            {error && (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleCredentialLogin} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm text-slate-200">Email Address</label>
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setDetectedRole(detectRoleFromEmail(e.target.value));
+                  }}
                   placeholder="you@university.edu"
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-slate-200">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
                   required
                 />
               </div>
@@ -183,28 +173,26 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
+                className="w-full group relative overflow-hidden rounded-xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {isLoading ? (
-                  <Loader className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Mail className="w-4 h-4" />
-                )}
-                {isLoading ? "Sending..." : "Send Magic Link"}
+                <span className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition" />
+                <div className="relative flex items-center justify-center gap-2">
+                  {isLoading ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                  {isLoading ? "Signing in..." : "Enter Campus"}
+                </div>
               </button>
             </form>
 
-            {/* Info Text */}
-            <p className="text-xs text-slate-400 text-center pt-2">
-              We'll send you a secure login link via email.
-            </p>
-          </div>
-
-          {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-slate-800">
-            <p className="text-xs text-slate-500 text-center">
-              By signing in, you agree to our Terms of Service and Privacy Policy
-            </p>
+            <div className="pt-4 grid grid-cols-2 gap-2 text-xs text-slate-400">
+              <div className="rounded-lg border border-slate-800/60 bg-slate-900/60 p-3">
+                <p className="font-semibold text-white text-sm mb-1">Biometric ready</p>
+                <p>Facial + fingerprint options when faculty runs Smart Attendance.</p>
+              </div>
+              <div className="rounded-lg border border-slate-800/60 bg-slate-900/60 p-3">
+                <p className="font-semibold text-white text-sm mb-1">Role-aware routing</p>
+                <p>Redirects automatically to Admin, Faculty, or Student dashboards.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

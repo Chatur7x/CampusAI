@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Camera, Users, CheckCircle, XCircle } from 'lucide-react';
+import { Camera, Users, CheckCircle, XCircle, Fingerprint, Brain, Clock3 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Student {
@@ -24,8 +25,12 @@ const mockStudents: Student[] = [
 ];
 
 export default function AttendanceSessionPage() {
+  const location = useLocation();
+  const classContext = (location.state as { className?: string; subject?: string; slot?: string }) || {};
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [isSessionActive, setIsSessionActive] = useState(false);
+  const [mode, setMode] = useState<'MANUAL' | 'SMART'>('MANUAL');
+  const [smartMethod, setSmartMethod] = useState<'FACE' | 'FINGERPRINT'>('FACE');
 
   const startSession = () => {
     setIsSessionActive(true);
@@ -58,12 +63,28 @@ export default function AttendanceSessionPage() {
   const absentCount = students.filter(s => s.status === 'ABSENT').length;
   const pendingCount = students.filter(s => s.status === 'PENDING').length;
 
+  const stats = useMemo(() => {
+    const required = 75;
+    const totalRecorded = presentCount + absentCount;
+    const currentPct = totalRecorded ? (presentCount / totalRecorded) * 100 : 0;
+    const classesNeeded = Math.max(0, Math.ceil(((required * totalRecorded) / 100 - presentCount) / ((100 - required) / 100)));
+    const safeAbsences = Math.max(0, Math.floor((presentCount - (required * totalRecorded) / 100) / (required / 100)));
+    return {
+      currentPct: Math.round(currentPct * 10) / 10,
+      classesNeeded,
+      safeAbsences,
+      required,
+    };
+  }, [absentCount, presentCount]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Attendance Session</h1>
-          <p className="text-slate-400">Mark attendance for your classes</p>
+          <p className="text-slate-400">
+            {classContext.subject ? `${classContext.subject} • ${classContext.className || 'Class'} • ${classContext.slot || 'Current slot'}` : 'Mark attendance for your classes'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {!isSessionActive ? (
@@ -79,31 +100,41 @@ export default function AttendanceSessionPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{presentCount}</p>
-            <p className="text-sm text-slate-400">Present</p>
+            <p className="text-xs text-slate-400">Present</p>
+            <p className="text-3xl font-bold text-emerald-400">{presentCount}</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-red-400">{absentCount}</p>
-            <p className="text-sm text-slate-400">Absent</p>
+            <p className="text-xs text-slate-400">Absent</p>
+            <p className="text-3xl font-bold text-red-400">{absentCount}</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-amber-400">{pendingCount}</p>
-            <p className="text-sm text-slate-400">Pending</p>
+            <p className="text-xs text-slate-400">Pending</p>
+            <p className="text-3xl font-bold text-amber-400">{pendingCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-4">
+            <p className="text-xs text-slate-400">Real-time calculation</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-3xl font-bold text-white">{stats.currentPct}%</p>
+              <span className="text-xs text-slate-500">vs {stats.required}% required</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">Classes needed: {stats.classesNeeded} • Safe misses: {stats.safeAbsences}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="manual" className="w-full">
+      <Tabs value={mode === 'MANUAL' ? 'manual' : 'smart'} onValueChange={(v) => setMode(v === 'manual' ? 'MANUAL' : 'SMART')} className="w-full">
         <TabsList className="bg-slate-800/50">
-          <TabsTrigger value="manual">Manual Entry</TabsTrigger>
-          <TabsTrigger value="face">Face Recognition</TabsTrigger>
+          <TabsTrigger value="manual">Manual</TabsTrigger>
+          <TabsTrigger value="smart">Smart (Face / Biometric)</TabsTrigger>
         </TabsList>
 
         <TabsContent value="manual" className="mt-4">
@@ -167,18 +198,68 @@ export default function AttendanceSessionPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="face" className="mt-4">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="p-12 text-center">
-              <Camera className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-white mb-2">Face Recognition Attendance</h3>
-              <p className="text-slate-400 mb-4">Use the camera to automatically mark attendance</p>
-              <Button className="bg-cyan-600 hover:bg-cyan-700">
-                <Camera className="w-4 h-4 mr-2" />
-                Open Camera
-              </Button>
-            </CardContent>
-          </Card>
+        <TabsContent value="smart" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-4">
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-emerald-400" /> Smart Attendance
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Button variant={smartMethod === 'FACE' ? 'default' : 'secondary'} onClick={() => setSmartMethod('FACE')} className="flex-1">
+                    <Camera className="w-4 h-4 mr-2" /> Face Recognition
+                  </Button>
+                  <Button variant={smartMethod === 'FINGERPRINT' ? 'default' : 'secondary'} onClick={() => setSmartMethod('FINGERPRINT')} className="flex-1">
+                    <Fingerprint className="w-4 h-4 mr-2" /> Fingerprint
+                  </Button>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-center">
+                  {smartMethod === 'FACE' ? (
+                    <>
+                      <Camera className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                      <p className="text-white font-semibold">Camera ready</p>
+                      <p className="text-sm text-slate-400">Start scan to auto-mark present students with confidence scores.</p>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-12 h-12 text-cyan-400 mx-auto mb-3" />
+                      <p className="text-white font-semibold">Fingerprint ready</p>
+                      <p className="text-sm text-slate-400">Use device biometrics; we will sync in real-time.</p>
+                    </>
+                  )}
+                  <div className="flex items-center justify-center gap-2 text-xs text-slate-400 mt-3">
+                    <Clock3 className="w-3 h-3" /> Real-time percentage recalculates after each scan
+                  </div>
+                  <Button className="mt-4" onClick={() => toast.success('Smart attendance started (simulated)')}>
+                    Start Smart Session
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white">Live Calculation</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-slate-300">
+                <div className="flex items-center justify-between">
+                  <span>Current %</span>
+                  <span className="font-semibold text-white">{stats.currentPct}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Classes needed (to reach {stats.required}%)</span>
+                  <span className="font-semibold text-emerald-300">{stats.classesNeeded}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Safe absences</span>
+                  <span className="font-semibold text-amber-300">{stats.safeAbsences}</span>
+                </div>
+                <p className="text-xs text-slate-500">Formula: Current% = (Present / Total) × 100; ClassesNeeded = ceil((Required% × Total - Present) / (100 - Required%)); SafeAbsences = floor((Present - Required% × Total) / Required%).</p>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

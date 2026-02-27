@@ -41,6 +41,7 @@ import AttendanceSessionPage from '@/pages/faculty/AttendanceSession';
 import FacultyAnalyticsPage from '@/pages/faculty/Analytics';
 import FacultyNoticesPage from '@/pages/faculty/Notices';
 import FacultySettingsPage from '@/pages/faculty/Settings';
+import StudentRegistrationPage from '@/pages/admin/StudentRegistration';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/faculty' },
@@ -51,6 +52,7 @@ const sidebarItems = [
   { icon: BarChart3, label: 'Analytics', path: '/faculty/analytics' },
   { icon: Bell, label: 'Notices', path: '/faculty/notices' },
   { icon: Settings, label: 'Settings', path: '/faculty/settings' },
+  { icon: User, label: 'Register Student', path: '/faculty/register-student' },
 ];
 
 export default function FacultyDashboard() {
@@ -62,7 +64,7 @@ export default function FacultyDashboard() {
   const handleLogout = () => {
     logout();
     toast.success('Logged out successfully');
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   const getInitials = (name: string) => {
@@ -136,7 +138,8 @@ export default function FacultyDashboard() {
                   <p className="text-sm font-medium text-white">
                     {user?.profile?.firstName} {user?.profile?.lastName}
                   </p>
-                  <p className="text-xs text-slate-400">{faculty?.designation}</p>
+                  <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
+                  <p className="text-[11px] text-slate-500">{faculty?.designation}</p>
                 </div>
                 <ChevronDown className="w-4 h-4 text-slate-400" />
               </Button>
@@ -162,6 +165,9 @@ export default function FacultyDashboard() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button onClick={handleLogout} className="mt-3 w-full" variant="secondary">
+            Logout
+          </Button>
         </div>
       </aside>
 
@@ -237,6 +243,7 @@ export default function FacultyDashboard() {
             <Route path="/analytics" element={<FacultyAnalyticsPage />} />
             <Route path="/notices" element={<FacultyNoticesPage />} />
             <Route path="/settings" element={<FacultySettingsPage />} />
+            <Route path="/register-student" element={<StudentRegistrationPage />} />
           </Routes>
         </div>
       </main>

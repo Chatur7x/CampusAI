@@ -6,7 +6,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { User as SupabaseUser, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { Profile, Student, Faculty, UserRole } from '@/lib/database.types';
+import type { Profile, Student, Faculty, UserRole } from '@/lib/database.types.ts';
 
 // =============================================================
 // TYPES

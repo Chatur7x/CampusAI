@@ -1,6 +1,16 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, BookOpen, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, BookOpen, TrendingUp, ListChecks } from 'lucide-react';
+
+const roster = {
+  '1': ['John Doe', 'Jane Smith', 'Bob Johnson', 'Alice Brown'],
+  '2': ['Ravi Kumar', 'Aditi Singh', 'Meena Patel'],
+  '3': ['Carlos Diaz', 'Fatima Noor', 'Chen Wei'],
+  '4': ['Rohan Roy', 'Sneha Iyer', 'Arjun Menon'],
+};
 
 const classes = [
   { id: '1', name: 'CSE-A', subject: 'Data Structures', students: 45, attendance: 92 },
@@ -10,6 +20,19 @@ const classes = [
 ];
 
 export default function MyClassesPage() {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const openAttendance = (cls: typeof classes[number]) => {
+    navigate('/faculty/attendance', {
+      state: {
+        className: cls.name,
+        subject: cls.subject,
+        slot: 'From My Classes',
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -39,7 +62,29 @@ export default function MyClassesPage() {
                   <TrendingUp className="w-4 h-4" />
                   <span>{cls.attendance}% Attendance</span>
                 </div>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => openAttendance(cls)}>
+                    Mark Attendance
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setExpanded(expanded === cls.id ? null : cls.id)}>
+                    <ListChecks className="w-4 h-4 mr-1" />
+                    {expanded === cls.id ? 'Hide Roster' : 'View Roster'}
+                  </Button>
+                </div>
               </div>
+              {expanded === cls.id && (
+                <div className="mt-4 rounded-lg border border-slate-800 bg-slate-800/40 p-4 text-sm text-slate-200">
+                  <p className="font-semibold mb-2">Enrolled students</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-slate-300">
+                    {(roster[cls.id] || []).map((name) => (
+                      <div key={name} className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                        {name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

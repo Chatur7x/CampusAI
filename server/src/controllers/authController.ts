@@ -10,7 +10,7 @@ import crypto from 'crypto';
 
 export const login = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { email, password, role } = req.body as LoginRequest;
+    const { email, password } = req.body as LoginRequest;
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -54,12 +54,6 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
       });
 
       res.status(401).json({ success: false, message: 'Invalid credentials' });
-      return;
-    }
-
-    // Check role
-    if (role && user.role !== role) {
-      res.status(403).json({ success: false, message: 'Invalid role selected' });
       return;
     }
 

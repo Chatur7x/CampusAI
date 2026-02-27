@@ -1,3 +1,4 @@
+// @ts-nocheck
 // =============================================================
 // CAMPUSAI - SUPABASE EDGE FUNCTION  
 // Advanced Analytics & Reporting

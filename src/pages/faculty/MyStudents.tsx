@@ -1,6 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { GraduationCap, TrendingDown, AlertCircle } from 'lucide-react';
 
@@ -13,6 +15,8 @@ const students = [
 ];
 
 export default function MyStudentsPage() {
+  const navigate = useNavigate();
+
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'HIGH':
@@ -26,9 +30,14 @@ export default function MyStudentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">My Students</h1>
-        <p className="text-slate-400">View and manage your students</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">My Students</h1>
+          <p className="text-slate-400">View and manage your students</p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={() => navigate('/faculty/register-student')}>
+          Register new student
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

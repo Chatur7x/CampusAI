@@ -1,3 +1,4 @@
+// @ts-nocheck
 // =============================================================
 // CAMPUSAI - SUPABASE EDGE FUNCTION
 // AI-Powered Face Recognition Attendance

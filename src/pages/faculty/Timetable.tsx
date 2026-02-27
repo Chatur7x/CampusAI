@@ -1,6 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
-import { Clock, MapPin, BookOpen } from 'lucide-react';
+import { Clock, MapPin, BookOpen, CheckCircle } from 'lucide-react';
 
 const schedule = {
   1: [ // Monday
@@ -30,6 +32,18 @@ const schedule = {
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 export default function FacultyTimetablePage() {
+  const navigate = useNavigate();
+
+  const goToAttendance = (day: string, slot: { time: string; subject: string; class: string; room: string }) => {
+    navigate('/faculty/attendance', {
+      state: {
+        className: slot.class,
+        subject: slot.subject,
+        slot: `${day} • ${slot.time}`,
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -48,9 +62,9 @@ export default function FacultyTimetablePage() {
                 {schedule[index + 1 as keyof typeof schedule]?.map((slot, i) => (
                   <div
                     key={i}
-                    className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10"
+                    className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10 space-y-3"
                   >
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-cyan-400" />
                       <span className="text-sm text-cyan-400">{slot.time}</span>
                     </div>
@@ -64,6 +78,14 @@ export default function FacultyTimetablePage() {
                         <MapPin className="w-3 h-3" />
                         Room {slot.room}
                       </span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="text-xs text-cyan-300 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Tap to mark attendance directly from timetable
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => goToAttendance(day, slot)}>
+                        Mark Attendance
+                      </Button>
                     </div>
                   </div>
                 )) || (

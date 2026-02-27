@@ -13,7 +13,7 @@ export interface AuthenticatedRequest extends Request {
 export interface LoginRequest {
   email: string;
   password: string;
-  role: UserRole;
+  role?: UserRole; // optional: API auto-detects when omitted
 }
 
 export interface RegisterRequest {

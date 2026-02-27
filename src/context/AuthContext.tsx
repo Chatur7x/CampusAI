@@ -7,7 +7,7 @@ interface AuthContextType {
   faculty: Faculty | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, role: UserRole) => Promise<{ success: boolean; requireMFA?: boolean; userId?: string; message?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; detectedRole?: UserRole; requireMFA?: boolean; userId?: string; message?: string }>;
   verifyMFA: (userId: string, otp: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   refreshToken: () => Promise<boolean>;
@@ -85,20 +85,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, _password: string, role: UserRole) => {
+  const detectRoleFromEmail = (email: string): UserRole => {
+    const lower = email.toLowerCase();
+    if (lower.includes('admin')) return 'ADMIN';
+    if (lower.includes('super')) return 'SUPER_ADMIN';
+    if (lower.includes('faculty') || lower.includes('prof') || lower.includes('teacher')) return 'FACULTY';
+    if (lower.includes('incharge') || lower.includes('class')) return 'CLASS_INCHARGE';
+    return 'STUDENT';
+  };
+
+  const login = async (email: string, _password: string) => {
     try {
       if (DEMO_MODE) {
         // Simulate network delay
         await new Promise(resolve => setTimeout(resolve, 800));
         
-        // Accept any password in demo mode
-        const mockUser = createMockUser(email, role);
+        // Auto-detect role from email and accept any password in demo mode
+        const detectedRole = detectRoleFromEmail(email);
+        const mockUser = createMockUser(email, detectedRole);
         let mockStudent: Student | null = null;
         let mockFaculty: Faculty | null = null;
         
-        if (role === 'STUDENT') {
+        if (detectedRole === 'STUDENT') {
           mockStudent = createMockStudent(mockUser.id);
-        } else if (role === 'FACULTY' || role === 'CLASS_INCHARGE') {
+        } else if (detectedRole === 'FACULTY' || detectedRole === 'CLASS_INCHARGE') {
           mockFaculty = createMockFaculty(mockUser.id);
         }
         
@@ -108,12 +118,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           student: mockStudent,
           faculty: mockFaculty,
         }));
+        localStorage.setItem('accessToken', 'demo-token');
         
         setUser(mockUser);
         setStudent(mockStudent);
         setFaculty(mockFaculty);
+
+        // Keep token in-memory too for immediate guards
+        setTimeout(() => {
+          setUser((prev) => prev); // trigger state flush
+        }, 0);
         
-        return { success: true };
+        return { success: true, detectedRole };
       }
       
       // Real API call (not used in demo)
@@ -150,6 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('demoUser');
+    localStorage.removeItem('accessToken');
+    sessionStorage.clear();
+    // Clear state so guards redirect
     setUser(null);
     setStudent(null);
     setFaculty(null);

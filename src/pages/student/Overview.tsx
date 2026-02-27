@@ -39,6 +39,8 @@ export default function StudentOverview() {
     safeAbsenceMargin: 3,
   });
 
+  const attendanceColor = attendance.percentage >= 75 ? '#22c55e' : attendance.percentage >= 60 ? '#f59e0b' : '#ef4444';
+
   return (
     <div className="space-y-6">
       <div>
@@ -47,51 +49,46 @@ export default function StudentOverview() {
       </div>
 
       {/* Main Attendance Card */}
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <Card className="bg-slate-900/60 border-slate-800 shadow-[0_25px_60px_rgba(0,0,0,0.35)]">
+        <CardContent className="p-6 md:p-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8">
             <div className="flex items-center gap-6">
-              <div className="relative w-24 h-24">
-                <svg className="w-full h-full transform -rotate-90">
+              <div className="relative w-36 h-36">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="52" stroke="#1e293b" strokeWidth="10" fill="none" />
                   <circle
-                    cx="48"
-                    cy="48"
-                    r="40"
-                    stroke="#1e293b"
-                    strokeWidth="8"
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    stroke={attendanceColor}
+                    strokeWidth="10"
                     fill="none"
-                  />
-                  <circle
-                    cx="48"
-                    cy="48"
-                    r="40"
-                    stroke="#10b981"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeDasharray={`${attendance.percentage * 2.51} 251`}
+                    strokeDasharray={`${attendance.percentage * 3.26} 326`}
                     strokeLinecap="round"
+                    className="drop-shadow-[0_0_12px_rgba(34,197,94,0.35)]"
                   />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-white">{attendance.percentage}%</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-4xl font-bold text-white leading-none">{attendance.percentage}%</span>
+                  <span className="text-xs text-slate-400 mt-1">Your Attendance</span>
                 </div>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Your Attendance</h3>
-                <p className="text-slate-400">
+                <h3 className="text-lg font-semibold text-white">Live status</h3>
+                <p className="text-slate-400 text-sm">
                   {attendance.present} Present • {attendance.absent} Absent • {attendance.late} Late
                 </p>
-                <Badge className="mt-2 bg-emerald-500/20 text-emerald-400">
+                <Badge className={`mt-2 ${attendance.percentage >= 75 ? 'bg-emerald-500/20 text-emerald-300' : attendance.percentage >= 60 ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/20 text-red-300'}`}>
                   {attendance.riskLevel} RISK
                 </Badge>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="text-right">
+            <div className="flex flex-col items-end gap-3 text-right">
+              <div>
                 <p className="text-sm text-slate-400">Safe Absence Margin</p>
-                <p className="text-2xl font-bold text-emerald-400">{attendance.safeAbsenceMargin} days</p>
+                <p className="text-3xl font-bold text-emerald-400">{attendance.safeAbsenceMargin} days</p>
               </div>
-              <p className="text-xs text-slate-500">You can miss {attendance.safeAbsenceMargin} more classes</p>
+              <p className="text-xs text-slate-500">You can miss {attendance.safeAbsenceMargin} more classes before dropping below 75%.</p>
             </div>
           </div>
         </CardContent>

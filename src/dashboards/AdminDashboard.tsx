@@ -49,6 +49,7 @@ import BlockchainPage from '@/pages/admin/Blockchain';
 import AnalyticsPage from '@/pages/admin/Analytics';
 import NoticesPage from '@/pages/admin/Notices';
 import SettingsPage from '@/pages/admin/Settings';
+import StudentRegistrationPage from '@/pages/admin/StudentRegistration';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
@@ -56,6 +57,7 @@ const sidebarItems = [
   { icon: BookOpen, label: 'Courses', path: '/admin/courses' },
   { icon: Users, label: 'Classes', path: '/admin/classes' },
   { icon: GraduationCap, label: 'Students', path: '/admin/students' },
+  { icon: User, label: 'Register Student', path: '/admin/register-student' },
   { icon: User, label: 'Faculty', path: '/admin/faculty' },
   { icon: Calendar, label: 'Timetable', path: '/admin/timetable' },
   { icon: ShieldAlert, label: 'Security', path: '/admin/security' },
@@ -74,7 +76,7 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     logout();
     toast.success('Logged out successfully');
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   const getInitials = (name: string) => {
@@ -120,10 +122,11 @@ export default function AdminDashboard() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-white/10 text-white border-violet-400/40 shadow-[0_0_0_1px_rgba(139,92,246,0.25)]'
-                      : 'text-slate-300 border-transparent hover:border-slate-700 hover:bg-white/5 hover:text-white'
+                      ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -134,46 +137,25 @@ export default function AdminDashboard() {
           </nav>
         </ScrollArea>
 
-        {/* User Profile */}
+        {/* User footer */}
         <div className="p-4 border-t border-slate-800/70">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start gap-3 px-3 hover:bg-white/5">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-violet-500/20 text-violet-400 text-sm">
-                    {getInitials(user?.profile?.firstName + ' ' + user?.profile?.lastName || 'Admin User')}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-white">
-                    {user?.profile?.firstName} {user?.profile?.lastName}
-                  </p>
-                  <p className="text-xs text-slate-400">{user?.email}</p>
-                </div>
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              </Button>
-            </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-slate-900/95 backdrop-blur border-slate-800">
-              <DropdownMenuLabel className="text-slate-400">My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-slate-800" />
-              <DropdownMenuItem className="text-white hover:bg-slate-800 cursor-pointer">
-                <User className="w-4 h-4 mr-2" />
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-white hover:bg-slate-800 cursor-pointer">
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-800" />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                className="text-red-400 hover:bg-red-500/10 cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-3">
+            <Avatar>
+              <AvatarFallback className="bg-violet-500/20 text-violet-200">
+                {getInitials(user?.profile?.firstName ? `${user.profile.firstName} ${user.profile.lastName ?? ''}` : user?.email || 'U')}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{user?.profile?.firstName || user?.email || 'User'}</p>
+              <p className="text-xs text-slate-500 truncate">{user?.email || 'user@mail.com'}</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+          <Button onClick={handleLogout} className="mt-3 w-full" variant="secondary">
+            Logout
+          </Button>
         </div>
       </aside>
 
@@ -208,7 +190,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 </div>
-                <ScrollArea className="h-[calc(100vh-140px)] py-4">
+                <ScrollArea className="h-[calc(100vh-200px)] py-4">
                   <nav className="px-3 space-y-1">
                     {sidebarItems.map((item) => {
                       const Icon = item.icon;
@@ -231,6 +213,22 @@ export default function AdminDashboard() {
                     })}
                   </nav>
                 </ScrollArea>
+                <div className="p-4 border-t border-slate-800">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback className="bg-violet-500/20 text-violet-200 text-sm">
+                        {getInitials(user?.profile?.firstName ? `${user.profile.firstName} ${user.profile.lastName ?? ''}` : user?.email || 'U')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{user?.profile?.firstName || user?.email || 'User'}</p>
+                      <p className="text-xs text-slate-500 truncate">{user?.email || 'user@mail.com'}</p>
+                    </div>
+                  </div>
+                  <Button onClick={handleLogout} className="w-full" variant="secondary">
+                    <LogOut className="w-4 h-4 mr-2" /> Logout
+                  </Button>
+                </div>
               </SheetContent>
             </Sheet>
           </div>
@@ -246,6 +244,7 @@ export default function AdminDashboard() {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/classes" element={<ClassesPage />} />
             <Route path="/students" element={<StudentsPage />} />
+            <Route path="/register-student" element={<StudentRegistrationPage />} />
             <Route path="/faculty" element={<FacultyPage />} />
             <Route path="/timetable" element={<TimetablePage />} />
             <Route path="/security" element={<SecurityPage />} />

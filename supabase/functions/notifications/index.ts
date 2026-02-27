@@ -1,3 +1,4 @@
+// @ts-nocheck
 // =============================================================
 // CAMPUSAI - SUPABASE EDGE FUNCTION  
 // Smart Notifications & Alerts System

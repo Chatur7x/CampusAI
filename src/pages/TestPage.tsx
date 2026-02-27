@@ -1,7 +1,7 @@
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "@/pages/LoginPage";
-import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Toaster } from "@/components/ui/sonner";
@@ -25,14 +25,14 @@ function Loading() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useSupabaseAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <Loading />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Suspense fallback={<Loading />}>{children}</Suspense>;
 }
 
 function AppRoutes() {
-  const { isAuthenticated, user } = useSupabaseAuth();
+  const { isAuthenticated, user } = useAuth();
 
   return (
     <>
@@ -60,12 +60,12 @@ function AppRoutes() {
 function App() {
   return (
     <ThemeProvider>
-      <SupabaseAuthProvider>
+      <AuthProvider>
         <BrowserRouter>
           <AppRoutes />
           <Toaster richColors position="top-right" />
         </BrowserRouter>
-      </SupabaseAuthProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

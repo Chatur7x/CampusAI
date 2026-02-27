@@ -21,7 +21,7 @@ import type {
   UserRole,
   AttendanceStatus,
   LeaveStatus,
-} from './database.types';
+} from './database.types.ts';
 
 // =============================================================
 // ERROR HANDLING
