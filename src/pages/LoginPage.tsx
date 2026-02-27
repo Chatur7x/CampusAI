@@ -1,330 +1,213 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Spinner } from '@/components/ui/spinner';
-import type { UserRole } from '@/types';
-import { GraduationCap, Users, Shield, Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
-import { toast } from 'sonner';
-
-const roleConfig: Record<string, { label: string; color: string; gradient: string; email: string }> = {
-  STUDENT: {
-    label: 'Student',
-    color: 'text-emerald-500',
-    gradient: 'from-emerald-500/20 to-teal-500/20',
-    email: 'student@campus.edu',
-  },
-  FACULTY: {
-    label: 'Faculty',
-    color: 'text-cyan-500',
-    gradient: 'from-cyan-500/20 to-blue-500/20',
-    email: 'faculty@campus.edu',
-  },
-  ADMIN: {
-    label: 'Admin',
-    color: 'text-violet-500',
-    gradient: 'from-violet-500/20 to-purple-500/20',
-    email: 'admin@campus.edu',
-  },
-};
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { Github, Mail, Loader } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, verifyMFA } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole>('STUDENT');
-  const [email, setEmail] = useState('student@campus.edu');
-  const [password, setPassword] = useState('password');
-  const [otp, setOtp] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const { user, isLoading: authLoading, signInWithOAuth } = useSupabaseAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [requireMFA, setRequireMFA] = useState(false);
-  const [mfaUserId, setMfaUserId] = useState('');
+  const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
 
-  // Auto-fill credentials when role changes
+  // Redirect if already authenticated
   useEffect(() => {
-    setEmail(roleConfig[selectedRole].email);
-    setPassword('password');
-  }, [selectedRole]);
+    if (user && !authLoading) {
+      const dashboardPath =
+        user.role === "SUPER_ADMIN" || user.role === "ADMIN"
+          ? "/admin"
+          : user.role === "FACULTY" || user.role === "CLASS_INCHARGE"
+          ? "/faculty"
+          : "/student";
+      navigate(dashboardPath, { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  const handleGitHubLogin = async () => {
+    setError("");
     setIsLoading(true);
 
-    const result = await login(email, password, selectedRole);
-
-    if (result.success) {
-      if (result.requireMFA) {
-        setRequireMFA(true);
-        setMfaUserId(result.userId || '');
-        toast.info('Please enter the OTP sent to your email');
-      } else {
-        toast.success('Login successful!');
-        navigate('/');
+    try {
+      const result = await signInWithOAuth("github");
+      if (!result.success) {
+        setError(result.error || "GitHub login failed");
       }
-    } else {
-      setError(result.message || 'Login failed');
-      toast.error(result.message || 'Login failed');
+      // Supabase OAuth handles redirect automatically
+    } catch (err) {
+      setError("GitHub login error. Please try again.");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
-  const handleMFAVerify = async (e: React.FormEvent) => {
+  const handleMagicLinkLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setIsLoading(true);
 
-    const result = await verifyMFA(mfaUserId, otp);
-
-    if (result.success) {
-      toast.success('MFA verification successful!');
-      navigate('/');
-    } else {
-      setError(result.message || 'MFA verification failed');
-      toast.error(result.message || 'MFA verification failed');
+    if (!email) {
+      setError("Please enter your email");
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+      } else {
+        setError(""); // Clear error on success
+        // Show success message instead
+        alert("Check your email for the login link!");
+        setEmail("");
+      }
+    } catch (err) {
+      setError("Magic link error. Please try again.");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const quickLogin = (role: UserRole) => {
-    setSelectedRole(role);
-    setEmail(roleConfig[role].email);
-    setPassword('password');
-    toast.info(`Selected ${roleConfig[role].label} role. Click Sign In to continue.`);
-  };
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-full border-2 border-slate-800" />
+            <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-transparent border-t-emerald-500 animate-spin" />
+          </div>
+          <p className="text-sm text-slate-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      {/* Background Gradient */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center px-4 py-10">
+      <div className="grid w-full max-w-5xl grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left: Hero */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900/80 to-slate-950 p-8 shadow-2xl">
+          <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_20%_20%,rgba(88,28,135,0.35),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(45,212,191,0.35),transparent_30%),radial-gradient(circle_at_50%_80%,rgba(99,102,241,0.35),transparent_30%)]" />
+          <div className="relative flex h-full flex-col justify-between gap-6">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                Secure AI-Powered Access
+              </div>
+              <h1 className="text-3xl font-semibold leading-tight text-white">
+                AI-SmartAttendance
+              </h1>
+              <p className="text-sm text-slate-300">
+                Campus management system with AI-powered face recognition, blockchain verification, and real-time analytics.
+              </p>
+            </div>
 
-      <Card className="w-full max-w-lg bg-slate-900/90 backdrop-blur-xl border-slate-800 relative z-10 shadow-2xl">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/20">
-            <GraduationCap className="w-10 h-10 text-white" />
+            <div className="space-y-4 text-sm text-slate-300">
+              <div className="flex gap-3">
+                <div className="h-5 w-5 rounded bg-emerald-400/20 flex items-center justify-center text-emerald-400 flex-shrink-0">✓</div>
+                <div>Real-time attendance tracking with AI face recognition</div>
+              </div>
+              <div className="flex gap-3">
+                <div className="h-5 w-5 rounded bg-emerald-400/20 flex items-center justify-center text-emerald-400 flex-shrink-0">✓</div>
+                <div>Blockchain-verified attendance records</div>
+              </div>
+              <div className="flex gap-3">
+                <div className="h-5 w-5 rounded bg-emerald-400/20 flex items-center justify-center text-emerald-400 flex-shrink-0">✓</div>
+                <div>Advanced analytics and reporting</div>
+              </div>
+            </div>
           </div>
-          <CardTitle className="text-3xl font-bold text-white">CampusAI</CardTitle>
-          <CardDescription className="text-slate-400 mt-2">
-            Academic Management & Smart Attendance Platform
-          </CardDescription>
-        </CardHeader>
+        </div>
 
-        <CardContent className="pt-4">
+        {/* Right: Login Form */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl backdrop-blur">
+          <div className="mb-8">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Welcome</p>
+            <h2 className="text-2xl font-semibold text-white">Sign in to your account</h2>
+          </div>
+
           {error && (
-            <Alert variant="destructive" className="mb-4 bg-red-500/10 border-red-500/20">
-              <AlertDescription className="text-red-400">{error}</AlertDescription>
-            </Alert>
+            <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+              {error}
+            </div>
           )}
 
-          {!requireMFA ? (
-            <form onSubmit={handleLogin} className="space-y-5">
-              {/* Quick Role Selection */}
+          <div className="space-y-4">
+            {/* GitHub OAuth */}
+            <button
+              onClick={handleGitHubLogin}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-slate-700 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isLoading ? (
+                <Loader className="w-4 h-4 animate-spin" />
+              ) : (
+                <Github className="w-4 h-4" />
+              )}
+              {isLoading ? "Connecting..." : "Continue with GitHub"}
+            </button>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-800" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-slate-900 px-2 text-slate-500">Or</span>
+              </div>
+            </div>
+
+            {/* Magic Link Form */}
+            <form onSubmit={handleMagicLinkLogin} className="space-y-3">
               <div className="space-y-2">
-                <Label className="text-slate-300 text-sm">Select Your Role</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['STUDENT', 'FACULTY', 'ADMIN'] as const).map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() => quickLogin(role as UserRole)}
-                      className={`p-3 rounded-xl border transition-all duration-200 ${
-                        selectedRole === role
-                          ? role === 'STUDENT'
-                            ? 'bg-emerald-500/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                            : role === 'FACULTY'
-                            ? 'bg-cyan-500/20 border-cyan-500/50 shadow-lg shadow-cyan-500/10'
-                            : 'bg-violet-500/20 border-violet-500/50 shadow-lg shadow-violet-500/10'
-                          : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center gap-1">
-                        {role === 'STUDENT' && <GraduationCap className={`w-5 h-5 ${selectedRole === role ? 'text-emerald-400' : 'text-slate-400'}`} />}
-                        {role === 'FACULTY' && <Users className={`w-5 h-5 ${selectedRole === role ? 'text-cyan-400' : 'text-slate-400'}`} />}
-                        {role === 'ADMIN' && <Shield className={`w-5 h-5 ${selectedRole === role ? 'text-violet-400' : 'text-slate-400'}`} />}
-                        <span className={`text-xs font-medium ${selectedRole === role ? 'text-white' : 'text-slate-400'}`}>
-                          {roleConfig[role].label}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Selected Role Display */}
-              <div className={`p-4 rounded-xl bg-gradient-to-r ${roleConfig[selectedRole].gradient} border border-slate-700/50`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-slate-900/50 flex items-center justify-center">
-                    {selectedRole === 'STUDENT' && <GraduationCap className="w-5 h-5 text-emerald-400" />}
-                    {selectedRole === 'FACULTY' && <Users className="w-5 h-5 text-cyan-400" />}
-                    {selectedRole === 'ADMIN' && <Shield className="w-5 h-5 text-violet-400" />}
-                  </div>
-                  <div>
-                    <p className={`font-semibold ${roleConfig[selectedRole].color}`}>
-                      {roleConfig[selectedRole].label} Portal
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Access your {roleConfig[selectedRole].label.toLowerCase()} dashboard
-                    </p>
-                  </div>
-                  <ArrowRight className={`w-5 h-5 ml-auto ${roleConfig[selectedRole].color}`} />
-                </div>
-              </div>
-
-              {/* Email Field */}
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-300">
-                  Email Address
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500/20"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-slate-300">
-                  Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500/20"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full h-12 text-base font-semibold bg-gradient-to-r ${
-                  selectedRole === 'STUDENT'
-                    ? 'from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/20'
-                    : selectedRole === 'FACULTY'
-                    ? 'from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 shadow-lg shadow-cyan-500/20'
-                    : 'from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 shadow-lg shadow-violet-500/20'
-                } transition-all duration-200`}
-              >
-                {isLoading ? (
-                  <>
-                    <Spinner className="w-5 h-5 mr-2" />
-                    Signing in...
-                  </>
-                ) : (
-                  <>
-                    Sign in as {roleConfig[selectedRole].label}
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </>
-                )}
-              </Button>
-
-              {/* Demo Credentials Box */}
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                <p className="text-xs text-slate-400 text-center mb-2">Demo Credentials (Auto-filled)</p>
-                <div className="flex items-center justify-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500">Email:</span>
-                    <code className="px-2 py-1 rounded bg-slate-900 text-indigo-400 font-mono text-xs">{roleConfig[selectedRole].email}</code>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500">Password:</span>
-                    <code className="px-2 py-1 rounded bg-slate-900 text-indigo-400 font-mono text-xs">password</code>
-                  </div>
-                </div>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleMFAVerify} className="space-y-5">
-              <div className="text-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
-                  <Lock className="w-10 h-10 text-indigo-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-white">Two-Factor Authentication</h3>
-                <p className="text-sm text-slate-400 mt-1">
-                  Enter the OTP sent to your email
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="otp" className="text-slate-300">
-                  OTP Code
-                </Label>
-                <Input
-                  id="otp"
-                  type="text"
-                  placeholder="000000"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  className="text-center text-3xl tracking-[0.5em] bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-600 h-14 focus:border-indigo-500 focus:ring-indigo-500/20"
-                  maxLength={6}
+                <label className="text-sm text-slate-200">Email Address</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@university.edu"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
                   required
                 />
               </div>
 
-              <Button
+              <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-12 text-base font-semibold bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 shadow-lg shadow-indigo-500/20"
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isLoading ? (
-                  <>
-                    <Spinner className="w-5 h-5 mr-2" />
-                    Verifying...
-                  </>
+                  <Loader className="w-4 h-4 animate-spin" />
                 ) : (
-                  'Verify'
+                  <Mail className="w-4 h-4" />
                 )}
-              </Button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setRequireMFA(false);
-                  setOtp('');
-                }}
-                className="w-full text-slate-400 hover:text-white"
-              >
-                Back to Login
-              </Button>
+                {isLoading ? "Sending..." : "Send Magic Link"}
+              </button>
             </form>
-          )}
-        </CardContent>
-      </Card>
+
+            {/* Info Text */}
+            <p className="text-xs text-slate-400 text-center pt-2">
+              We'll send you a secure login link via email.
+            </p>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-8 pt-6 border-t border-slate-800">
+            <p className="text-xs text-slate-500 text-center">
+              By signing in, you agree to our Terms of Service and Privacy Policy
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

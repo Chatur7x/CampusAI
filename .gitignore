@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+.tmp/
+*.tsbuildinfo
+
+# Supabase local
+supabase/.temp/

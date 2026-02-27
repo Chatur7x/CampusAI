@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { NotificationBell } from '@/components/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { CommandPaletteTrigger } from '@/components/CommandPalette';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -71,11 +74,12 @@ export default function FacultyDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex">
+    <div className="min-h-screen bg-slate-950 text-slate-50 flex relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.18),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_50%_75%,rgba(14,165,233,0.12),transparent_32%)]" />
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col bg-slate-900 border-r border-slate-800">
+      <aside className="hidden lg:flex w-68 flex-col bg-slate-900/80 backdrop-blur border-r border-slate-800/70 shadow-xl relative z-10">
         {/* Logo */}
-        <div className="p-6 border-b border-slate-800">
+        <div className="p-6 border-b border-slate-800/70">
           <Link to="/faculty" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
               <LayoutDashboard className="w-5 h-5 text-white" />
@@ -85,6 +89,13 @@ export default function FacultyDashboard() {
               <p className="text-xs text-cyan-400">Faculty Portal</p>
             </div>
           </Link>
+        </div>
+
+        {/* Toolbar */}
+        <div className="px-4 py-3 border-b border-slate-800/70 flex items-center gap-2">
+          <CommandPaletteTrigger className="flex-1" />
+          <ThemeToggle />
+          <NotificationBell />
         </div>
 
         {/* Navigation */}
@@ -97,10 +108,10 @@ export default function FacultyDashboard() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
                     isActive
-                      ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                      ? 'bg-white/10 text-white border-cyan-400/40 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]'
+                      : 'text-slate-300 border-transparent hover:border-slate-700 hover:bg-white/5 hover:text-white'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -112,10 +123,10 @@ export default function FacultyDashboard() {
         </ScrollArea>
 
         {/* User Profile */}
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-slate-800/70">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start gap-3 px-3">
+              <Button variant="ghost" className="w-full justify-start gap-3 px-3 hover:bg-white/5">
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-cyan-500/20 text-cyan-400 text-sm">
                     {getInitials(user?.profile?.firstName + ' ' + user?.profile?.lastName || 'Faculty User')}
@@ -130,7 +141,7 @@ export default function FacultyDashboard() {
                 <ChevronDown className="w-4 h-4 text-slate-400" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-slate-900 border-slate-800">
+              <DropdownMenuContent align="end" className="w-56 bg-slate-900/95 backdrop-blur border-slate-800">
               <DropdownMenuLabel className="text-slate-400">My Account</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-800" />
               <DropdownMenuItem className="text-white hover:bg-slate-800 cursor-pointer">
@@ -155,7 +166,7 @@ export default function FacultyDashboard() {
       </aside>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800/70">
         <div className="flex items-center justify-between p-4">
           <Link to="/faculty" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
@@ -164,6 +175,10 @@ export default function FacultyDashboard() {
             <span className="font-bold text-white">CampusAI</span>
           </Link>
 
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="text-slate-400">
@@ -211,7 +226,7 @@ export default function FacultyDashboard() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-0 pt-16 lg:pt-0">
+      <main className="flex-1 lg:ml-0 pt-16 lg:pt-0 relative z-10">
         <div className="p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<FacultyOverview />} />

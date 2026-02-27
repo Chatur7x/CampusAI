@@ -1,0 +1,141 @@
+# =============================================================
+# CAMPUSAI - SUPABASE LOCAL CONFIGURATION
+# =============================================================
+# Get started: npx supabase start
+# Dashboard: http://localhost:54323
+# =============================================================
+
+[api]
+enabled = true
+# Port to use for the API URL
+port = 54321
+# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
+# endpoints. public and storage are always included.
+schemas = ["public", "graphql_public"]
+# Extra schemas to add to the search_path of every request.
+extra_search_path = ["public", "extensions"]
+# The maximum number of rows returns from a view, table, or stored procedure.
+max_rows = 1000
+
+[db]
+# Port to use for the local database URL
+port = 54322
+# Database major version
+major_version = 15
+
+[studio]
+# Port to use for Supabase Studio
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+# The base URL of your website
+site_url = "http://localhost:5173"
+# Additional redirect URLs
+additional_redirect_urls = ["http://localhost:5173/**"]
+# JWT expiry (in seconds)
+jwt_expiry = 3600
+# Enable/disable signup
+enable_signup = true
+# Enable refresh token rotation
+enable_refresh_token_rotation = true
+# Refresh token reuse interval (in seconds)
+refresh_token_reuse_interval = 10
+# Minimum password length
+minimum_password_length = 8
+
+[auth.email]
+# Allow users to sign up via email with magic links
+enable_signup = true
+# If enabled, a user will receive an email when signing up
+double_confirm_changes = true
+# If enabled, users need to confirm their email address before signing in
+enable_confirmations = true
+# Secure email change requires both old and new email verification
+secure_email_change = true
+# Template for the email confirmation link
+template = "confirm"
+# How long before an email link expires (in seconds)
+max_frequency = 60
+
+[auth.phone]
+# Enable phone auth
+enable_signup = false
+enable_confirmations = false
+
+[auth.external.google]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+
+[auth.external.github]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+
+[auth.external.azure]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+
+[auth.hook.custom_access_token]
+enabled = false
+# Set this to true if you want to enable the custom access token hook
+
+[storage]
+enabled = true
+# The maximum file size allowed (in bytes, 50 MB by default)
+file_size_limit = "52428800"
+
+[realtime]
+enabled = true
+# Broadcast and presence features
+ip_version = "ipv4"
+
+[functions]
+enabled = true
+
+[analytics]
+enabled = true
+
+# =============================================================
+# DATABASE SEED
+# =============================================================
+# Run: npx supabase db reset
+# This will run migrations and seed file
+
+[db.seed]
+sql_paths = ["./seed.sql"]
+
+# =============================================================
+# POOLER MODE
+# =============================================================
+# Transaction mode is recommended for serverless functions
+
+[db.pooler]
+enabled = true
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+# =============================================================
+# EDGE FUNCTIONS
+# =============================================================
+# Configure environment variables for edge functions
+
+[functions.verify-face]
+verify_jwt = true
+
+[functions.bulk-operations]
+verify_jwt = true
+
+[functions.analytics]
+verify_jwt = true
+
+[functions.notifications]
+verify_jwt = true

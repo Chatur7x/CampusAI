@@ -1,15 +1,19 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import { inspectAttr } from 'kimi-plugin-inspect-react'
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
   base: './',
-  plugins: [inspectAttr(), react()],
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  // This defines a global 'process' variable to prevent the frontend from crashing
+  define: {
+    'process.env': {},
+    'global': {},
   },
 });

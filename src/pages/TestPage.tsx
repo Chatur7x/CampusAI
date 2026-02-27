@@ -1,0 +1,73 @@
+import React, { Suspense } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import LoginPage from "@/pages/LoginPage";
+import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { CommandPalette } from "@/components/CommandPalette";
+import { Toaster } from "@/components/ui/sonner";
+
+const AdminDashboard = React.lazy(() => import("@/dashboards/AdminDashboard"));
+const FacultyDashboard = React.lazy(() => import("@/dashboards/FacultyDashboard"));
+const StudentDashboard = React.lazy(() => import("@/dashboards/StudentDashboard"));
+
+function Loading() {
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="h-12 w-12 rounded-full border-2 border-slate-800" />
+          <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-transparent border-t-emerald-500 animate-spin" />
+        </div>
+        <p className="text-sm text-slate-500 animate-pulse">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useSupabaseAuth();
+  if (isLoading) return <Loading />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <Suspense fallback={<Loading />}>{children}</Suspense>;
+}
+
+function AppRoutes() {
+  const { isAuthenticated, user } = useSupabaseAuth();
+
+  return (
+    <>
+      <CommandPalette />
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            isAuthenticated ? (
+              <Navigate to={user?.role === "ADMIN" ? "/admin" : user?.role === "FACULTY" ? "/faculty" : "/student"} replace />
+            ) : (
+              <LoginPage />
+            )
+          }
+        />
+        <Route path="/admin/*" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/faculty/*" element={<ProtectedRoute><FacultyDashboard /></ProtectedRoute>} />
+        <Route path="/student/*" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <SupabaseAuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+          <Toaster richColors position="top-right" />
+        </BrowserRouter>
+      </SupabaseAuthProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;
