@@ -16,4 +16,7 @@ export default defineConfig({
     'process.env': {},
     'global': {},
   },
+  server: {
+    allowedHosts: ['klk5st-5173.csb.app'],
+  },
 });

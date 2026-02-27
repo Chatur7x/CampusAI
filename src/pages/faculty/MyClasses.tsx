@@ -76,7 +76,7 @@ export default function MyClassesPage() {
                 <div className="mt-4 rounded-lg border border-slate-800 bg-slate-800/40 p-4 text-sm text-slate-200">
                   <p className="font-semibold mb-2">Enrolled students</p>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-slate-300">
-                    {(roster[cls.id] || []).map((name) => (
+                    {((roster as Record<string, string[]>)[cls.id] || []).map((name: string) => (
                       <div key={name} className="flex items-center gap-2">
                         <span className="h-2 w-2 rounded-full bg-emerald-400" />
                         {name}

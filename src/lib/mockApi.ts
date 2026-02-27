@@ -228,8 +228,8 @@ export function initMockApi() {
       if (method === 'PUT' && id) {
         const body = init?.body ? JSON.parse(init.body as string) : {};
         const target = facultyUsers.find((u) => u.id === id) || studentUsers.find((u) => u.id === id);
-        if (target?.faculty) target.faculty = { ...target.faculty, ...body };
-        if (target?.student) target.student = { ...target.student, ...body };
+        if (target && 'faculty' in target) target.faculty = { ...target.faculty, ...body };
+        if (target && 'student' in target) target.student = { ...target.student, ...body };
         return json({ success: true, data: target });
       }
       if (method === 'DELETE' && id) {
