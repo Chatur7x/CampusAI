@@ -6,7 +6,11 @@ import { toast } from 'sonner';
 
 const steps = ['Personal Details', 'Academic Details', 'Address Details'];
 
-const addressData = {
+type MandalMap = Record<string, string>;
+type CityData = { mandals: MandalMap };
+type DistrictData = { cities: Record<string, CityData> };
+type StateData = Record<string, DistrictData>;
+const addressData: Record<string, StateData> = {
   Telangana: {
     Hyderabad: {
       cities: {
@@ -58,6 +62,11 @@ const addressData = {
   },
 };
 
+const getFirstKey = <T extends Record<string, unknown> | undefined>(obj: T): string => {
+  const [first] = Object.keys(obj ?? {});
+  return first ?? '';
+};
+
 const initialForm = {
   firstName: '',
   middleName: '',
@@ -96,16 +105,16 @@ export default function StudentRegistrationPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
 
-  const availableDistricts = useMemo(() => Object.keys(addressData[form.state] || {}), [form.state]);
+  const availableDistricts = useMemo(() => Object.keys(addressData[form.state] ?? {}), [form.state]);
   const availableCities = useMemo(() => {
-    const districts = addressData[form.state] || {};
-    const districtData = districts[form.district] || {};
-    return Object.keys(districtData.cities || {});
+    const districtData = addressData[form.state]?.[form.district];
+    return Object.keys(districtData?.cities ?? {});
   }, [form.state, form.district]);
   const availableMandals = useMemo(() => {
-    const cityData = addressData[form.state]?.[form.district]?.cities?.[form.city];
-    return cityData ? Object.keys(cityData.mandals) : [];
+    const mandals = addressData[form.state]?.[form.district]?.cities?.[form.city]?.mandals;
+    return Object.keys(mandals ?? {});
   }, [form.state, form.district, form.city]);
 
   const handleChange = (key: keyof FormState, value: string) => {
@@ -113,13 +122,11 @@ export default function StudentRegistrationPage() {
   };
 
   const handleStateChange = (state: string) => {
-    const districts = Object.keys(addressData[state] || {});
-    const district = districts[0] || '';
-    const cities = district ? Object.keys(addressData[state][district].cities) : [];
-    const city = cities[0] || '';
-    const mandals = city ? Object.keys(addressData[state][district].cities[city].mandals) : [];
-    const mandal = mandals[0] || '';
-    const pincode = mandal ? addressData[state][district].cities[city].mandals[mandal] : '';
+    const stateData = addressData[state];
+    const district = getFirstKey(stateData);
+    const city = getFirstKey(stateData?.[district]?.cities);
+    const mandal = getFirstKey(stateData?.[district]?.cities?.[city]?.mandals);
+    const pincode = stateData?.[district]?.cities?.[city]?.mandals?.[mandal] ?? '';
     setForm((prev) => ({
       ...prev,
       state,
@@ -131,11 +138,10 @@ export default function StudentRegistrationPage() {
   };
 
   const handleDistrictChange = (district: string) => {
-    const cities = district ? Object.keys(addressData[form.state][district].cities) : [];
-    const city = cities[0] || '';
-    const mandals = city ? Object.keys(addressData[form.state][district].cities[city].mandals) : [];
-    const mandal = mandals[0] || '';
-    const pincode = mandal ? addressData[form.state][district].cities[city].mandals[mandal] : '';
+    const districtData = addressData[form.state]?.[district];
+    const city = getFirstKey(districtData?.cities);
+    const mandal = getFirstKey(districtData?.cities?.[city]?.mandals);
+    const pincode = districtData?.cities?.[city]?.mandals?.[mandal] ?? '';
     setForm((prev) => ({
       ...prev,
       district,
@@ -146,9 +152,9 @@ export default function StudentRegistrationPage() {
   };
 
   const handleCityChange = (city: string) => {
-    const mandals = city ? Object.keys(addressData[form.state][form.district].cities[city].mandals) : [];
-    const mandal = mandals[0] || '';
-    const pincode = mandal ? addressData[form.state][form.district].cities[city].mandals[mandal] : '';
+    const cityData = addressData[form.state]?.[form.district]?.cities?.[city];
+    const mandal = getFirstKey(cityData?.mandals);
+    const pincode = cityData?.mandals?.[mandal] ?? '';
     setForm((prev) => ({
       ...prev,
       city,
@@ -158,7 +164,7 @@ export default function StudentRegistrationPage() {
   };
 
   const handleMandalChange = (mandal: string) => {
-    const pincode = mandal ? addressData[form.state][form.district].cities[form.city].mandals[mandal] : '';
+    const pincode = addressData[form.state]?.[form.district]?.cities?.[form.city]?.mandals?.[mandal] ?? '';
     setForm((prev) => ({
       ...prev,
       mandal,
@@ -172,6 +178,90 @@ export default function StudentRegistrationPage() {
     setSubmitting(false);
     setSubmitted(true);
     toast.success('Student registered • Credentials emailed');
+  };
+
+  const detectAddressFromCurrentLocation = async () => {
+    if (!('geolocation' in navigator)) {
+      toast.error('Geolocation not supported in this browser');
+      return;
+    }
+
+    setDetectingLocation(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 30000,
+        });
+      });
+
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+
+      const url = new URL('https://nominatim.openstreetmap.org/reverse');
+      url.searchParams.set('format', 'jsonv2');
+      url.searchParams.set('lat', String(lat));
+      url.searchParams.set('lon', String(lon));
+      url.searchParams.set('addressdetails', '1');
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Reverse geocoding failed (${res.status})`);
+      }
+
+      const data: {
+        address?: {
+          country?: string;
+          state?: string;
+          state_district?: string;
+          district?: string;
+          county?: string;
+          city?: string;
+          town?: string;
+          village?: string;
+          municipality?: string;
+          suburb?: string;
+          city_district?: string;
+          neighbourhood?: string;
+          postcode?: string;
+        };
+      } = await res.json();
+
+      const address = data.address;
+      if (!address) {
+        toast.error('Could not detect address details');
+        return;
+      }
+
+      const state = address.state ?? form.state;
+      const district = address.state_district ?? address.district ?? address.county ?? form.district;
+      const city = address.city ?? address.town ?? address.village ?? address.municipality ?? form.city;
+      const mandal = address.suburb ?? address.city_district ?? address.neighbourhood ?? form.mandal;
+      const pincode = address.postcode ?? form.pincode;
+
+      setForm((prev) => ({
+        ...prev,
+        country: address.country ?? prev.country,
+        state,
+        district,
+        city,
+        mandal,
+        pincode,
+      }));
+
+      toast.success('Location detected and filled');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to detect location';
+      toast.error(message);
+    } finally {
+      setDetectingLocation(false);
+    }
   };
 
   const renderStep = () => {
@@ -206,19 +296,58 @@ export default function StudentRegistrationPage() {
       );
     }
 
+    const hasStateOptions = Object.keys(addressData).includes(form.state);
+
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Country" value={form.country} onChange={(v) => handleChange('country', v)} disabled />
-        <SelectField label="State" value={form.state} options={Object.keys(addressData)} onChange={handleStateChange} />
-        <SelectField label="District" value={form.district} options={availableDistricts} onChange={handleDistrictChange} />
-        <SelectField label="City" value={form.city} options={availableCities} onChange={handleCityChange} />
-        <SelectField label="Mandal" value={form.mandal} options={availableMandals} onChange={handleMandalChange} />
-        <Field label="Pincode" value={form.pincode} onChange={(v) => handleChange('pincode', v)} disabled />
-        <Field label="Plot No" value={form.plotNo} onChange={(v) => handleChange('plotNo', v)} />
-        <Field label="Street No" value={form.streetNo} onChange={(v) => handleChange('streetNo', v)} />
-        <Field label="Apartment" value={form.apartment} onChange={(v) => handleChange('apartment', v)} />
-        <Field label="Door No" value={form.doorNo} onChange={(v) => handleChange('doorNo', v)} />
-        <Field label="Landmark" value={form.landmark} onChange={(v) => handleChange('landmark', v)} />
+      <div className="space-y-4">
+        <div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={detectAddressFromCurrentLocation}
+            disabled={detectingLocation}
+          >
+            {detectingLocation ? 'Detecting…' : 'Use Current Location'}
+          </Button>
+          <p className="mt-2 text-xs text-slate-400">
+            Uses device GPS + reverse geocoding to auto-fill address.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Country" value={form.country} onChange={(v) => handleChange('country', v)} disabled />
+
+          {hasStateOptions ? (
+            <SelectField label="State" value={form.state} options={Object.keys(addressData)} onChange={handleStateChange} />
+          ) : (
+            <Field label="State" value={form.state} onChange={(v) => handleChange('state', v)} />
+          )}
+
+          {availableDistricts.length > 0 ? (
+            <SelectField label="District" value={form.district} options={availableDistricts} onChange={handleDistrictChange} />
+          ) : (
+            <Field label="District" value={form.district} onChange={(v) => handleChange('district', v)} />
+          )}
+
+          {availableCities.length > 0 ? (
+            <SelectField label="City" value={form.city} options={availableCities} onChange={handleCityChange} />
+          ) : (
+            <Field label="City" value={form.city} onChange={(v) => handleChange('city', v)} />
+          )}
+
+          {availableMandals.length > 0 ? (
+            <SelectField label="Mandal" value={form.mandal} options={availableMandals} onChange={handleMandalChange} />
+          ) : (
+            <Field label="Mandal" value={form.mandal} onChange={(v) => handleChange('mandal', v)} />
+          )}
+
+          <Field label="Pincode" value={form.pincode} onChange={(v) => handleChange('pincode', v)} />
+          <Field label="Plot No" value={form.plotNo} onChange={(v) => handleChange('plotNo', v)} />
+          <Field label="Street No" value={form.streetNo} onChange={(v) => handleChange('streetNo', v)} />
+          <Field label="Apartment" value={form.apartment} onChange={(v) => handleChange('apartment', v)} />
+          <Field label="Door No" value={form.doorNo} onChange={(v) => handleChange('doorNo', v)} />
+          <Field label="Landmark" value={form.landmark} onChange={(v) => handleChange('landmark', v)} />
+        </div>
       </div>
     );
   };
