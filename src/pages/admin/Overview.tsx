@@ -141,16 +141,20 @@ export default function AdminOverview() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard Overview</h1>
-          <p className="text-slate-400">Welcome back! Here's what's happening today.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/20">
-            <Link2 className="w-3 h-3 mr-1" />
-            Blockchain Verified
-          </Badge>
+      <div className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-r from-slate-900 via-slate-900/60 to-violet-900/30 p-6 shadow-[0_25px_60px_rgba(0,0,0,0.45)]">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_80%_40%,rgba(139,92,246,0.1),transparent_35%)]" />
+        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-white">Admin Portal</h1>
+            <p className="text-slate-300">Live campus control: students, faculty, security.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-violet-500/10 text-violet-200 border-violet-500/20">
+              <Link2 className="w-3 h-3 mr-1" />
+              Blockchain Verified
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -159,7 +163,7 @@ export default function AdminOverview() {
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <Card key={index} className="bg-slate-900/50 border-slate-800">
+            <Card key={index} className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
@@ -188,7 +192,7 @@ export default function AdminOverview() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
         <CardHeader>
           <CardTitle className="text-white">Quick Actions</CardTitle>
         </CardHeader>
@@ -217,7 +221,7 @@ export default function AdminOverview() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Attendance Trend */}
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
           <CardHeader>
             <CardTitle className="text-white">Monthly Attendance Trend</CardTitle>
           </CardHeader>
@@ -250,7 +254,7 @@ export default function AdminOverview() {
         </Card>
 
         {/* Department-wise Attendance */}
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
           <CardHeader>
             <CardTitle className="text-white">Department-wise Attendance</CardTitle>
           </CardHeader>
@@ -280,7 +284,7 @@ export default function AdminOverview() {
       {/* Alerts & Notices */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Security Alerts */}
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-white flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-400" />

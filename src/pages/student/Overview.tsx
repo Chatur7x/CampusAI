@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  GraduationCap,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Bell,
-} from 'lucide-react';
+import { GraduationCap, AlertCircle, CheckCircle, Clock, Bell } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -43,52 +37,61 @@ export default function StudentOverview() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Student Dashboard</h1>
-        <p className="text-slate-400">Welcome back! Here's your attendance overview.</p>
+      <div className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-r from-slate-900 via-slate-900/60 to-emerald-900/30 p-6 shadow-[0_25px_60px_rgba(0,0,0,0.45)]">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_80%_40%,rgba(59,130,246,0.1),transparent_35%)]" />
+        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="relative flex flex-col gap-2">
+          <h1 className="text-3xl font-semibold text-white">Student Portal</h1>
+          <p className="text-slate-300">Live attendance, schedule, and notices.</p>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/30">Live tracking</Badge>
+            <Badge className="bg-cyan-500/15 text-cyan-200 border-cyan-500/30">Adaptive routing</Badge>
+          </div>
+        </div>
       </div>
 
       {/* Main Attendance Card */}
-      <Card className="bg-slate-900/60 border-slate-800 shadow-[0_25px_60px_rgba(0,0,0,0.35)]">
-        <CardContent className="p-6 md:p-8">
+      <Card className="bg-slate-950/70 border border-emerald-500/15 shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-3xl">
+        <CardContent className="p-7 md:p-9">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8">
             <div className="flex items-center gap-6">
-              <div className="relative w-36 h-36">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="52" stroke="#1e293b" strokeWidth="10" fill="none" />
+              <div className="relative w-40 h-40">
+                <div className="absolute inset-0 rounded-full bg-emerald-500/5 blur-3xl" />
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 140 140">
+                  <circle cx="70" cy="70" r="58" stroke="#0f172a" strokeWidth="12" fill="none" />
                   <circle
-                    cx="60"
-                    cy="60"
-                    r="52"
+                    cx="70"
+                    cy="70"
+                    r="58"
                     stroke={attendanceColor}
-                    strokeWidth="10"
+                    strokeWidth="12"
                     fill="none"
-                    strokeDasharray={`${attendance.percentage * 3.26} 326`}
+                    strokeDasharray={`${attendance.percentage * 3.65} 365`}
                     strokeLinecap="round"
-                    className="drop-shadow-[0_0_12px_rgba(34,197,94,0.35)]"
+                    className="drop-shadow-[0_0_16px_rgba(34,197,94,0.45)]"
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-4xl font-bold text-white leading-none">{attendance.percentage}%</span>
-                  <span className="text-xs text-slate-400 mt-1">Your Attendance</span>
+                  <span className="text-5xl font-bold text-white leading-none">{attendance.percentage}%</span>
+                  <span className="text-xs text-slate-300 mt-1">Overall attendance</span>
                 </div>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Live status</h3>
-                <p className="text-slate-400 text-sm">
+                <h3 className="text-xl font-semibold text-white">Live status</h3>
+                <p className="text-slate-300 text-sm">
                   {attendance.present} Present • {attendance.absent} Absent • {attendance.late} Late
                 </p>
-                <Badge className={`mt-2 ${attendance.percentage >= 75 ? 'bg-emerald-500/20 text-emerald-300' : attendance.percentage >= 60 ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/20 text-red-300'}`}>
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 border border-emerald-500/25 text-emerald-200 text-xs font-semibold">
                   {attendance.riskLevel} RISK
-                </Badge>
+                </div>
               </div>
             </div>
             <div className="flex flex-col items-end gap-3 text-right">
-              <div>
-                <p className="text-sm text-slate-400">Safe Absence Margin</p>
-                <p className="text-3xl font-bold text-emerald-400">{attendance.safeAbsenceMargin} days</p>
+              <div className="text-left md:text-right space-y-1">
+                <p className="text-sm text-slate-400">Total tracked</p>
+                <p className="text-3xl font-bold text-emerald-300">{attendance.total} classes</p>
+                <p className="text-xs text-slate-400">Updated live by faculty</p>
               </div>
-              <p className="text-xs text-slate-500">You can miss {attendance.safeAbsenceMargin} more classes before dropping below 75%.</p>
             </div>
           </div>
         </CardContent>

@@ -38,6 +38,7 @@ import MyClassesPage from '@/pages/faculty/MyClasses';
 import MyStudentsPage from '@/pages/faculty/MyStudents';
 import FacultyTimetablePage from '@/pages/faculty/Timetable';
 import AttendanceSessionPage from '@/pages/faculty/AttendanceSession';
+import LiveAttendanceFaculty from '@/components/attendance/LiveAttendanceFaculty';
 import FacultyAnalyticsPage from '@/pages/faculty/Analytics';
 import FacultyNoticesPage from '@/pages/faculty/Notices';
 import FacultySettingsPage from '@/pages/faculty/Settings';
@@ -45,6 +46,7 @@ import StudentRegistrationPage from '@/pages/admin/StudentRegistration';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/faculty' },
+  { icon: ClipboardCheck, label: 'Live Session', path: '/faculty/live-attendance' },
   { icon: Users, label: 'My Classes', path: '/faculty/classes' },
   { icon: GraduationCap, label: 'My Students', path: '/faculty/students' },
   { icon: Calendar, label: 'Timetable', path: '/faculty/timetable' },
@@ -236,6 +238,7 @@ export default function FacultyDashboard() {
         <div className="p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<FacultyOverview />} />
+            <Route path="/live-attendance" element={<LiveAttendanceFaculty />} />
             <Route path="/classes" element={<MyClassesPage />} />
             <Route path="/students" element={<MyStudentsPage />} />
             <Route path="/timetable" element={<FacultyTimetablePage />} />

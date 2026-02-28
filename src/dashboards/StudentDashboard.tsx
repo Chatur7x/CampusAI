@@ -35,14 +35,16 @@ import { toast } from 'sonner';
 import StudentOverview from '@/pages/student/Overview';
 import StudentTimetablePage from '@/pages/student/Timetable';
 import MyAttendancePage from '@/pages/student/MyAttendance';
+import SecureAttendanceStudent from '@/components/attendance/SecureAttendanceStudent';
 import AttendanceCalculatorPage from '@/pages/student/AttendanceCalculator';
 import StudentNoticesPage from '@/pages/student/Notices';
 import StudentSettingsPage from '@/pages/student/Settings';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/student' },
+  { icon: ClipboardList, label: 'Live Attendance', path: '/student/live-attendance' },
   { icon: Calendar, label: 'Timetable', path: '/student/timetable' },
-  { icon: ClipboardList, label: 'My Attendance', path: '/student/attendance' },
+  { icon: ClipboardList, label: 'My Records', path: '/student/attendance' },
   { icon: Calculator, label: 'Calculator', path: '/student/calculator' },
   { icon: Bell, label: 'Notices', path: '/student/notices' },
   { icon: Settings, label: 'Settings', path: '/student/settings' },
@@ -229,6 +231,7 @@ export default function StudentDashboard() {
         <div className="p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<StudentOverview />} />
+            <Route path="/live-attendance" element={<SecureAttendanceStudent />} />
             <Route path="/timetable" element={<StudentTimetablePage />} />
             <Route path="/attendance" element={<MyAttendancePage />} />
             <Route path="/calculator" element={<AttendanceCalculatorPage />} />
