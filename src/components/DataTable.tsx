@@ -12,9 +12,6 @@ import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -28,7 +25,6 @@ import {
   Search,
   Download,
   MoreHorizontal,
-  Filter,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

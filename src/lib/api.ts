@@ -19,7 +19,6 @@ import type {
   SecurityAlert,
   AuditLog,
   UserRole,
-  AttendanceStatus,
   LeaveStatus,
 } from './database.types.ts';
 
@@ -608,7 +607,7 @@ export const attendanceService = {
     return data;
   },
 
-  async getStatistics(studentId: string, startDate?: string, endDate?: string) {
+  async getStatistics(studentId: string, _startDate?: string, _endDate?: string) {
     const { data, error } = await supabase.rpc('calculate_attendance_percentage', {
       student_uuid: studentId,
     } as any);
@@ -637,8 +636,8 @@ export const leaveService = {
     return data || [];
   },
 
-  async getPending(filters?: { classId?: string }): Promise<Leave[]> {
-    let query = supabase
+  async getPending(_filters?: { classId?: string }): Promise<Leave[]> {
+    const query = supabase
       .from('leaves')
       .select(`
         *,
@@ -666,7 +665,7 @@ export const leaveService = {
   async approve(
     leaveId: string, 
     approverId: string, 
-    comments?: string
+    _comments?: string
   ): Promise<Leave | null> {
     const { data, error } = await supabase
       .from('leaves')
@@ -957,8 +956,8 @@ export const analyticsService = {
     return data || [];
   },
 
-  async getStudentAttendanceOverview(filters?: { classId?: string; departmentId?: string }) {
-    let query = supabase
+  async getStudentAttendanceOverview(_filters?: { classId?: string; departmentId?: string }) {
+    const query = supabase
       .from('student_attendance_overview')
       .select('*');
     

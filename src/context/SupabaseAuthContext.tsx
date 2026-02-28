@@ -349,7 +349,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: _authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {

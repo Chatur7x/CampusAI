@@ -40,7 +40,7 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -187,8 +187,6 @@ export function CommandPalette() {
 }
 
 export function CommandPaletteTrigger({ className }: { className?: string }) {
-  const [open, setOpen] = useState(false);
-
   return (
     <button
       onClick={() => {

@@ -84,7 +84,7 @@ export function initMockApi() {
     },
   ];
 
-  let timetableEntries = [
+  const timetableEntries = [
     { id: 'tt-1', classId: 'class-1', subjectId: 'course-1', facultyId: 'fac-1', dayOfWeek: 0, startTime: '09:00', endTime: '10:00', roomNumber: 'C-201' },
     { id: 'tt-2', classId: 'class-2', subjectId: 'course-3', facultyId: 'fac-2', dayOfWeek: 1, startTime: '11:00', endTime: '12:00', roomNumber: 'I-101' },
   ];

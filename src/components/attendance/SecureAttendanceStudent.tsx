@@ -21,7 +21,7 @@ export default function SecureAttendanceStudent() {
   
   // Custom states for Bluetooth Offline Feature
   const [networkStatus, setNetworkStatus] = useState<'online'|'offline'>('online');
-  const [bleTransfering, setBleTransfering] = useState(false);
+  const [_bleTransfering, setBleTransfering] = useState(false);
   const [violationWarning, setViolationWarning] = useState('');
 
   // Handle Online/Offline Status

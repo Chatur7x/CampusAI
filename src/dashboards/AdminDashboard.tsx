@@ -10,14 +10,6 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { CommandPaletteTrigger } from '@/components/CommandPalette';
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   LayoutDashboard,
   Building2,
   BookOpen,
@@ -31,7 +23,6 @@ import {
   Settings,
   Menu,
   LogOut,
-  ChevronDown,
   User,
 } from 'lucide-react';
 import { toast } from 'sonner';
