@@ -32,6 +32,7 @@ import {
 import { Search, Plus, Upload, Download, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Student, Department, Class } from '@/types';
+import { studentService, departmentService, classService } from '@/lib/api';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -50,9 +51,6 @@ export default function StudentsPage() {
     batchYear: new Date().getFullYear(),
     semester: 1,
   });
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
   useEffect(() => {
     fetchStudents();
     fetchDepartments();
@@ -61,17 +59,8 @@ export default function StudentsPage() {
 
   const fetchStudents = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users?role=STUDENT`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setStudents(data.data.users.map((u: any) => u.student).filter(Boolean));
-        }
-      }
+      const data = await studentService.getAll();
+      setStudents(data);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
@@ -82,17 +71,8 @@ export default function StudentsPage() {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setDepartments(data.data);
-        }
-      }
+      const data = await departmentService.getAll();
+      setDepartments(data);
     } catch (error) {
       console.error('Error fetching departments:', error);
     }
@@ -100,17 +80,8 @@ export default function StudentsPage() {
 
   const fetchClasses = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/classes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setClasses(data.data);
-        }
-      }
+      const data = await classService.getAll();
+      setClasses(data);
     } catch (error) {
       console.error('Error fetching classes:', error);
     }
@@ -118,37 +89,26 @@ export default function StudentsPage() {
 
   const handleAddStudent = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...newStudent,
-          role: 'STUDENT',
-          password: 'Student@123',
-        }),
+      await studentService.create({
+        enrollmentId: newStudent.enrollmentId,
+        departmentId: newStudent.departmentId,
+        classId: newStudent.classId,
+        batchYear: newStudent.batchYear,
+        semester: newStudent.semester,
+      } as any);
+      toast.success('Student added successfully');
+      setIsAddDialogOpen(false);
+      fetchStudents();
+      setNewStudent({
+        firstName: '',
+        lastName: '',
+        email: '',
+        enrollmentId: '',
+        departmentId: '',
+        classId: '',
+        batchYear: new Date().getFullYear(),
+        semester: 1,
       });
-
-      if (response.ok) {
-        toast.success('Student added successfully');
-        setIsAddDialogOpen(false);
-        fetchStudents();
-        setNewStudent({
-          firstName: '',
-          lastName: '',
-          email: '',
-          enrollmentId: '',
-          departmentId: '',
-          classId: '',
-          batchYear: new Date().getFullYear(),
-          semester: 1,
-        });
-      } else {
-        toast.error('Failed to add student');
-      }
     } catch (error) {
       console.error('Error adding student:', error);
       toast.error('Failed to add student');
@@ -171,19 +131,15 @@ export default function StudentsPage() {
   const handleEditStudent = async () => {
     if (!selectedStudent) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users/${selectedStudent.userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(editForm),
-      });
-      if (response.ok) {
-        toast.success('Student updated successfully');
-        setIsEditDialogOpen(false);
-        fetchStudents();
-      } else {
-        toast.error('Failed to update student');
-      }
+      await studentService.update(selectedStudent.id, {
+        enrollmentId: editForm.enrollmentId,
+        departmentId: editForm.departmentId,
+        classId: editForm.classId,
+        semester: editForm.semester,
+      } as any);
+      toast.success('Student updated successfully');
+      setIsEditDialogOpen(false);
+      fetchStudents();
     } catch (error) {
       toast.error('Failed to update student');
     }
@@ -192,19 +148,11 @@ export default function StudentsPage() {
   const handleDeleteStudent = async () => {
     if (!selectedStudent) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users/${selectedStudent.userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        toast.success('Student removed successfully');
-        setIsDeleteDialogOpen(false);
-        setSelectedStudent(null);
-        fetchStudents();
-      } else {
-        toast.error('Failed to remove student');
-      }
+      await studentService.delete(selectedStudent.id);
+      toast.success('Student removed successfully');
+      setIsDeleteDialogOpen(false);
+      setSelectedStudent(null);
+      fetchStudents();
     } catch (error) {
       toast.error('Failed to remove student');
     }

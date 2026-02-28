@@ -314,6 +314,14 @@ export const facultyService = {
     if (error) handleError(error);
     return data;
   },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('faculty')
+      .update({ is_active: false } as any)
+      .eq('id', id);
+    if (error) handleError(error);
+  },
 };
 
 // =============================================================
@@ -457,6 +465,22 @@ export const classService = {
     if (error) handleError(error);
     return data;
   },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('students')
+      .update({ is_active: false } as any)
+      .eq('id', id);
+    if (error) handleError(error);
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('classes')
+      .update({ is_active: false } as any)
+      .eq('id', id);
+    if (error) handleError(error);
+  },
 };
 
 // =============================================================
@@ -514,6 +538,14 @@ export const courseService = {
     
     if (error) handleError(error);
     return data;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('courses')
+      .update({ is_active: false } as any)
+      .eq('id', id);
+    if (error) handleError(error);
   },
 };
 

@@ -32,6 +32,7 @@ import {
 import { Search, Plus, Edit, Trash2, User, Upload, Download, GraduationCap, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Faculty, Department } from '@/types';
+import { facultyService, departmentService } from '@/lib/api';
 
 export default function FacultyPage() {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
@@ -52,9 +53,6 @@ export default function FacultyPage() {
     joiningDate: new Date().toISOString().split('T')[0],
     specialization: '',
   });
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
   useEffect(() => {
     fetchFaculty();
     fetchDepartments();
@@ -62,16 +60,8 @@ export default function FacultyPage() {
 
   const fetchFaculty = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users?role=FACULTY`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setFaculty(data.data.users?.map((u: any) => ({ ...u.faculty, user: u })).filter((f: any) => f?.id) || []);
-        }
-      }
+      const data = await facultyService.getAll();
+      setFaculty(data);
     } catch (error) {
       console.error('Error fetching faculty:', error);
       toast.error('Failed to load faculty');
@@ -82,14 +72,8 @@ export default function FacultyPage() {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setDepartments(data.data);
-      }
+      const data = await departmentService.getAll();
+      setDepartments(data);
     } catch (error) {
       console.error('Error fetching departments:', error);
     }
@@ -97,20 +81,17 @@ export default function FacultyPage() {
 
   const handleAdd = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...form, role: 'FACULTY', password: 'Faculty@123' }),
-      });
-      if (response.ok) {
-        toast.success('Faculty member added successfully');
-        setIsAddOpen(false);
-        resetForm();
-        fetchFaculty();
-      } else {
-        toast.error('Failed to add faculty');
-      }
+      await facultyService.create({
+        employeeId: form.employeeId,
+        designation: form.designation,
+        departmentId: form.departmentId,
+        joiningDate: form.joiningDate,
+        specialization: form.specialization,
+      } as any);
+      toast.success('Faculty member added successfully');
+      setIsAddOpen(false);
+      resetForm();
+      fetchFaculty();
     } catch (error) {
       toast.error('Failed to add faculty');
     }
@@ -119,20 +100,17 @@ export default function FacultyPage() {
   const handleEdit = async () => {
     if (!selectedFaculty) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users/${selectedFaculty.userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      if (response.ok) {
-        toast.success('Faculty updated successfully');
-        setIsEditOpen(false);
-        resetForm();
-        fetchFaculty();
-      } else {
-        toast.error('Failed to update faculty');
-      }
+      await facultyService.update(selectedFaculty.id, {
+        employeeId: form.employeeId,
+        designation: form.designation,
+        departmentId: form.departmentId,
+        joiningDate: form.joiningDate,
+        specialization: form.specialization,
+      } as any);
+      toast.success('Faculty updated successfully');
+      setIsEditOpen(false);
+      resetForm();
+      fetchFaculty();
     } catch (error) {
       toast.error('Failed to update faculty');
     }
@@ -141,19 +119,11 @@ export default function FacultyPage() {
   const handleDelete = async () => {
     if (!selectedFaculty) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users/${selectedFaculty.userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        toast.success('Faculty member removed');
-        setIsDeleteOpen(false);
-        setSelectedFaculty(null);
-        fetchFaculty();
-      } else {
-        toast.error('Failed to remove faculty');
-      }
+      await facultyService.delete(selectedFaculty.id);
+      toast.success('Faculty member removed');
+      setIsDeleteOpen(false);
+      setSelectedFaculty(null);
+      fetchFaculty();
     } catch (error) {
       toast.error('Failed to remove faculty');
     }

@@ -27,6 +27,7 @@ import {
   Bar,
 } from 'recharts';
 import { toast } from 'sonner';
+import { analyticsService } from '@/lib/api';
 
 interface DashboardStats {
   totalStudents: number;
@@ -55,26 +56,26 @@ export default function AdminOverview() {
   const [departmentStats, setDepartmentStats] = useState<DepartmentStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/analytics/admin-dashboard`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const [dashboard, deptSummary] = await Promise.all([
+        analyticsService.getAdminDashboard(),
+        analyticsService.getDepartmentSummary(),
+      ]);
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setStats(data.data.stats);
-          setMonthlyTrend(data.data.monthlyTrend);
-          setDepartmentStats(data.data.departmentStats);
-        }
+      if (dashboard) {
+        // Expect RPC to return stats + trend + per-dept summary; gracefully fallback if fields differ
+        setStats((dashboard as any).stats ?? dashboard as any);
+        setMonthlyTrend((dashboard as any).monthlyTrend ?? []);
+        setDepartmentStats((dashboard as any).departmentStats ?? []);
+      }
+
+      if (deptSummary && deptSummary.length) {
+        setDepartmentStats(deptSummary as any);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

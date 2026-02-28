@@ -23,6 +23,7 @@ import {
 import { Calendar, Plus, Trash2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TimetableEntry, Class, Faculty } from '@/types';
+import { timetableService, classService, facultyService } from '@/lib/api';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TIME_SLOTS = [
@@ -57,9 +58,6 @@ export default function TimetablePage() {
     endTime: '10:00',
     roomNumber: '',
   });
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
   useEffect(() => {
     fetchClasses();
     fetchFaculty();
@@ -72,14 +70,8 @@ export default function TimetablePage() {
   const fetchTimetable = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/timetable?classId=${selectedClassId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setEntries(data.data);
-      }
+      const data = await timetableService.getForClass(selectedClassId);
+      setEntries(data);
     } catch (error) {
       console.error('Error fetching timetable:', error);
     } finally {
@@ -89,17 +81,9 @@ export default function TimetablePage() {
 
   const fetchClasses = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/classes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setClasses(data.data);
-          if (data.data.length > 0) setSelectedClassId(data.data[0].id);
-        }
-      }
+      const data = await classService.getAll();
+      setClasses(data);
+      if (data.length > 0) setSelectedClassId(data[0].id);
     } catch (error) {
       console.error('Error fetching classes:', error);
     } finally {
@@ -109,14 +93,8 @@ export default function TimetablePage() {
 
   const fetchFaculty = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users?role=FACULTY`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setFacultyList(data.data.users?.map((u: any) => ({ ...u.faculty, user: u })).filter((f: any) => f?.id) || []);
-      }
+      const data = await facultyService.getAll();
+      setFacultyList(data);
     } catch (error) {
       console.error('Error fetching faculty:', error);
     }
@@ -124,19 +102,10 @@ export default function TimetablePage() {
 
   const handleAdd = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/timetable`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...form, classId: selectedClassId }),
-      });
-      if (response.ok) {
-        toast.success('Timetable entry added');
-        setIsAddOpen(false);
-        fetchTimetable();
-      } else {
-        toast.error('Failed to add entry');
-      }
+      await timetableService.create({ ...form, classId: selectedClassId });
+      toast.success('Timetable entry added');
+      setIsAddOpen(false);
+      fetchTimetable();
     } catch (error) {
       toast.error('Failed to add entry');
     }
@@ -145,19 +114,11 @@ export default function TimetablePage() {
   const handleDelete = async () => {
     if (!selectedEntry) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/timetable/${selectedEntry.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        toast.success('Entry deleted');
-        setIsDeleteOpen(false);
-        setSelectedEntry(null);
-        fetchTimetable();
-      } else {
-        toast.error('Failed to delete');
-      }
+      await timetableService.delete(selectedEntry.id);
+      toast.success('Entry deleted');
+      setIsDeleteOpen(false);
+      setSelectedEntry(null);
+      fetchTimetable();
     } catch (error) {
       toast.error('Failed to delete');
     }

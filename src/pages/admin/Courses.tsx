@@ -32,6 +32,7 @@ import {
 import { Search, Plus, Edit, Trash2, BookOpen, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Course, Department } from '@/types';
+import { courseService, departmentService } from '@/lib/api';
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -51,8 +52,6 @@ export default function CoursesPage() {
     description: '',
   });
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
   useEffect(() => {
     fetchCourses();
     fetchDepartments();
@@ -60,14 +59,8 @@ export default function CoursesPage() {
 
   const fetchCourses = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/courses`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setCourses(data.data);
-      }
+      const data = await courseService.getAll();
+      setCourses(data);
     } catch (error) {
       console.error('Error fetching courses:', error);
       toast.error('Failed to load courses');
@@ -78,14 +71,8 @@ export default function CoursesPage() {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setDepartments(data.data);
-      }
+      const data = await departmentService.getAll();
+      setDepartments(data);
     } catch (error) {
       console.error('Error fetching departments:', error);
     }
@@ -93,20 +80,11 @@ export default function CoursesPage() {
 
   const handleAdd = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/courses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      if (response.ok) {
-        toast.success('Course created successfully');
-        setIsAddOpen(false);
-        resetForm();
-        fetchCourses();
-      } else {
-        toast.error('Failed to create course');
-      }
+      await courseService.create(form);
+      toast.success('Course created successfully');
+      setIsAddOpen(false);
+      resetForm();
+      fetchCourses();
     } catch (error) {
       console.error('Error creating course:', error);
       toast.error('Failed to create course');
@@ -116,20 +94,11 @@ export default function CoursesPage() {
   const handleEdit = async () => {
     if (!selectedCourse) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/courses/${selectedCourse.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      if (response.ok) {
-        toast.success('Course updated successfully');
-        setIsEditOpen(false);
-        resetForm();
-        fetchCourses();
-      } else {
-        toast.error('Failed to update course');
-      }
+      await courseService.update(selectedCourse.id, form);
+      toast.success('Course updated successfully');
+      setIsEditOpen(false);
+      resetForm();
+      fetchCourses();
     } catch (error) {
       console.error('Error updating course:', error);
       toast.error('Failed to update course');
@@ -139,19 +108,11 @@ export default function CoursesPage() {
   const handleDelete = async () => {
     if (!selectedCourse) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/courses/${selectedCourse.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        toast.success('Course deleted successfully');
-        setIsDeleteOpen(false);
-        setSelectedCourse(null);
-        fetchCourses();
-      } else {
-        toast.error('Failed to delete course');
-      }
+      await courseService.delete(selectedCourse.id);
+      toast.success('Course deleted successfully');
+      setIsDeleteOpen(false);
+      setSelectedCourse(null);
+      fetchCourses();
     } catch (error) {
       console.error('Error deleting course:', error);
       toast.error('Failed to delete course');

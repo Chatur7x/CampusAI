@@ -31,6 +31,7 @@ import {
 import { Search, Plus, Edit, Trash2, Users, Building2, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Class, Department, Faculty } from '@/types';
+import { classService, departmentService, facultyService } from '@/lib/api';
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
@@ -53,8 +54,6 @@ export default function ClassesPage() {
     academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
   });
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
   useEffect(() => {
     fetchClasses();
     fetchDepartments();
@@ -63,14 +62,8 @@ export default function ClassesPage() {
 
   const fetchClasses = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/classes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setClasses(data.data);
-      }
+      const data = await classService.getAll();
+      setClasses(data);
     } catch (error) {
       console.error('Error fetching classes:', error);
       toast.error('Failed to load classes');
@@ -81,14 +74,8 @@ export default function ClassesPage() {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setDepartments(data.data);
-      }
+      const data = await departmentService.getAll();
+      setDepartments(data);
     } catch (error) {
       console.error('Error fetching departments:', error);
     }
@@ -96,14 +83,8 @@ export default function ClassesPage() {
 
   const fetchFaculty = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/users?role=FACULTY`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) setFacultyList(data.data.users?.map((u: any) => u.faculty).filter(Boolean) || []);
-      }
+      const data = await facultyService.getAll();
+      setFacultyList(data);
     } catch (error) {
       console.error('Error fetching faculty:', error);
     }
@@ -111,20 +92,11 @@ export default function ClassesPage() {
 
   const handleAdd = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/classes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      if (response.ok) {
-        toast.success('Class created successfully');
-        setIsAddOpen(false);
-        resetForm();
-        fetchClasses();
-      } else {
-        toast.error('Failed to create class');
-      }
+      await classService.create(form);
+      toast.success('Class created successfully');
+      setIsAddOpen(false);
+      resetForm();
+      fetchClasses();
     } catch (error) {
       toast.error('Failed to create class');
     }
@@ -133,20 +105,11 @@ export default function ClassesPage() {
   const handleEdit = async () => {
     if (!selectedClass) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/classes/${selectedClass.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      if (response.ok) {
-        toast.success('Class updated successfully');
-        setIsEditOpen(false);
-        resetForm();
-        fetchClasses();
-      } else {
-        toast.error('Failed to update class');
-      }
+      await classService.update(selectedClass.id, form);
+      toast.success('Class updated successfully');
+      setIsEditOpen(false);
+      resetForm();
+      fetchClasses();
     } catch (error) {
       toast.error('Failed to update class');
     }
@@ -155,19 +118,11 @@ export default function ClassesPage() {
   const handleDelete = async () => {
     if (!selectedClass) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/classes/${selectedClass.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        toast.success('Class deleted successfully');
-        setIsDeleteOpen(false);
-        setSelectedClass(null);
-        fetchClasses();
-      } else {
-        toast.error('Failed to delete class');
-      }
+      await classService.delete(selectedClass.id);
+      toast.success('Class deleted successfully');
+      setIsDeleteOpen(false);
+      setSelectedClass(null);
+      fetchClasses();
     } catch (error) {
       toast.error('Failed to delete class');
     }

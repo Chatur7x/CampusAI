@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Building2, Plus, Users, GraduationCap, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Department } from '@/types';
+import { departmentService } from '@/lib/api';
 
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -34,25 +35,14 @@ export default function DepartmentsPage() {
     description: '',
   });
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
   useEffect(() => {
     fetchDepartments();
   }, []);
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setDepartments(data.data);
-        }
-      }
+      const data = await departmentService.getAll();
+      setDepartments(data);
     } catch (error) {
       console.error('Error fetching departments:', error);
       toast.error('Failed to load departments');
@@ -63,24 +53,11 @@ export default function DepartmentsPage() {
 
   const handleAddDepartment = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(newDepartment),
-      });
-
-      if (response.ok) {
-        toast.success('Department created successfully');
-        setIsAddDialogOpen(false);
-        fetchDepartments();
-        setNewDepartment({ name: '', code: '', description: '' });
-      } else {
-        toast.error('Failed to create department');
-      }
+      await departmentService.create(newDepartment);
+      toast.success('Department created successfully');
+      setIsAddDialogOpen(false);
+      fetchDepartments();
+      setNewDepartment({ name: '', code: '', description: '' });
     } catch (error) {
       console.error('Error creating department:', error);
       toast.error('Failed to create department');
@@ -90,19 +67,10 @@ export default function DepartmentsPage() {
   const handleEditDepartment = async () => {
     if (!selectedDept) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments/${selectedDept.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(editForm),
-      });
-      if (response.ok) {
-        toast.success('Department updated successfully');
-        setIsEditDialogOpen(false);
-        fetchDepartments();
-      } else {
-        toast.error('Failed to update department');
-      }
+      await departmentService.update(selectedDept.id, editForm);
+      toast.success('Department updated successfully');
+      setIsEditDialogOpen(false);
+      fetchDepartments();
     } catch (error) {
       toast.error('Failed to update department');
     }
@@ -111,19 +79,11 @@ export default function DepartmentsPage() {
   const handleDeleteDepartment = async () => {
     if (!selectedDept) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/admin/departments/${selectedDept.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        toast.success('Department deleted');
-        setIsDeleteDialogOpen(false);
-        setSelectedDept(null);
-        fetchDepartments();
-      } else {
-        toast.error('Failed to delete department');
-      }
+      await departmentService.delete(selectedDept.id);
+      toast.success('Department deleted');
+      setIsDeleteDialogOpen(false);
+      setSelectedDept(null);
+      fetchDepartments();
     } catch (error) {
       toast.error('Failed to delete department');
     }
