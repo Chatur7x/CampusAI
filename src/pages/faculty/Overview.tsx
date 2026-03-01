@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -12,23 +12,101 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { timetableService, studentService, attendanceService, leaveService } from '@/lib/api';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import type { TimetableEntry, Student } from '@/lib/database.types';
 
+interface ClassPerformance {
+  className: string;
+  percentage: number;
+}
 
-const weeklyData = [
-  { day: 'Mon', attendance: 92 },
-  { day: 'Tue', attendance: 88 },
-  { day: 'Wed', attendance: 95 },
-  { day: 'Thu', attendance: 90 },
-  { day: 'Fri', attendance: 87 },
-];
+type FacultyTimetableEntry = TimetableEntry & {
+  class?: { id?: string; name?: string; section?: string };
+  course?: { id?: string; name?: string; code?: string };
+};
 
 export default function FacultyOverview() {
-  const [stats] = useState({
-    myClasses: 4,
-    todaySchedule: 3,
-    totalStudents: 120,
-    pendingLeaves: 5,
+  const { user } = useSupabaseAuth();
+  const [stats, setStats] = useState({
+    myClasses: 0,
+    todaySchedule: 0,
+    totalStudents: 0,
+    pendingLeaves: 0,
   });
+  const [weeklyData, setWeeklyData] = useState<{ day: string; attendance: number }[]>([]);
+  const [classPerformance, setClassPerformance] = useState<ClassPerformance[]>([]);
+  const [todaySchedule, setTodaySchedule] = useState<FacultyTimetableEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const todayDate = useMemo(() => new Date(), []);
+  const todayIso = useMemo(() => todayDate.toISOString().split('T')[0], [todayDate]);
+  const todayDow = useMemo(() => todayDate.getDay(), [todayDate]);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user?.faculty?.id) return;
+      try {
+        setLoading(true);
+
+        const timetable = (await timetableService.getForFaculty(user.faculty.id)) as FacultyTimetableEntry[];
+        const classIds = Array.from(new Set(timetable.map((t) => t.class_id))).filter(Boolean) as string[];
+        const scheduleToday = timetable.filter((t) => t.day_of_week === todayDow);
+        setTodaySchedule(scheduleToday);
+
+        let totalStudents = 0;
+        let pendingLeaves = 0;
+        const perf: ClassPerformance[] = [];
+
+        await Promise.all(
+          classIds.map(async (classId) => {
+            const [students, todayAttendance, pending] = await Promise.all([
+              studentService.getAll({ classId }),
+              attendanceService.getForClass(classId, todayIso),
+              leaveService.getPending({ classId }),
+            ]);
+            totalStudents += students.length;
+            pendingLeaves += pending?.length || 0;
+
+            const present = todayAttendance.filter((r) => r.status === 'PRESENT').length;
+            const total = todayAttendance.length || students.length;
+            const percentage = total ? Math.round((present / total) * 100) : 0;
+            const className = timetable.find((t) => t.class_id === classId)?.class?.name || 'Class';
+            perf.push({ className, percentage });
+          })
+        );
+
+        setStats({
+          myClasses: classIds.length,
+          todaySchedule: scheduleToday.length,
+          totalStudents,
+          pendingLeaves,
+        });
+        setClassPerformance(perf);
+
+        const summary = await attendanceService.getDailySummary();
+        const lastSeven = (summary || []).slice(0, 7).reverse();
+        setWeeklyData(
+          lastSeven.map((day) => {
+            const date = new Date(day.date as string);
+            const label = date.toLocaleDateString('en-US', { weekday: 'short' });
+            const total =
+              (day.total_records as number) ||
+              ((day.present as number) || 0) + ((day.absent as number) || 0) + ((day.late as number) || 0) ||
+              0;
+            const pct = total ? Math.round((((day.present as number) || 0) / total) * 100) : 0;
+            return { day: label, attendance: pct };
+          })
+        );
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [todayDow, todayIso, user?.faculty?.id]);
 
   return (
     <div className="space-y-6">
@@ -51,7 +129,7 @@ export default function FacultyOverview() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-slate-400">My Classes</p>
-                <p className="text-2xl font-bold text-white">{stats.myClasses}</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.myClasses}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-cyan-500/10 flex items-center justify-center">
                 <Users className="w-6 h-6 text-cyan-400" />
@@ -65,7 +143,7 @@ export default function FacultyOverview() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-slate-400">Today's Schedule</p>
-                <p className="text-2xl font-bold text-white">{stats.todaySchedule}</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.todaySchedule}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
                 <Calendar className="w-6 h-6 text-violet-400" />
@@ -79,7 +157,7 @@ export default function FacultyOverview() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Students</p>
-                <p className="text-2xl font-bold text-white">{stats.totalStudents}</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.totalStudents}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-emerald-400" />
@@ -93,7 +171,7 @@ export default function FacultyOverview() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-slate-400">Pending Leaves</p>
-                <p className="text-2xl font-bold text-white">{stats.pendingLeaves}</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.pendingLeaves}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
                 <AlertCircle className="w-6 h-6 text-amber-400" />
@@ -134,77 +212,56 @@ export default function FacultyOverview() {
             <CardTitle className="text-white">Today's Schedule</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center gap-4 p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
-                <div className="w-12 h-12 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-cyan-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">Data Structures</p>
-                  <p className="text-sm text-slate-400">CSE-A • Room 301</p>
-                </div>
-                <Badge className="bg-cyan-500/20 text-cyan-400">9:00 AM</Badge>
+            {loading ? (
+              <p className="text-slate-400 text-sm">Loading schedule...</p>
+            ) : todaySchedule.length === 0 ? (
+              <p className="text-slate-400 text-sm">No classes scheduled for today.</p>
+            ) : (
+              <div className="space-y-3">
+                {todaySchedule.map((slot) => (
+                  <div key={slot.id} className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50">
+                    <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-slate-300" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-white">{slot.course?.name || 'Subject'}</p>
+                      <p className="text-sm text-slate-400">{slot.class?.name || 'Class'} • Room {slot.room || '—'}</p>
+                    </div>
+                    <Badge variant="outline" className="text-slate-300">
+                      {slot.start_time} - {slot.end_time}
+                    </Badge>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50">
-                <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-slate-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">Algorithms</p>
-                  <p className="text-sm text-slate-400">CSE-B • Room 302</p>
-                </div>
-                <Badge variant="outline" className="text-slate-400">11:00 AM</Badge>
-              </div>
-              <div className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50">
-                <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-slate-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">Database Systems</p>
-                  <p className="text-sm text-slate-400">CSE-C • Room 303</p>
-                </div>
-                <Badge variant="outline" className="text-slate-400">2:00 PM</Badge>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
       <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
         <CardHeader>
-          <CardTitle className="text-white">Class Performance</CardTitle>
+          <CardTitle className="text-white">Class Performance (today)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300">CSE-A (Data Structures)</span>
-                <span className="text-sm text-emerald-400">92%</span>
-              </div>
-              <Progress value={92} className="h-2 bg-slate-800" />
+          {loading ? (
+            <p className="text-slate-400 text-sm">Loading performance...</p>
+          ) : classPerformance.length === 0 ? (
+            <p className="text-slate-400 text-sm">No classes assigned.</p>
+          ) : (
+            <div className="space-y-4">
+              {classPerformance.map((cls) => (
+                <div key={cls.className}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-slate-300">{cls.className}</span>
+                    <span className={`text-sm ${cls.percentage >= 75 ? 'text-emerald-400' : cls.percentage >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {cls.percentage}%
+                    </span>
+                  </div>
+                  <Progress value={cls.percentage} className="h-2 bg-slate-800" />
+                </div>
+              ))}
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300">CSE-B (Algorithms)</span>
-                <span className="text-sm text-emerald-400">88%</span>
-              </div>
-              <Progress value={88} className="h-2 bg-slate-800" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300">CSE-C (Database Systems)</span>
-                <span className="text-sm text-amber-400">85%</span>
-              </div>
-              <Progress value={85} className="h-2 bg-slate-800" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300">IT-A (Web Development)</span>
-                <span className="text-sm text-emerald-400">90%</span>
-              </div>
-              <Progress value={90} className="h-2 bg-slate-800" />
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

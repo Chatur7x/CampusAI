@@ -1,17 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 import { Link2, Shield, CheckCircle, AlertTriangle, RefreshCw, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import type { BlockchainStatus, Block } from '@/types';
+import type { BlockchainStatus, Block, Attendance } from '@/types';
+import supabase from '@/lib/supabase';
 
 export default function BlockchainPage() {
   const [status, setStatus] = useState<BlockchainStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   useEffect(() => {
     fetchBlockchainStatus();
@@ -19,17 +18,59 @@ export default function BlockchainPage() {
 
   const fetchBlockchainStatus = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/blockchain/status`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      setIsLoading(true);
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setStatus(data.data);
-        }
-      }
+      const [recordsRes, auditRes] = await Promise.all([
+        supabase
+          .from('attendance')
+          .select('id, student_id, date, status, method, blockchain_hash, previous_hash, nonce, created_at', {
+            count: 'exact',
+          })
+          .not('blockchain_hash', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(25),
+        supabase.functions.invoke('analytics', {
+          body: { reportType: 'blockchain_audit' },
+        }),
+      ]);
+
+      if (recordsRes.error) throw recordsRes.error;
+      if (auditRes.error) throw auditRes.error;
+
+      const records = recordsRes.data || [];
+      const count = recordsRes.count || records.length;
+
+      const chain: Block[] = records.slice(0, 10).map((r, idx) => ({
+        index: count - idx,
+        timestamp: new Date(r.created_at as string).getTime(),
+        data: { studentId: r.student_id, status: r.status, date: r.date },
+        previousHash: (r as any).previous_hash || 'GENESIS',
+        hash: (r as any).blockchain_hash || 'MISSING',
+        nonce: (r as any).nonce || 0,
+      }));
+
+      const recentRecords: Attendance[] = records.slice(0, 5).map((r) => ({
+        id: r.id,
+        studentId: r.student_id,
+        date: r.date,
+        status: r.status,
+        method: r.method,
+        blockchainHash: (r as any).blockchain_hash,
+      } as Attendance));
+
+      const auditSummary = (auditRes.data as any)?.data?.summary;
+      const tamperedFromAudit = auditSummary?.invalidChains || 0;
+
+      const hasBrokenLink = chain.some((b, idx) => idx > 0 && b.previousHash !== chain[idx - 1].hash);
+
+      setStatus({
+        status: !hasBrokenLink && tamperedFromAudit === 0 ? 'VALID' : 'TAMPERED',
+        totalBlocks: count,
+        verifiedRecords: count,
+        tamperedBlocks: tamperedFromAudit + (hasBrokenLink ? 1 : 0),
+        chain,
+        recentRecords,
+      });
     } catch (error) {
       console.error('Error fetching blockchain status:', error);
       toast.error('Failed to load blockchain data');
@@ -46,6 +87,11 @@ export default function BlockchainPage() {
   const truncateHash = (hash: string) => {
     return hash.substring(0, 16) + '...' + hash.substring(hash.length - 16);
   };
+
+  const integrityLabel = useMemo(() => {
+    if (!status) return 'Unknown';
+    return status.status === 'VALID' ? 'Chain Healthy' : 'Investigate Issues';
+  }, [status]);
 
   if (isLoading) {
     return (
@@ -87,6 +133,7 @@ export default function BlockchainPage() {
                 }`}>
                   {status?.status || 'Unknown'}
                 </p>
+                <p className="text-xs text-slate-500">{integrityLabel}</p>
               </div>
             </div>
           </CardContent>
@@ -201,10 +248,10 @@ export default function BlockchainPage() {
                   <div className="w-2 h-2 rounded-full bg-emerald-500" />
                   <div>
                     <p className="text-sm text-white">
-                      {record.student?.user?.profile?.firstName} {record.student?.user?.profile?.lastName}
+                      {record.studentId || 'Student'}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {record.student?.enrollmentId} • {new Date(record.date).toLocaleDateString()}
+                      {record.date ? new Date(record.date).toLocaleDateString() : ''}
                     </p>
                   </div>
                 </div>

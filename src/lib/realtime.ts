@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import type { Notification, Attendance, Notice, SecurityAlert, Message } from './database.types.ts';
+import type { Notification, Attendance, Notice, SecurityAlert, Message } from './database.types';
 
 // Define valid table names for this application
 type TableName = 'profiles' | 'departments' | 'classes' | 'courses' | 'students' | 

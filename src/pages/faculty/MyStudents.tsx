@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -5,17 +6,64 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { GraduationCap, TrendingDown, AlertCircle } from 'lucide-react';
+import { timetableService, studentService, attendanceService } from '@/lib/api';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import type { Student, TimetableEntry } from '@/lib/database.types';
 
-const students = [
-  { id: '1', name: 'John Doe', enrollmentId: 'STU001', attendance: 95, risk: 'LOW' },
-  { id: '2', name: 'Jane Smith', enrollmentId: 'STU002', attendance: 88, risk: 'LOW' },
-  { id: '3', name: 'Bob Johnson', enrollmentId: 'STU003', attendance: 72, risk: 'MEDIUM' },
-  { id: '4', name: 'Alice Brown', enrollmentId: 'STU004', attendance: 65, risk: 'HIGH' },
-  { id: '5', name: 'Charlie Wilson', enrollmentId: 'STU005', attendance: 92, risk: 'LOW' },
-];
+interface StudentWithRisk {
+  student: Student;
+  percentage: number;
+  risk: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+type FacultyTimetableEntry = TimetableEntry & {
+  class?: { id?: string; name?: string };
+  course?: { id?: string; name?: string };
+};
 
 export default function MyStudentsPage() {
   const navigate = useNavigate();
+  const { user } = useSupabaseAuth();
+  const [items, setItems] = useState<StudentWithRisk[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user?.faculty?.id) return;
+      try {
+        setLoading(true);
+        const timetable = (await timetableService.getForFaculty(user.faculty.id)) as FacultyTimetableEntry[];
+        const classIds = Array.from(new Set(timetable.map((t) => t.class_id))).filter(Boolean) as string[];
+
+        const roster: StudentWithRisk[] = [];
+        for (const classId of classIds) {
+          const students = await studentService.getAll({ classId });
+          for (const student of students) {
+            const stats = await attendanceService.getStatistics(student.id);
+            const pct = Math.round((stats.percentage as number) || 0);
+            const risk: StudentWithRisk['risk'] = pct < 60 ? 'HIGH' : pct < 75 ? 'MEDIUM' : 'LOW';
+            roster.push({ student, percentage: pct, risk });
+          }
+        }
+        setItems(roster);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [user?.faculty?.id]);
+
+  const total = items.length;
+  const atRisk = items.filter((s) => s.risk !== 'LOW').length;
+  const critical = items.filter((s) => s.risk === 'HIGH').length;
+
+  const summary = useMemo(
+    () => ({ total, atRisk, critical }),
+    [total, atRisk, critical]
+  );
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -49,7 +97,7 @@ export default function MyStudentsPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">Total Students</p>
-                <p className="text-2xl font-bold text-white">120</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : summary.total}</p>
               </div>
             </div>
           </CardContent>
@@ -63,7 +111,7 @@ export default function MyStudentsPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">At Risk</p>
-                <p className="text-2xl font-bold text-white">8</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : summary.atRisk}</p>
               </div>
             </div>
           </CardContent>
@@ -77,7 +125,7 @@ export default function MyStudentsPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">Critical</p>
-                <p className="text-2xl font-bold text-white">3</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : summary.critical}</p>
               </div>
             </div>
           </CardContent>
@@ -89,33 +137,39 @@ export default function MyStudentsPage() {
           <CardTitle className="text-white">Student List</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {students.map((student) => (
-              <div
-                key={student.id}
-                className="flex items-center justify-between p-4 rounded-lg bg-slate-800/30"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-10 h-10">
-                    <AvatarFallback className="bg-cyan-500/20 text-cyan-400">
-                      {student.name.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium text-white">{student.name}</p>
-                    <p className="text-sm text-slate-400">{student.enrollmentId}</p>
+          {loading ? (
+            <p className="text-slate-400 text-sm">Loading students...</p>
+          ) : items.length === 0 ? (
+            <p className="text-slate-400 text-sm">No students assigned yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {items.map(({ student, percentage, risk }) => (
+                <div
+                  key={student.id}
+                  className="flex items-center justify-between p-4 rounded-lg bg-slate-800/30"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10">
+                      <AvatarFallback className="bg-cyan-500/20 text-cyan-400">
+                        {`${student.profile?.first_name?.[0] ?? ''}${student.profile?.last_name?.[0] ?? ''}` || 'ST'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium text-white">{student.profile?.first_name} {student.profile?.last_name}</p>
+                      <p className="text-sm text-slate-400">{student.enrollment_id}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-32">
+                      <Progress value={percentage} className="h-2 bg-slate-800" />
+                    </div>
+                    <span className="text-sm text-slate-400 w-12">{percentage}%</span>
+                    <Badge className={getRiskColor(risk)}>{risk}</Badge>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-32">
-                    <Progress value={student.attendance} className="h-2 bg-slate-800" />
-                  </div>
-                  <span className="text-sm text-slate-400 w-12">{student.attendance}%</span>
-                  <Badge className={getRiskColor(student.risk)}>{student.risk}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

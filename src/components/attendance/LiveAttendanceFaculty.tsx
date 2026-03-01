@@ -458,7 +458,7 @@ export default function LiveAttendanceFaculty() {
                           </div>
                         ) : (
                           <Badge variant="outline" className={`px-3 py-1 bg-transparent ${req.status === 'approved' ? 'text-emerald-400 border-emerald-500/50' : 'text-red-400 border-red-500/50'}`}>
-                            {req.status === 'override_req' ? 'NEEDS OVERRIDE' : req.status.toUpperCase()}
+                            {req.status.toUpperCase()}
                           </Badge>
                         )}
                       </div>

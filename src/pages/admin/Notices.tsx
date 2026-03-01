@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,63 +23,62 @@ import {
 } from '@/components/ui/select';
 import { Bell, Plus, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Notice {
-  id: string;
-  title: string;
-  content: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  createdAt: string;
-  isActive: boolean;
-}
-
-const mockNotices: Notice[] = [
-  {
-    id: '1',
-    title: 'Mid-term Examination Schedule',
-    content: 'The mid-term examinations will commence from March 15th. Please check your respective schedules.',
-    priority: 'HIGH',
-    createdAt: '2024-03-01',
-    isActive: true,
-  },
-  {
-    id: '2',
-    title: 'Campus Maintenance Notice',
-    content: 'The main building will undergo maintenance this weekend. Classes will be held in alternate locations.',
-    priority: 'MEDIUM',
-    createdAt: '2024-02-28',
-    isActive: true,
-  },
-  {
-    id: '3',
-    title: 'New Library Hours',
-    content: 'The library will now be open until 10 PM on weekdays.',
-    priority: 'LOW',
-    createdAt: '2024-02-25',
-    isActive: true,
-  },
-];
+import { noticeService } from '@/lib/api';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import type { Notice } from '@/lib/database.types';
 
 export default function NoticesPage() {
-  const [notices, setNotices] = useState<Notice[]>(mockNotices);
+  const { user } = useSupabaseAuth();
+  const [notices, setNotices] = useState<Notice[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [newNotice, setNewNotice] = useState({
     title: '',
     content: '',
-    priority: 'MEDIUM' as const,
+    priority: 'MEDIUM' as Notice['priority'],
   });
 
-  const handleAddNotice = () => {
-    const notice: Notice = {
-      id: Date.now().toString(),
-      ...newNotice,
-      createdAt: new Date().toISOString().split('T')[0],
-      isActive: true,
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const data = await noticeService.getAll({ role: user?.role });
+        setNotices(data);
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load notices');
+      } finally {
+        setLoading(false);
+      }
     };
-    setNotices([notice, ...notices]);
-    setIsAddDialogOpen(false);
-    setNewNotice({ title: '', content: '', priority: 'MEDIUM' });
-    toast.success('Notice posted successfully');
+    load();
+  }, [user?.role]);
+
+  const handleAddNotice = async () => {
+    if (!newNotice.title || !newNotice.content) {
+      toast.error('Title and content are required');
+      return;
+    }
+    try {
+      const created = await noticeService.create({
+        title: newNotice.title,
+        content: newNotice.content,
+        priority: newNotice.priority,
+        target_roles: [],
+        target_departments: [],
+        target_classes: [],
+        is_pinned: false,
+        is_active: true,
+        published_by: user?.id ?? '',
+      } as Partial<Notice>);
+      if (created) setNotices((prev) => [created, ...prev]);
+      setIsAddDialogOpen(false);
+      setNewNotice({ title: '', content: '', priority: 'MEDIUM' });
+      toast.success('Notice posted successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to post notice');
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -166,7 +165,7 @@ export default function NoticesPage() {
       </div>
 
       <div className="space-y-4">
-        {notices.map((notice) => (
+        {(loading ? [] : notices).map((notice) => (
           <Card key={notice.id} className="bg-slate-900/50 border-slate-800">
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -178,7 +177,7 @@ export default function NoticesPage() {
                   <p className="text-slate-400 text-sm mb-3">{notice.content}</p>
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <Calendar className="w-3 h-3" />
-                    <span>Posted on {notice.createdAt}</span>
+                    <span>Posted on {new Date(notice.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
@@ -188,6 +187,7 @@ export default function NoticesPage() {
             </CardContent>
           </Card>
         ))}
+        {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
       </div>
     </div>
   );

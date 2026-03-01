@@ -1,6 +1,6 @@
-// =============================================================
+﻿// =============================================================
 // CAMPUSAI - SUPABASE API SERVICES
-// Enterprise-grade data access layer
+// Enterprise-grade data access layer - Real Supabase only
 // =============================================================
 
 import { supabase } from './supabase';
@@ -20,7 +20,7 @@ import type {
   AuditLog,
   UserRole,
   LeaveStatus,
-} from './database.types.ts';
+} from './database.types';
 
 // =============================================================
 // ERROR HANDLING
@@ -52,10 +52,7 @@ function handleError(error: { message: string; code?: string; status?: number })
 
 export const authService = {
   async signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) handleError(error);
     return data;
   },
@@ -63,9 +60,7 @@ export const authService = {
   async signInWithMagicLink(email: string) {
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) handleError(error);
     return data;
@@ -74,9 +69,7 @@ export const authService = {
   async signInWithOAuth(provider: 'google' | 'github' | 'azure') {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) handleError(error);
     return data;
@@ -124,9 +117,7 @@ export const authService = {
   },
 
   async updatePassword(newPassword: string) {
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) handleError(error);
     return data;
   },
@@ -140,13 +131,11 @@ export const profileService = {
   async getCurrent(): Promise<Profile | null> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', user.id)
       .single();
-    
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -157,7 +146,6 @@ export const profileService = {
       .select('*')
       .eq('user_id', userId)
       .single();
-    
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -165,11 +153,10 @@ export const profileService = {
   async update(userId: string, updates: Partial<Profile>): Promise<Profile | null> {
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates as any)
+      .update(updates)
       .eq('user_id', userId)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -177,17 +164,13 @@ export const profileService = {
   async uploadAvatar(userId: string, file: File): Promise<string> {
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/avatar.${fileExt}`;
-    
     const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(fileName, file, { upsert: true });
-    
     if (uploadError) handleError(uploadError);
-    
     const { data: { publicUrl } } = supabase.storage
       .from('avatars')
       .getPublicUrl(fileName);
-    
     await profileService.update(userId, { avatar_url: publicUrl });
     return publicUrl;
   },
@@ -204,7 +187,6 @@ export const departmentService = {
       .select('*')
       .eq('is_active', true)
       .order('name');
-    
     if (error) handleError(error);
     return data || [];
   },
@@ -215,7 +197,6 @@ export const departmentService = {
       .select('*')
       .eq('id', id)
       .single();
-    
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -223,10 +204,9 @@ export const departmentService = {
   async create(department: Partial<Department>): Promise<Department | null> {
     const { data, error } = await supabase
       .from('departments')
-      .insert(department as any)
+      .insert(department)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -234,11 +214,10 @@ export const departmentService = {
   async update(id: string, updates: Partial<Department>): Promise<Department | null> {
     const { data, error } = await supabase
       .from('departments')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -246,9 +225,8 @@ export const departmentService = {
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('departments')
-      .update({ is_active: false } as any)
+      .update({ is_active: false })
       .eq('id', id);
-    
     if (error) handleError(error);
   },
 };
@@ -261,17 +239,9 @@ export const facultyService = {
   async getAll(filters?: { departmentId?: string }): Promise<Faculty[]> {
     let query = supabase
       .from('faculty')
-      .select(`
-        *,
-        profile:profiles(*),
-        department:departments(*)
-      `)
+      .select(`*, profile:profiles(*), department:departments(*)`)
       .eq('is_active', true);
-
-    if (filters?.departmentId) {
-      query = query.eq('department_id', filters.departmentId);
-    }
-
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('employee_id');
     if (error) handleError(error);
     return data || [];
@@ -280,14 +250,19 @@ export const facultyService = {
   async getById(id: string): Promise<Faculty | null> {
     const { data, error } = await supabase
       .from('faculty')
-      .select(`
-        *,
-        profile:profiles(*),
-        department:departments(*)
-      `)
+      .select(`*, profile:profiles(*), department:departments(*)`)
       .eq('id', id)
       .single();
-    
+    if (error && error.code !== 'PGRST116') handleError(error);
+    return data;
+  },
+
+  async getByUserId(userId: string): Promise<Faculty | null> {
+    const { data, error } = await supabase
+      .from('faculty')
+      .select(`*, profile:profiles(*), department:departments(*)`)
+      .eq('user_id', userId)
+      .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -295,10 +270,9 @@ export const facultyService = {
   async create(faculty: Partial<Faculty>): Promise<Faculty | null> {
     const { data, error } = await supabase
       .from('faculty')
-      .insert(faculty as any)
+      .insert(faculty)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -306,11 +280,10 @@ export const facultyService = {
   async update(id: string, updates: Partial<Faculty>): Promise<Faculty | null> {
     const { data, error } = await supabase
       .from('faculty')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -318,7 +291,7 @@ export const facultyService = {
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('faculty')
-      .update({ is_active: false } as any)
+      .update({ is_active: false })
       .eq('id', id);
     if (error) handleError(error);
   },
@@ -332,21 +305,10 @@ export const studentService = {
   async getAll(filters?: { classId?: string; departmentId?: string }): Promise<Student[]> {
     let query = supabase
       .from('students')
-      .select(`
-        *,
-        profile:profiles(*),
-        department:departments(*),
-        class:classes(*)
-      `)
+      .select(`*, profile:profiles(*), department:departments(*), class:classes(*)`)
       .eq('is_active', true);
-
-    if (filters?.classId) {
-      query = query.eq('class_id', filters.classId);
-    }
-    if (filters?.departmentId) {
-      query = query.eq('department_id', filters.departmentId);
-    }
-
+    if (filters?.classId) query = query.eq('class_id', filters.classId);
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('enrollment_id');
     if (error) handleError(error);
     return data || [];
@@ -355,15 +317,19 @@ export const studentService = {
   async getById(id: string): Promise<Student | null> {
     const { data, error } = await supabase
       .from('students')
-      .select(`
-        *,
-        profile:profiles(*),
-        department:departments(*),
-        class:classes(*)
-      `)
+      .select(`*, profile:profiles(*), department:departments(*), class:classes(*)`)
       .eq('id', id)
       .single();
-    
+    if (error && error.code !== 'PGRST116') handleError(error);
+    return data;
+  },
+
+  async getByUserId(userId: string): Promise<Student | null> {
+    const { data, error } = await supabase
+      .from('students')
+      .select(`*, profile:profiles(*), department:departments(*), class:classes(*)`)
+      .eq('user_id', userId)
+      .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -371,10 +337,9 @@ export const studentService = {
   async create(student: Partial<Student>): Promise<Student | null> {
     const { data, error } = await supabase
       .from('students')
-      .insert(student as any)
+      .insert(student)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -382,11 +347,10 @@ export const studentService = {
   async update(id: string, updates: Partial<Student>): Promise<Student | null> {
     const { data, error } = await supabase
       .from('students')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -394,9 +358,8 @@ export const studentService = {
   async registerFace(studentId: string, faceData: string): Promise<void> {
     const { error } = await supabase
       .from('students')
-      .update({ face_data: faceData, face_registered: true } as any)
+      .update({ face_data: faceData, face_registered: true })
       .eq('id', studentId);
-    
     if (error) handleError(error);
   },
 };
@@ -409,20 +372,10 @@ export const classService = {
   async getAll(filters?: { departmentId?: string; semester?: number }): Promise<Class[]> {
     let query = supabase
       .from('classes')
-      .select(`
-        *,
-        department:departments(*),
-        class_incharge:faculty(*, profile:profiles(*))
-      `)
+      .select(`*, department:departments(*), class_incharge:faculty(*, profile:profiles(*))`)
       .eq('is_active', true);
-
-    if (filters?.departmentId) {
-      query = query.eq('department_id', filters.departmentId);
-    }
-    if (filters?.semester) {
-      query = query.eq('semester', filters.semester);
-    }
-
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
+    if (filters?.semester) query = query.eq('semester', filters.semester);
     const { data, error } = await query.order('name');
     if (error) handleError(error);
     return data || [];
@@ -431,14 +384,9 @@ export const classService = {
   async getById(id: string): Promise<Class | null> {
     const { data, error } = await supabase
       .from('classes')
-      .select(`
-        *,
-        department:departments(*),
-        class_incharge:faculty(*, profile:profiles(*))
-      `)
+      .select(`*, department:departments(*), class_incharge:faculty(*, profile:profiles(*))`)
       .eq('id', id)
       .single();
-    
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -446,10 +394,9 @@ export const classService = {
   async create(classData: Partial<Class>): Promise<Class | null> {
     const { data, error } = await supabase
       .from('classes')
-      .insert(classData as any)
+      .insert(classData)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -457,27 +404,18 @@ export const classService = {
   async update(id: string, updates: Partial<Class>): Promise<Class | null> {
     const { data, error } = await supabase
       .from('classes')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from('students')
-      .update({ is_active: false } as any)
-      .eq('id', id);
-    if (error) handleError(error);
-  },
-
-  async delete(id: string): Promise<void> {
-    const { error } = await supabase
       .from('classes')
-      .update({ is_active: false } as any)
+      .update({ is_active: false })
       .eq('id', id);
     if (error) handleError(error);
   },
@@ -493,14 +431,8 @@ export const courseService = {
       .from('courses')
       .select('*, department:departments(*)')
       .eq('is_active', true);
-
-    if (filters?.departmentId) {
-      query = query.eq('department_id', filters.departmentId);
-    }
-    if (filters?.semester) {
-      query = query.eq('semester', filters.semester);
-    }
-
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
+    if (filters?.semester) query = query.eq('semester', filters.semester);
     const { data, error } = await query.order('code');
     if (error) handleError(error);
     return data || [];
@@ -512,7 +444,6 @@ export const courseService = {
       .select('*, department:departments(*)')
       .eq('id', id)
       .single();
-    
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -520,10 +451,9 @@ export const courseService = {
   async create(course: Partial<Course>): Promise<Course | null> {
     const { data, error } = await supabase
       .from('courses')
-      .insert(course as any)
+      .insert(course)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -531,11 +461,10 @@ export const courseService = {
   async update(id: string, updates: Partial<Course>): Promise<Course | null> {
     const { data, error } = await supabase
       .from('courses')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -543,7 +472,7 @@ export const courseService = {
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('courses')
-      .update({ is_active: false } as any)
+      .update({ is_active: false })
       .eq('id', id);
     if (error) handleError(error);
   },
@@ -560,47 +489,24 @@ export const attendanceService = {
   ): Promise<Attendance[]> {
     let query = supabase
       .from('attendance')
-      .select(`
-        *,
-        course:courses(*),
-        faculty:faculty(*, profile:profiles(*))
-      `)
+      .select(`*, course:courses(*), faculty:faculty(*, profile:profiles(*))`)
       .eq('student_id', studentId)
       .order('date', { ascending: false });
-
-    if (filters?.startDate) {
-      query = query.gte('date', filters.startDate);
-    }
-    if (filters?.endDate) {
-      query = query.lte('date', filters.endDate);
-    }
-    if (filters?.courseId) {
-      query = query.eq('course_id', filters.courseId);
-    }
-
+    if (filters?.startDate) query = query.gte('date', filters.startDate);
+    if (filters?.endDate) query = query.lte('date', filters.endDate);
+    if (filters?.courseId) query = query.eq('course_id', filters.courseId);
     const { data, error } = await query;
     if (error) handleError(error);
     return data || [];
   },
 
-  async getForClass(
-    classId: string,
-    date: string,
-    courseId?: string
-  ): Promise<Attendance[]> {
+  async getForClass(classId: string, date: string, courseId?: string): Promise<Attendance[]> {
     let query = supabase
       .from('attendance')
-      .select(`
-        *,
-        student:students(*, profile:profiles(*))
-      `)
+      .select(`*, student:students(*, profile:profiles(*))`)
       .eq('class_id', classId)
       .eq('date', date);
-
-    if (courseId) {
-      query = query.eq('course_id', courseId);
-    }
-
+    if (courseId) query = query.eq('course_id', courseId);
     const { data, error } = await query.order('created_at');
     if (error) handleError(error);
     return data || [];
@@ -609,10 +515,9 @@ export const attendanceService = {
   async mark(attendance: Partial<Attendance>): Promise<Attendance | null> {
     const { data, error } = await supabase
       .from('attendance')
-      .insert(attendance as any)
+      .insert(attendance)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -620,9 +525,8 @@ export const attendanceService = {
   async markBulk(records: Partial<Attendance>[]): Promise<Attendance[]> {
     const { data, error } = await supabase
       .from('attendance')
-      .insert(records as any)
+      .insert(records)
       .select();
-    
     if (error) handleError(error);
     return data || [];
   },
@@ -630,22 +534,32 @@ export const attendanceService = {
   async update(id: string, updates: Partial<Attendance>): Promise<Attendance | null> {
     const { data, error } = await supabase
       .from('attendance')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
 
-  async getStatistics(studentId: string, _startDate?: string, _endDate?: string) {
+  async getStatistics(studentId: string) {
     const { data, error } = await supabase.rpc('calculate_attendance_percentage', {
-      student_uuid: studentId,
-    } as any);
-    
+      p_student_id: studentId,
+    });
     if (error) handleError(error);
     return { percentage: data || 0 };
+  },
+
+  async getDailySummary(startDate?: string, endDate?: string) {
+    let query = supabase
+      .from('daily_attendance_summary')
+      .select('*')
+      .order('date', { ascending: false });
+    if (startDate) query = query.gte('date', startDate);
+    if (endDate) query = query.lte('date', endDate);
+    const { data, error } = await query.limit(30);
+    if (error) handleError(error);
+    return data || [];
   },
 };
 
@@ -657,27 +571,20 @@ export const leaveService = {
   async getForStudent(studentId: string): Promise<Leave[]> {
     const { data, error } = await supabase
       .from('leaves')
-      .select(`
-        *,
-        approver:profiles!approved_by(*)
-      `)
+      .select(`*, approver:profiles!approved_by(*)`)
       .eq('student_id', studentId)
       .order('created_at', { ascending: false });
-    
     if (error) handleError(error);
     return data || [];
   },
 
-  async getPending(_filters?: { classId?: string }): Promise<Leave[]> {
-    const query = supabase
+  async getPending(filters?: { classId?: string }): Promise<Leave[]> {
+    let query = supabase
       .from('leaves')
-      .select(`
-        *,
-        student:students(*, profile:profiles(*), class:classes(*))
-      `)
+      .select(`*, student:students(*, profile:profiles(*), class:classes(*))`)
       .eq('status', 'PENDING')
       .order('created_at', { ascending: false });
-    
+    if (filters?.classId) query = query.eq('student.class_id', filters.classId);
     const { data, error } = await query;
     if (error) handleError(error);
     return data || [];
@@ -686,39 +593,29 @@ export const leaveService = {
   async create(leave: Partial<Leave>): Promise<Leave | null> {
     const { data, error } = await supabase
       .from('leaves')
-      .insert(leave as any)
+      .insert(leave)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
 
-  async approve(
-    leaveId: string, 
-    approverId: string, 
-    _comments?: string
-  ): Promise<Leave | null> {
+  async approve(leaveId: string, approverId: string): Promise<Leave | null> {
     const { data, error } = await supabase
       .from('leaves')
       .update({
         status: 'APPROVED' as LeaveStatus,
         approved_by: approverId,
         approved_at: new Date().toISOString(),
-      } as any)
+      })
       .eq('id', leaveId)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
 
-  async reject(
-    leaveId: string,
-    approverId: string,
-    reason: string
-  ): Promise<Leave | null> {
+  async reject(leaveId: string, approverId: string, reason: string): Promise<Leave | null> {
     const { data, error } = await supabase
       .from('leaves')
       .update({
@@ -726,11 +623,10 @@ export const leaveService = {
         approved_by: approverId,
         approved_at: new Date().toISOString(),
         rejection_reason: reason,
-      } as any)
+      })
       .eq('id', leaveId)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -738,11 +634,10 @@ export const leaveService = {
   async cancel(leaveId: string): Promise<Leave | null> {
     const { data, error } = await supabase
       .from('leaves')
-      .update({ status: 'CANCELLED' as LeaveStatus } as any)
+      .update({ status: 'CANCELLED' as LeaveStatus })
       .eq('id', leaveId)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -761,15 +656,13 @@ export const noticeService = {
       .or('expires_at.is.null,expires_at.gt.now()')
       .order('is_pinned', { ascending: false })
       .order('created_at', { ascending: false });
-
     if (error) handleError(error);
-    
     if (filters?.role && data) {
-      return data.filter((n: any) => 
-        n.target_roles.length === 0 || n.target_roles.includes(filters.role!)
-      );
+      return data.filter((n: Record<string, unknown>) => {
+        const roles = n.target_roles as string[] | undefined;
+        return !roles || roles.length === 0 || roles.includes(filters.role!);
+      });
     }
-    
     return data || [];
   },
 
@@ -779,7 +672,6 @@ export const noticeService = {
       .select('*, author:profiles!published_by(*)')
       .eq('id', id)
       .single();
-    
     if (error && error.code !== 'PGRST116') handleError(error);
     return data;
   },
@@ -787,10 +679,9 @@ export const noticeService = {
   async create(notice: Partial<Notice>): Promise<Notice | null> {
     const { data, error } = await supabase
       .from('notices')
-      .insert(notice as any)
+      .insert(notice)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -798,11 +689,10 @@ export const noticeService = {
   async update(id: string, updates: Partial<Notice>): Promise<Notice | null> {
     const { data, error } = await supabase
       .from('notices')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -810,9 +700,8 @@ export const noticeService = {
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('notices')
-      .update({ is_active: false } as any)
+      .update({ is_active: false })
       .eq('id', id);
-    
     if (error) handleError(error);
   },
 };
@@ -830,11 +719,7 @@ export const notificationService = {
       .or('expires_at.is.null,expires_at.gt.now()')
       .order('created_at', { ascending: false })
       .limit(50);
-
-    if (unreadOnly) {
-      query = query.eq('is_read', false);
-    }
-
+    if (unreadOnly) query = query.eq('is_read', false);
     const { data, error } = await query;
     if (error) handleError(error);
     return data || [];
@@ -843,19 +728,17 @@ export const notificationService = {
   async markAsRead(id: string): Promise<void> {
     const { error } = await supabase
       .from('notifications')
-      .update({ is_read: true, read_at: new Date().toISOString() } as any)
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('id', id);
-    
     if (error) handleError(error);
   },
 
   async markAllAsRead(userId: string): Promise<void> {
     const { error } = await supabase
       .from('notifications')
-      .update({ is_read: true, read_at: new Date().toISOString() } as any)
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('is_read', false);
-    
     if (error) handleError(error);
   },
 
@@ -865,7 +748,6 @@ export const notificationService = {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('is_read', false);
-    
     if (error) handleError(error);
     return count || 0;
   },
@@ -873,10 +755,9 @@ export const notificationService = {
   async create(notification: Partial<Notification>): Promise<Notification | null> {
     const { data, error } = await supabase
       .from('notifications')
-      .insert(notification as any)
+      .insert(notification)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -890,16 +771,11 @@ export const timetableService = {
   async getForClass(classId: string): Promise<TimetableEntry[]> {
     const { data, error } = await supabase
       .from('timetable_entries')
-      .select(`
-        *,
-        course:courses(*),
-        faculty:faculty(*, profile:profiles(*))
-      `)
+      .select(`*, course:courses(*), faculty:faculty(*, profile:profiles(*))`)
       .eq('class_id', classId)
       .eq('is_active', true)
       .order('day_of_week')
       .order('start_time');
-    
     if (error) handleError(error);
     return data || [];
   },
@@ -907,16 +783,11 @@ export const timetableService = {
   async getForFaculty(facultyId: string): Promise<TimetableEntry[]> {
     const { data, error } = await supabase
       .from('timetable_entries')
-      .select(`
-        *,
-        class:classes(*),
-        course:courses(*)
-      `)
+      .select(`*, class:classes(*), course:courses(*)`)
       .eq('faculty_id', facultyId)
       .eq('is_active', true)
       .order('day_of_week')
       .order('start_time');
-    
     if (error) handleError(error);
     return data || [];
   },
@@ -924,10 +795,9 @@ export const timetableService = {
   async create(entry: Partial<TimetableEntry>): Promise<TimetableEntry | null> {
     const { data, error } = await supabase
       .from('timetable_entries')
-      .insert(entry as any)
+      .insert(entry)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -935,11 +805,10 @@ export const timetableService = {
   async update(id: string, updates: Partial<TimetableEntry>): Promise<TimetableEntry | null> {
     const { data, error } = await supabase
       .from('timetable_entries')
-      .update(updates as any)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
     if (error) handleError(error);
     return data;
   },
@@ -947,9 +816,8 @@ export const timetableService = {
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('timetable_entries')
-      .update({ is_active: false } as any)
+      .update({ is_active: false })
       .eq('id', id);
-    
     if (error) handleError(error);
   },
 };
@@ -970,10 +838,8 @@ export const analyticsService = {
       .from('daily_attendance_summary')
       .select('*')
       .order('date', { ascending: false });
-    
     if (startDate) query = query.gte('date', startDate);
     if (endDate) query = query.lte('date', endDate);
-    
     const { data, error } = await query.limit(30);
     if (error) handleError(error);
     return data || [];
@@ -983,16 +849,16 @@ export const analyticsService = {
     const { data, error } = await supabase
       .from('department_attendance_summary')
       .select('*');
-    
     if (error) handleError(error);
     return data || [];
   },
 
-  async getStudentAttendanceOverview(_filters?: { classId?: string; departmentId?: string }) {
-    const query = supabase
+  async getStudentAttendanceOverview(filters?: { classId?: string; departmentId?: string }) {
+    let query = supabase
       .from('student_attendance_overview')
       .select('*');
-    
+    if (filters?.classId) query = query.eq('class_id', filters.classId);
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('attendance_percentage', { ascending: true });
     if (error) handleError(error);
     return data || [];
@@ -1010,7 +876,6 @@ export const securityService = {
       .select('*')
       .eq('resolved', resolved)
       .order('created_at', { ascending: false });
-    
     if (error) handleError(error);
     return data || [];
   },
@@ -1022,9 +887,8 @@ export const securityService = {
         resolved: true,
         resolved_by: resolverId,
         resolved_at: new Date().toISOString(),
-      } as any)
+      })
       .eq('id', alertId);
-    
     if (error) handleError(error);
   },
 
@@ -1039,14 +903,47 @@ export const securityService = {
       .select('*, user:profiles!user_id(*)')
       .order('created_at', { ascending: false })
       .limit(100);
-
     if (filters?.userId) query = query.eq('user_id', filters.userId);
     if (filters?.entityType) query = query.eq('entity_type', filters.entityType);
     if (filters?.startDate) query = query.gte('created_at', filters.startDate);
     if (filters?.endDate) query = query.lte('created_at', filters.endDate);
-
     const { data, error } = await query;
     if (error) handleError(error);
     return data || [];
+  },
+};
+
+// =============================================================
+// SYSTEM SETTINGS SERVICE
+// =============================================================
+
+export const settingsService = {
+  async getAll() {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('*')
+      .order('key');
+    if (error) handleError(error);
+    return data || [];
+  },
+
+  async get(key: string) {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('*')
+      .eq('key', key)
+      .single();
+    if (error && error.code !== 'PGRST116') handleError(error);
+    return data;
+  },
+
+  async set(key: string, value: string, description?: string) {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .upsert({ key, value, description, updated_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) handleError(error);
+    return data;
   },
 };

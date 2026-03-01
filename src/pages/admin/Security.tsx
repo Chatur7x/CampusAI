@@ -1,8 +1,50 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldAlert, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { securityService } from '@/lib/api';
+import type { SecurityAlert } from '@/lib/database.types';
+import { toast } from 'sonner';
 
 export default function SecurityPage() {
+  const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
+  const [resolved, setResolved] = useState<SecurityAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const [openAlerts, resolvedAlerts] = await Promise.all([
+          securityService.getAlerts(false),
+          securityService.getAlerts(true),
+        ]);
+        setAlerts(openAlerts ?? []);
+        setResolved(resolvedAlerts ?? []);
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load security alerts');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const counts = useMemo(() => {
+    const critical = alerts.filter((a) => (a.severity || '').toUpperCase() === 'CRITICAL').length;
+    const warning = alerts.filter((a) => (a.severity || '').toUpperCase() === 'MEDIUM' || (a.severity || '').toUpperCase() === 'HIGH').length;
+    const resolvedCount = resolved.length;
+    return { critical, warning, resolved: resolvedCount };
+  }, [alerts, resolved]);
+
+  const severityBadge = (severity?: string) => {
+    const sev = (severity || '').toUpperCase();
+    if (sev === 'CRITICAL' || sev === 'HIGH') return 'bg-red-500/20 text-red-400';
+    if (sev === 'MEDIUM') return 'bg-amber-500/20 text-amber-400';
+    return 'bg-emerald-500/20 text-emerald-300';
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -19,7 +61,7 @@ export default function SecurityPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">Critical Alerts</p>
-                <p className="text-2xl font-bold text-red-400">3</p>
+                <p className="text-2xl font-bold text-red-400">{loading ? '…' : counts.critical}</p>
               </div>
             </div>
           </CardContent>
@@ -33,7 +75,7 @@ export default function SecurityPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">Warnings</p>
-                <p className="text-2xl font-bold text-amber-400">7</p>
+                <p className="text-2xl font-bold text-amber-400">{loading ? '…' : counts.warning}</p>
               </div>
             </div>
           </CardContent>
@@ -47,7 +89,7 @@ export default function SecurityPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">Resolved</p>
-                <p className="text-2xl font-bold text-emerald-400">24</p>
+                <p className="text-2xl font-bold text-emerald-400">{loading ? '…' : counts.resolved}</p>
               </div>
             </div>
           </CardContent>
@@ -60,36 +102,20 @@ export default function SecurityPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-red-500/5 border border-red-500/10">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <div>
-                  <p className="text-sm font-medium text-white">Face Mismatch Detected</p>
-                  <p className="text-xs text-slate-400">Student ID: STU2024001 • 2 min ago</p>
+            {alerts.map((alert) => (
+              <div key={alert.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full ${severityBadge(alert.severity).includes('red') ? 'bg-red-500' : 'bg-amber-400'}`} />
+                  <div>
+                    <p className="text-sm font-medium text-white">{alert.title}</p>
+                    <p className="text-xs text-slate-400">{alert.description}</p>
+                    <p className="text-[11px] text-slate-500">{new Date(alert.created_at).toLocaleString()}</p>
+                  </div>
                 </div>
+                <Badge className={severityBadge(alert.severity)}>{alert.severity}</Badge>
               </div>
-              <Badge className="bg-red-500/20 text-red-400">Critical</Badge>
-            </div>
-            <div className="flex items-center justify-between p-4 rounded-lg bg-amber-500/5 border border-amber-500/10">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <div>
-                  <p className="text-sm font-medium text-white">Suspicious Login Attempt</p>
-                  <p className="text-xs text-slate-400">IP: 192.168.1.100 • 15 min ago</p>
-                </div>
-              </div>
-              <Badge className="bg-amber-500/20 text-amber-400">Warning</Badge>
-            </div>
-            <div className="flex items-center justify-between p-4 rounded-lg bg-orange-500/5 border border-orange-500/10">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-orange-500" />
-                <div>
-                  <p className="text-sm font-medium text-white">Geo-location Anomaly</p>
-                  <p className="text-xs text-slate-400">Location: Outside campus • 1 hour ago</p>
-                </div>
-              </div>
-              <Badge className="bg-orange-500/20 text-orange-400">Medium</Badge>
-            </div>
+            ))}
+            {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
           </div>
         </CardContent>
       </Card>

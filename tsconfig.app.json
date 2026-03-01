@@ -6,7 +6,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
 
-    "ignoreDeprecations": "5.0",
+    "ignoreDeprecations": "6.0",
 
     "baseUrl": ".",
     "paths": {

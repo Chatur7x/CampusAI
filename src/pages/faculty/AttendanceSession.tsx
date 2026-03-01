@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,30 +7,83 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Camera, Users, CheckCircle, XCircle, Fingerprint, Brain, Clock3 } from 'lucide-react';
 import { toast } from 'sonner';
+import { attendanceService, studentService, timetableService } from '@/lib/api';
+import { useRealtimeAttendance } from '@/lib/realtime';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import type { TimetableEntry, Student } from '@/lib/database.types';
 
-interface Student {
-  id: string;
-  name: string;
-  enrollmentId: string;
-  status: 'PRESENT' | 'ABSENT' | 'PENDING';
-  confidence?: number;
-}
-
-const mockStudents: Student[] = [
-  { id: '1', name: 'John Doe', enrollmentId: 'STU001', status: 'PRESENT', confidence: 0.95 },
-  { id: '2', name: 'Jane Smith', enrollmentId: 'STU002', status: 'PENDING' },
-  { id: '3', name: 'Bob Johnson', enrollmentId: 'STU003', status: 'ABSENT' },
-  { id: '4', name: 'Alice Brown', enrollmentId: 'STU004', status: 'PRESENT', confidence: 0.88 },
-  { id: '5', name: 'Charlie Wilson', enrollmentId: 'STU005', status: 'PENDING' },
-];
+type FacultyTimetableEntry = TimetableEntry & {
+  class?: { id?: string; name?: string; section?: string };
+  course?: { id?: string; name?: string; code?: string };
+};
 
 export default function AttendanceSessionPage() {
   const location = useLocation();
-  const classContext = (location.state as { className?: string; subject?: string; slot?: string }) || {};
-  const [students, setStudents] = useState<Student[]>(mockStudents);
+  const classContext = (location.state as { className?: string; subject?: string; slot?: string; classId?: string; courseId?: string }) || {};
+  const { user } = useSupabaseAuth();
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [mode, setMode] = useState<'MANUAL' | 'SMART'>('MANUAL');
   const [smartMethod, setSmartMethod] = useState<'FACE' | 'FINGERPRINT'>('FACE');
+  const [entries, setEntries] = useState<FacultyTimetableEntry[]>([]);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [roster, setRoster] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const selectedEntry = useMemo(
+    () => entries.find((e) => e.id === selectedEntryId) || entries[0],
+    [entries, selectedEntryId]
+  );
+
+  const { attendance, isLoading: attendanceLoading } = useRealtimeAttendance({
+    classId: selectedEntry?.class_id,
+    date: today,
+  });
+
+  const isLoadingData = loading || attendanceLoading;
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user?.faculty?.id) return;
+      try {
+        setLoading(true);
+        const data = await timetableService.getForFaculty(user.faculty.id);
+        setEntries(data);
+        if (!selectedEntryId && data.length > 0) {
+          setSelectedEntryId(data[0].id);
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load timetable');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [user?.faculty?.id]);
+
+  useEffect(() => {
+    if (!entries.length || !classContext.classId) return;
+    const match = entries.find(
+      (entry) => entry.class_id === classContext.classId && (!classContext.courseId || entry.course_id === classContext.courseId)
+    );
+    if (match) setSelectedEntryId(match.id);
+  }, [classContext.classId, classContext.courseId, entries]);
+
+  useEffect(() => {
+    const fetchRoster = async () => {
+      if (!selectedEntry?.class_id) return;
+      try {
+        const data = await studentService.getAll({ classId: selectedEntry.class_id });
+        setRoster(data);
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load students');
+      }
+    };
+    fetchRoster();
+  }, [selectedEntry?.class_id]);
 
   const startSession = () => {
     setIsSessionActive(true);
@@ -42,10 +95,28 @@ export default function AttendanceSessionPage() {
     toast.success('Attendance session ended');
   };
 
-  const markAttendance = (studentId: string, status: 'PRESENT' | 'ABSENT') => {
-    setStudents(students.map(s => 
-      s.id === studentId ? { ...s, status } : s
-    ));
+  const markAttendance = async (studentId: string, status: 'PRESENT' | 'ABSENT') => {
+    if (!selectedEntry) return;
+    try {
+      const existing = attendance.find((a) => a.student_id === studentId && a.date === today);
+      if (existing) {
+        await attendanceService.update(existing.id, { status });
+      } else {
+        await attendanceService.mark({
+          student_id: studentId,
+          class_id: selectedEntry.class_id,
+          course_id: selectedEntry.course_id,
+          faculty_id: selectedEntry.faculty_id,
+          date: today,
+          status,
+          method: mode === 'SMART' ? smartMethod : 'MANUAL',
+        });
+      }
+      toast.success('Attendance saved');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update attendance');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -59,9 +130,23 @@ export default function AttendanceSessionPage() {
     }
   };
 
-  const presentCount = students.filter(s => s.status === 'PRESENT').length;
-  const absentCount = students.filter(s => s.status === 'ABSENT').length;
-  const pendingCount = students.filter(s => s.status === 'PENDING').length;
+  const mergedStudents = useMemo(() => {
+    return roster.map((student) => {
+      const record = attendance.find((a) => a.student_id === student.id && a.date === today);
+      const status = record?.status || 'PENDING';
+      return {
+        id: student.id,
+        name: `${student.profile?.first_name ?? ''} ${student.profile?.last_name ?? ''}`.trim() || student.profile?.first_name || 'Student',
+        enrollmentId: student.enrollment_id,
+        status,
+        confidence: record?.confidence_score,
+      } as const;
+    });
+  }, [attendance, roster, today]);
+
+  const presentCount = mergedStudents.filter(s => s.status === 'PRESENT').length;
+  const absentCount = mergedStudents.filter(s => s.status === 'ABSENT').length;
+  const pendingCount = mergedStudents.filter(s => s.status === 'PENDING').length;
 
   const stats = useMemo(() => {
     const required = 75;
@@ -83,12 +168,16 @@ export default function AttendanceSessionPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Attendance Session</h1>
           <p className="text-slate-400">
-            {classContext.subject ? `${classContext.subject} • ${classContext.className || 'Class'} • ${classContext.slot || 'Current slot'}` : 'Mark attendance for your classes'}
+            {selectedEntry
+              ? `${selectedEntry.course?.name || 'Subject'} • ${selectedEntry.class?.name || 'Class'} • ${classContext.slot || 'Current slot'}`
+              : classContext.subject
+                ? `${classContext.subject} • ${classContext.className || 'Class'} • ${classContext.slot || 'Current slot'}`
+                : 'Mark attendance for your classes'}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {!isSessionActive ? (
-            <Button onClick={startSession} className="bg-cyan-600 hover:bg-cyan-700">
+            <Button onClick={startSession} className="bg-cyan-600 hover:bg-cyan-700" disabled={isLoadingData || !selectedEntry}>
               <Camera className="w-4 h-4 mr-2" />
               Start Session
             </Button>
@@ -98,6 +187,25 @@ export default function AttendanceSessionPage() {
             </Button>
           )}
         </div>
+      </div>
+
+      {!loading && entries.length === 0 ? (
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-6 text-slate-300">No timetable entries assigned to you yet.</CardContent>
+        </Card>
+      ) : null}
+
+      <div className="flex flex-wrap gap-3 items-center">
+        <Badge className="bg-slate-800 text-slate-200 border-slate-700">Date: {today}</Badge>
+        <Tabs value={selectedEntry?.id || ''} onValueChange={setSelectedEntryId} className="w-full">
+          <TabsList className="bg-slate-800/50 overflow-x-auto">
+            {entries.map((entry) => (
+              <TabsTrigger key={entry.id} value={entry.id} className="text-xs md:text-sm">
+                {entry.class_id ? `Class ${entry.class_id.slice(0, 4)}` : 'Class'} • {entry.course_id ? entry.course_id.slice(0, 4) : 'Course'}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -147,7 +255,7 @@ export default function AttendanceSessionPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {students.map((student) => (
+                {mergedStudents.map((student) => (
                   <div
                     key={student.id}
                     className="flex items-center justify-between p-4 rounded-lg bg-slate-800/30"

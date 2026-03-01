@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, TrendingUp, Users, Calendar } from 'lucide-react';
 import {
@@ -11,25 +12,79 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
+import { analyticsService } from '@/lib/api';
+import { toast } from 'sonner';
 
-const trendData = [
-  { month: 'Jan', attendance: 85 },
-  { month: 'Feb', attendance: 88 },
-  { month: 'Mar', attendance: 82 },
-  { month: 'Apr', attendance: 90 },
-  { month: 'May', attendance: 87 },
-  { month: 'Jun', attendance: 92 },
-];
-
-const departmentData = [
-  { name: 'CSE', attendance: 92 },
-  { name: 'ECE', attendance: 88 },
-  { name: 'MECH', attendance: 85 },
-  { name: 'CIVIL', attendance: 87 },
-  { name: 'IT', attendance: 90 },
-];
+type TrendPoint = { date: string; attendance_percentage: number };
+type DepartmentPoint = { department_name: string; average_attendance: number };
 
 export default function AnalyticsPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [daily, setDaily] = useState<TrendPoint[]>([]);
+  const [department, setDepartment] = useState<DepartmentPoint[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const [dash, dailySummary, deptSummary] = await Promise.all([
+          analyticsService.getAdminDashboard(),
+          analyticsService.getDailyAttendanceSummary(),
+          analyticsService.getDepartmentSummary(),
+        ]);
+        setDashboard(dash ?? {});
+        setDaily((dailySummary ?? []).map((d: any) => ({
+          date: d.date,
+          attendance_percentage: Number(d.average_attendance ?? 0),
+        })));
+        setDepartment((deptSummary ?? []).map((d: any) => ({
+          department_name: d.department_name ?? d.department_code ?? 'Dept',
+          average_attendance: Number(d.average_attendance ?? 0),
+        })));
+      } catch (err) {
+        console.error(err);
+        setError('Failed to load analytics');
+        toast.error('Failed to load analytics');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const cards = useMemo(() => ([
+    {
+      label: 'Avg Attendance',
+      value: dashboard?.average_attendance_percentage ? `${dashboard.average_attendance_percentage.toFixed(1)}%` : '--',
+      icon: TrendingUp,
+      bg: 'bg-violet-500/10',
+      color: 'text-violet-400',
+    },
+    {
+      label: 'Active Students',
+      value: dashboard?.total_students ?? '--',
+      icon: Users,
+      bg: 'bg-emerald-500/10',
+      color: 'text-emerald-400',
+    },
+    {
+      label: 'Classes Today',
+      value: dashboard?.classes_today ?? '--',
+      icon: Calendar,
+      bg: 'bg-amber-500/10',
+      color: 'text-amber-400',
+    },
+    {
+      label: 'Leaves Pending',
+      value: dashboard?.pending_leaves ?? '--',
+      icon: BarChart3,
+      bg: 'bg-cyan-500/10',
+      color: 'text-cyan-400',
+    },
+  ]), [dashboard]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -38,61 +93,21 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-violet-400" />
+        {cards.map((card) => (
+          <Card key={card.label} className="bg-slate-900/50 border-slate-800">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-lg ${card.bg} flex items-center justify-center`}>
+                  <card.icon className={`w-6 h-6 ${card.color}`} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400">{card.label}</p>
+                  <p className="text-2xl font-bold text-white">{loading ? '…' : card.value}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-slate-400">Avg Attendance</p>
-                <p className="text-2xl font-bold text-white">87.5%</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <Users className="w-6 h-6 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-400">Active Students</p>
-                <p className="text-2xl font-bold text-white">2,847</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-400">Classes Today</p>
-                <p className="text-2xl font-bold text-white">48</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                <BarChart3 className="w-6 h-6 text-cyan-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-400">Data Points</p>
-                <p className="text-2xl font-bold text-white">12.5K</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -103,9 +118,9 @@ export default function AnalyticsPage() {
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
+                <LineChart data={daily}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="month" stroke="#94a3b8" />
+                  <XAxis dataKey="date" stroke="#94a3b8" />
                   <YAxis stroke="#94a3b8" domain={[0, 100]} />
                   <Tooltip
                     contentStyle={{
@@ -113,8 +128,9 @@ export default function AnalyticsPage() {
                       border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
+                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
                   />
-                  <Line type="monotone" dataKey="attendance" stroke="#8b5cf6" strokeWidth={2} />
+                  <Line type="monotone" dataKey="attendance_percentage" stroke="#8b5cf6" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -128,9 +144,9 @@ export default function AnalyticsPage() {
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={departmentData}>
+                <BarChart data={department}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="name" stroke="#94a3b8" />
+                  <XAxis dataKey="department_name" stroke="#94a3b8" />
                   <YAxis stroke="#94a3b8" domain={[0, 100]} />
                   <Tooltip
                     contentStyle={{
@@ -139,13 +155,17 @@ export default function AnalyticsPage() {
                       borderRadius: '8px',
                     }}
                   />
-                  <Bar dataKey="attendance" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="average_attendance" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {error ? (
+        <p className="text-sm text-red-400">{error}</p>
+      ) : null}
     </div>
   );
 }

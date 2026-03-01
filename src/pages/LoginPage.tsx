@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { Activity, Loader, Radar } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, login } = useAuth();
+  const { user, isLoading: authLoading, signIn } = useSupabaseAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
@@ -53,12 +53,11 @@ export default function LoginPage() {
     }
 
     try {
-      const result = await login(email, password);
-      if (result.detectedRole) {
-        setDetectedRole(result.detectedRole);
-      }
+      const result = await signIn(email, password);
       if (!result.success) {
-        setError(result.message || "Login failed");
+        setError(result.error || "Login failed");
+      } else {
+        setDetectedRole(detectRoleFromEmail(email));
       }
     } catch (err) {
       setError("Login error. Please try again.");

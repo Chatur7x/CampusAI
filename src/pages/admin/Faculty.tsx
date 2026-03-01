@@ -33,6 +33,7 @@ import { Search, Plus, Edit, Trash2, User, Upload, Download, GraduationCap, Buil
 import { toast } from 'sonner';
 import type { Faculty, Department } from '@/types';
 import { facultyService, departmentService } from '@/lib/api';
+import supabase from '@/lib/supabase';
 
 export default function FacultyPage() {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
@@ -80,20 +81,39 @@ export default function FacultyPage() {
   };
 
   const handleAdd = async () => {
+    if (!form.email || !form.firstName || !form.employeeId || !form.departmentId) {
+      toast.error('Fill required fields before adding');
+      return;
+    }
     try {
-      await facultyService.create({
-        employeeId: form.employeeId,
-        designation: form.designation,
-        departmentId: form.departmentId,
-        joiningDate: form.joiningDate,
-        specialization: form.specialization,
-      } as any);
+      const { data, error } = await supabase.functions.invoke('bulk-operations', {
+        body: {
+          operation: 'import_faculty',
+          data: [
+            {
+              email: form.email.trim(),
+              firstName: form.firstName.trim(),
+              lastName: form.lastName.trim() || 'Faculty',
+              employeeId: form.employeeId.trim(),
+              departmentId: form.departmentId,
+              designation: form.designation,
+              joiningDate: form.joiningDate,
+              specialization: form.specialization || undefined,
+            },
+          ],
+          options: { skipDuplicates: true },
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.message || 'Failed to add faculty');
+
       toast.success('Faculty member added successfully');
       setIsAddOpen(false);
       resetForm();
       fetchFaculty();
     } catch (error) {
-      toast.error('Failed to add faculty');
+      toast.error(error instanceof Error ? error.message : 'Failed to add faculty');
     }
   };
 

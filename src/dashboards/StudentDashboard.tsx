@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { CommandPaletteTrigger } from '@/components/CommandPalette';
@@ -51,7 +51,7 @@ const sidebarItems = [
 ];
 
 export default function StudentDashboard() {
-  const { user, student, logout } = useAuth();
+  const { user, student, signOut: logout } = useSupabaseAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

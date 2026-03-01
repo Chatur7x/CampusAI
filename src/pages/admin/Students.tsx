@@ -33,6 +33,7 @@ import { Search, Plus, Upload, Download, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Student, Department, Class } from '@/types';
 import { studentService, departmentService, classService } from '@/lib/api';
+import supabase from '@/lib/supabase';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -88,14 +89,33 @@ export default function StudentsPage() {
   };
 
   const handleAddStudent = async () => {
+    if (!newStudent.email || !newStudent.firstName || !newStudent.enrollmentId || !newStudent.departmentId || !newStudent.classId) {
+      toast.error('Fill required fields before adding');
+      return;
+    }
     try {
-      await studentService.create({
-        enrollmentId: newStudent.enrollmentId,
-        departmentId: newStudent.departmentId,
-        classId: newStudent.classId,
-        batchYear: newStudent.batchYear,
-        semester: newStudent.semester,
-      } as any);
+      const { data, error } = await supabase.functions.invoke('bulk-operations', {
+        body: {
+          operation: 'import_students',
+          data: [
+            {
+              email: newStudent.email.trim(),
+              firstName: newStudent.firstName.trim(),
+              lastName: newStudent.lastName.trim() || 'Student',
+              enrollmentId: newStudent.enrollmentId.trim(),
+              departmentId: newStudent.departmentId,
+              classId: newStudent.classId,
+              batchYear: newStudent.batchYear,
+              semester: newStudent.semester,
+            },
+          ],
+          options: { sendNotifications: true, skipDuplicates: true },
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.message || 'Failed to add student');
+
       toast.success('Student added successfully');
       setIsAddDialogOpen(false);
       fetchStudents();
@@ -111,7 +131,7 @@ export default function StudentsPage() {
       });
     } catch (error) {
       console.error('Error adding student:', error);
-      toast.error('Failed to add student');
+      toast.error(error instanceof Error ? error.message : 'Failed to add student');
     }
   };
 
@@ -183,6 +203,7 @@ export default function StudentsPage() {
   const getInitials = (name: string) => {
     return name
       .split(' ')
+      .filter(Boolean)
       .map((n) => n[0])
       .join('')
       .toUpperCase();

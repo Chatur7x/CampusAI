@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Create Supabase client (will use placeholder in dev/demo mode)
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase env vars missing: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required');
+}
+
+// Create Supabase client (production only)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -21,6 +25,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     headers: {
       'x-app-name': 'CampusAI',
       'x-app-version': '1.0.0',
+    },
+    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+      return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
     },
   },
 });
@@ -45,5 +54,5 @@ export const onAuthStateChange = (callback: (event: string, session: unknown) =>
 };
 
 // Export types
-export type { Database } from './database.types.ts';
+export type { Database } from './database.types';
 export type SupabaseClient = typeof supabase;

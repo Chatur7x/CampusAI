@@ -25,7 +25,7 @@ import {
   Sun,
   LogOut,
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { useTheme } from '@/context/ThemeContext';
 
 interface CommandItem {
@@ -39,7 +39,7 @@ interface CommandItem {
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, signOut: logout } = useSupabaseAuth();
   const { setTheme } = useTheme();
 
   useEffect(() => {

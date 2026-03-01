@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import supabase from '@/lib/supabase';
+import { classService, departmentService } from '@/lib/api';
+import type { Class, Department } from '@/types';
 
 const steps = ['Personal Details', 'Academic Details', 'Address Details'];
 
@@ -85,6 +88,8 @@ const initialForm = {
   degree: '',
   programCode: '',
   semester: '',
+  departmentId: '',
+  classId: '',
   country: 'India',
   state: 'Telangana',
   district: 'Hyderabad',
@@ -106,6 +111,43 @@ export default function StudentRegistrationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoadingData(true);
+        const [deptData, classData] = await Promise.all([
+          departmentService.getAll(),
+          classService.getAll(),
+        ]);
+        setDepartments(deptData || []);
+        setClasses(classData || []);
+
+        setForm((prev) => ({
+          ...prev,
+          departmentId: prev.departmentId || deptData?.[0]?.id || '',
+          classId: prev.classId || classData?.[0]?.id || '',
+        }));
+      } catch (err) {
+        console.error(err);
+        toast.error('Unable to load departments/classes');
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  const filteredClasses = useMemo(() => {
+    return classes.filter((c) => {
+      const deptId = (c as any).department_id || c.departmentId;
+      return !form.departmentId || deptId === form.departmentId;
+    });
+  }, [classes, form.departmentId]);
 
   const availableDistricts = useMemo(() => Object.keys(addressData[form.state] ?? {}), [form.state]);
   const availableCities = useMemo(() => {
@@ -173,11 +215,51 @@ export default function StudentRegistrationPage() {
   };
 
   const onSubmit = async () => {
+    if (!form.email || !form.firstName || !form.lastName || !form.rollNumber || !form.departmentId || !form.classId) {
+      toast.error('Please fill required fields before submitting');
+      return;
+    }
+
     setSubmitting(true);
-    await new Promise((res) => setTimeout(res, 800));
-    setSubmitting(false);
-    setSubmitted(true);
-    toast.success('Student registered • Credentials emailed');
+    try {
+      const { data, error } = await supabase.functions.invoke('bulk-operations', {
+        body: {
+          operation: 'import_students',
+          data: [
+            {
+              email: form.email.trim(),
+              firstName: form.firstName.trim(),
+              lastName: (form.lastName || form.middleName || 'Student').trim(),
+              enrollmentId: form.rollNumber.trim(),
+              departmentId: form.departmentId,
+              classId: form.classId,
+              batchYear: Number(form.batch) || new Date().getFullYear(),
+              semester: Number(form.semester) || 1,
+              phone: form.phone || undefined,
+              guardianName: form.fatherName || form.motherName || undefined,
+              guardianPhone: form.parentsMobile || undefined,
+              guardianEmail: undefined,
+            },
+          ],
+          options: { sendNotifications: true, skipDuplicates: true },
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.message || 'Registration failed');
+      }
+
+      setSubmitted(true);
+      toast.success('Student registered • Credentials emailed');
+      setForm((prev) => ({ ...initialForm, departmentId: form.departmentId, classId: form.classId }));
+      setStep(0);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to register student';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const detectAddressFromCurrentLocation = async () => {
@@ -286,12 +368,26 @@ export default function StudentRegistrationPage() {
     if (step === 1) {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Roll Number" value={form.rollNumber} onChange={(v) => handleChange('rollNumber', v)} required />
-          <Field label="Admission Number" value={form.admissionNumber} onChange={(v) => handleChange('admissionNumber', v)} required />
-          <Field label="Batch" value={form.batch} onChange={(v) => handleChange('batch', v)} placeholder="2024-2028" />
+          <Field label="Enrollment ID" value={form.rollNumber} onChange={(v) => handleChange('rollNumber', v)} required />
+          <Field label="Admission Number" value={form.admissionNumber} onChange={(v) => handleChange('admissionNumber', v)} />
+          <Field label="Batch Year" value={form.batch} onChange={(v) => handleChange('batch', v)} placeholder="2024" />
           <Field label="Degree" value={form.degree} onChange={(v) => handleChange('degree', v)} placeholder="B.Tech" />
           <Field label="Program Code" value={form.programCode} onChange={(v) => handleChange('programCode', v)} placeholder="CSE" />
-          <Field label="Semester" value={form.semester} onChange={(v) => handleChange('semester', v)} placeholder="1-8" />
+          <Field label="Semester" value={form.semester} onChange={(v) => handleChange('semester', v)} placeholder="1-8" required />
+          <SelectField
+            label="Department"
+            value={form.departmentId}
+            options={departments.map((d) => ({ value: d.id, label: `${d.name} (${d.code})` }))}
+            onChange={(v) => handleChange('departmentId', v)}
+            disabled={loadingData}
+          />
+          <SelectField
+            label="Class"
+            value={form.classId}
+            options={filteredClasses.map((c) => ({ value: c.id, label: `${c.name}-${c.section}` }))}
+            onChange={(v) => handleChange('classId', v)}
+            disabled={loadingData || filteredClasses.length === 0}
+          />
         </div>
       );
     }
@@ -318,25 +414,25 @@ export default function StudentRegistrationPage() {
           <Field label="Country" value={form.country} onChange={(v) => handleChange('country', v)} disabled />
 
           {hasStateOptions ? (
-            <SelectField label="State" value={form.state} options={Object.keys(addressData)} onChange={handleStateChange} />
+            <SelectField label="State" value={form.state} options={Object.keys(addressData).map((o) => ({ value: o, label: o }))} onChange={handleStateChange} />
           ) : (
             <Field label="State" value={form.state} onChange={(v) => handleChange('state', v)} />
           )}
 
           {availableDistricts.length > 0 ? (
-            <SelectField label="District" value={form.district} options={availableDistricts} onChange={handleDistrictChange} />
+            <SelectField label="District" value={form.district} options={availableDistricts.map((o) => ({ value: o, label: o }))} onChange={handleDistrictChange} />
           ) : (
             <Field label="District" value={form.district} onChange={(v) => handleChange('district', v)} />
           )}
 
           {availableCities.length > 0 ? (
-            <SelectField label="City" value={form.city} options={availableCities} onChange={handleCityChange} />
+            <SelectField label="City" value={form.city} options={availableCities.map((o) => ({ value: o, label: o }))} onChange={handleCityChange} />
           ) : (
             <Field label="City" value={form.city} onChange={(v) => handleChange('city', v)} />
           )}
 
           {availableMandals.length > 0 ? (
-            <SelectField label="Mandal" value={form.mandal} options={availableMandals} onChange={handleMandalChange} />
+            <SelectField label="Mandal" value={form.mandal} options={availableMandals.map((o) => ({ value: o, label: o }))} onChange={handleMandalChange} />
           ) : (
             <Field label="Mandal" value={form.mandal} onChange={(v) => handleChange('mandal', v)} />
           )}
@@ -382,11 +478,11 @@ export default function StudentRegistrationPage() {
               Back
             </Button>
             {step < steps.length - 1 ? (
-              <Button onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}>
-                Next
+              <Button onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))} disabled={loadingData}>
+                {loadingData ? 'Loading…' : 'Next'}
               </Button>
             ) : (
-              <Button onClick={onSubmit} disabled={submitting}>
+              <Button onClick={onSubmit} disabled={submitting || loadingData}>
                 {submitting ? 'Submitting…' : 'Submit & Notify'}
               </Button>
             )}
@@ -435,22 +531,24 @@ function Field({ label, value, onChange, type = 'text', placeholder, required, d
 interface SelectFieldProps {
   label: string;
   value: string;
-  options: string[];
+  options: { value: string; label: string }[];
   onChange: (v: string) => void;
+  disabled?: boolean;
 }
 
-function SelectField({ label, value, options, onChange }: SelectFieldProps) {
+function SelectField({ label, value, options, onChange, disabled }: SelectFieldProps) {
   return (
     <label className="space-y-1 text-sm text-slate-300 flex flex-col">
       <span>{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-white"
+        disabled={disabled}
+        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-white disabled:opacity-70"
       >
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>
