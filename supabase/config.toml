@@ -21,7 +21,7 @@ max_rows = 1000
 # Port to use for the local database URL
 port = 54322
 # Database major version
-major_version = 15
+major_version = 17
 
 [studio]
 # Port to use for Supabase Studio
@@ -52,17 +52,8 @@ enable_signup = true
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in
 enable_confirmations = true
-# Secure email change requires both old and new email verification
-secure_email_change = true
-# Template for the email confirmation link
-template = "confirm"
 # How long before an email link expires (in seconds)
 max_frequency = 60
-
-[auth.phone]
-# Enable phone auth
-enable_signup = false
-enable_confirmations = false
 
 [auth.external.google]
 enabled = false
@@ -94,10 +85,7 @@ file_size_limit = "52428800"
 [realtime]
 enabled = true
 # Broadcast and presence features
-ip_version = "ipv4"
-
-[functions]
-enabled = true
+ip_version = "IPv4"
 
 [analytics]
 enabled = true

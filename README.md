@@ -1,52 +1,38 @@
 # AI-SmartAttendance
 
-A campus management experience that fuses AI face/biometric tools, blockchain-backed audit trails, and realtime analytics for admins, faculty, and students. The workspace includes:
+Your campus assistant that blends AI attendance, blockchain-backed audit trails, and Supabase-powered APIs. This repo now separates the backend as `server--backend/` for easier navigation.
 
-- A **React + TypeScript + Vite** front-end with modular dashboards, context providers, and a fully themed UI kit.
-- A **Node/Express** backend that unwraps authentication, attendance, timetable, analytics, and notification services plus Prisma/SQL models.
-- **Supabase functions** and migrations wiring blockchain verification, analytics, and face verification helpers for serverless tooling.
+## What’s inside (plain and polite)
+- **Frontend**: React + TypeScript + Vite in `src--frontend/` (dashboards, contexts, UI kit).
+- **Backend**: Node/Express + Prisma in `server--backend/` (controllers for attendance, timetable, analytics, notifications).
+- **Supabase**: Edge functions in `supabase/functions/` (attendance, notices, timetable, analytics) plus SQL seeds/migrations.
 
-## Key Capabilities
-
-1. **Auto role detection login** removes manual dropdowns and routes users to their portal based on JWT-scoped roles sent by the server.
-2. **Dual attendance experience** lets faculty choose manual grids or smart face/biometric recognition with live present/absent stats and bulk support.
-3. **Timetable-integrated workflows** enable faculty to launch attendance sessions from a weekly view while students see ✅/❌/⏳ indicators per slot.
-4. **Student registration** is a guided multi-step intake with India-specific address autofill, notifications, and credential emails.
-5. **Student dashboard** keeps attendance front and center with a large gauge, safe-absence math, and contextual notices.
-
-## Languages
-
-The codebase primarily uses:
-
-- **TypeScript** – React components, backend controllers, hooks, contexts, services, and CLI tooling across `src/` and `server/src/`.
-- **SQL / Prisma schema** – Supabase migrations, functions, and ORM layers (Prisma models, raw SQL migrations) for data shape and RLS.
-- **JavaScript/TypeScript configs & JSON** – build tooling (`vite`, ESLint, tsconfig), Supabase function manifests, and mock helpers.
-- **Markdown** – documentation, feature briefs, and guides in `/README*.md` and `/docs`.
-- **Shell / PowerShell** scripts – workspace utilities, CI helpers, and devOps snippets (PowerShell module uses). 
-
-## Getting Started
-
+## Quick start
 ```bash
-# install workspace deps
 npm install
-cd server && npm install
+cd server--backend && npm install
 
-# run both apps (use your preferred terminal multiplexer)
-npm run dev      # front-end
-cd server && npm run dev
+# run front-end
+npm run dev
+
+# run backend API (if you use the Express server locally)
+cd server--backend && npm run dev
 ```
 
-Set up Supabase locally (see `/supabase/`), run migrations, and seed data as needed. Supabase functions live under `/supabase/functions` and can be deployed via `supabase deploy` if you push to a hosted project.
+Supabase edge functions are deployed at:
+- https://doxhysprkwywsrbdtmpo.functions.supabase.co/attendance
+- https://doxhysprkwywsrbdtmpo.functions.supabase.co/notices
+- https://doxhysprkwywsrbdtmpo.functions.supabase.co/timetable
 
-## Folder Highlights
+Send `Authorization: Bearer <supabase_access_token>` with each request.
 
-- `src/` – Vite React app with dashboards, hooks, context, components, and pages.
-- `server/src/` – Express controllers, Prisma integration, attendance/timetable services, and audit logging.
-- `supabase/` – migrations, SQL seed scripts, and edge functions for analytics, notifications, bulk flows, and face verification.
-- `docs/` – supplemental guides (if present); `README_COMPLETE.md`, `QUICK_START.md`, and others expand the story.
+## Folder map
+- `src--frontend/` – React app (dashboards, hooks, contexts, components, pages).
+- `server--backend/` – Express + Prisma sources and configuration.
+- `supabase/` – migrations, seeds, and edge functions.
+- `docs/` – any extended guides.
 
-## Next Steps
-
-- Re-run `npm run lint` and `npm run test` if new logic is added.
-- Push changes to `main` and monitor GitHub language stats; feel free to add `.gitattributes` to control Linguist if needed.
-- Connect to Supabase or Postgres with `.env.local` to hydrate services and run the Prisma client migrations.
+## Housekeeping
+- Run `npm run lint` before commits; add tests where logic changes.
+- Keep tokens out of Git and rotate them if shared.
+- Deploy edge functions with `npx supabase functions deploy <name> --project-ref doxhysprkwywsrbdtmpo`.

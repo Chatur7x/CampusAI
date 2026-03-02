@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./src--frontend"),
     },
   },
   // This defines a global 'process' variable to prevent the frontend from crashing
