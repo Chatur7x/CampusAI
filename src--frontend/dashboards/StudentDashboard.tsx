@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -28,8 +28,11 @@ import {
   ChevronDown,
   User,
   GraduationCap,
+  ScanFace,
+  Brain,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { attendanceService } from '@/lib/api';
 
 // Student Pages
 import StudentOverview from '@/pages/student/Overview';
@@ -39,6 +42,9 @@ import SecureAttendanceStudent from '@/components/attendance/SecureAttendanceStu
 import AttendanceCalculatorPage from '@/pages/student/AttendanceCalculator';
 import StudentNoticesPage from '@/pages/student/Notices';
 import StudentSettingsPage from '@/pages/student/Settings';
+import FaceRegistration from '@/components/ai/FaceRegistration';
+import FaceAttendance from '@/components/ai/FaceAttendance';
+import AIDashboard from '@/components/ai/AIDashboard';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/student' },
@@ -46,6 +52,9 @@ const sidebarItems = [
   { icon: Calendar, label: 'Timetable', path: '/student/timetable' },
   { icon: ClipboardList, label: 'My Records', path: '/student/attendance' },
   { icon: Calculator, label: 'Calculator', path: '/student/calculator' },
+  { icon: ScanFace, label: 'Face Registration', path: '/student/face-register' },
+  { icon: ScanFace, label: 'Face Attendance', path: '/student/face-attendance' },
+  { icon: Brain, label: 'AI Analytics', path: '/student/ai-analytics' },
   { icon: Bell, label: 'Notices', path: '/student/notices' },
   { icon: Settings, label: 'Settings', path: '/student/settings' },
 ];
@@ -56,6 +65,27 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [attendanceRecords, setAttendanceRecords] = useState<{ date: string; status: string; courseId?: string }[]>([]);
+
+  // Fetch attendance records for AI Dashboard
+  useEffect(() => {
+    (async () => {
+      try {
+        const sid = student?.id || user?.id || '';
+        if (!sid) return;
+        const records = await attendanceService.getForStudent(sid);
+        setAttendanceRecords(
+          records.map((r: any) => ({
+            date: r.date || r.createdAt?.slice(0, 10) || '',
+            status: (r.status || 'absent').toLowerCase(),
+            courseId: r.subjectId || r.subject_id || r.courseId || undefined,
+          }))
+        );
+      } catch (err) {
+        console.warn('Failed to fetch attendance for AI dashboard:', err);
+      }
+    })();
+  }, [student, user]);
 
   const handleLogout = () => {
     logout();
@@ -236,6 +266,9 @@ export default function StudentDashboard() {
             <Route path="/timetable" element={<StudentTimetablePage />} />
             <Route path="/attendance" element={<MyAttendancePage />} />
             <Route path="/calculator" element={<AttendanceCalculatorPage />} />
+            <Route path="/face-register" element={<FaceRegistration />} />
+            <Route path="/face-attendance" element={<FaceAttendance />} />
+            <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="student" studentId={student?.id || user?.id} studentName={`${user?.profile?.first_name || ''} ${user?.profile?.last_name || ''}`.trim() || 'Student'} />} />
             <Route path="/notices" element={<StudentNoticesPage />} />
             <Route path="/settings" element={<StudentSettingsPage />} />
           </Routes>

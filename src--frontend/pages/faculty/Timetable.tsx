@@ -1,48 +1,78 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Clock, MapPin, BookOpen, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { timetableService } from '@/lib/api';
 
-import { Clock, MapPin, BookOpen, CheckCircle } from 'lucide-react';
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const schedule = {
-  1: [ // Monday
-    { time: '9:00 - 10:30', subject: 'Data Structures', class: 'CSE-A', room: '301' },
-    { time: '11:00 - 12:30', subject: 'Algorithms', class: 'CSE-B', room: '302' },
-    { time: '14:00 - 15:30', subject: 'Database Systems', class: 'CSE-C', room: '303' },
-  ],
-  2: [ // Tuesday
-    { time: '9:00 - 10:30', subject: 'Web Development', class: 'IT-A', room: '401' },
-    { time: '11:00 - 12:30', subject: 'Data Structures', class: 'CSE-A', room: '301' },
-  ],
-  3: [ // Wednesday
-    { time: '9:00 - 10:30', subject: 'Algorithms', class: 'CSE-B', room: '302' },
-    { time: '11:00 - 12:30', subject: 'Database Systems', class: 'CSE-C', room: '303' },
-    { time: '14:00 - 15:30', subject: 'Web Development', class: 'IT-A', room: '401' },
-  ],
-  4: [ // Thursday
-    { time: '9:00 - 10:30', subject: 'Data Structures', class: 'CSE-A', room: '301' },
-    { time: '11:00 - 12:30', subject: 'Algorithms', class: 'CSE-B', room: '302' },
-  ],
-  5: [ // Friday
-    { time: '9:00 - 10:30', subject: 'Database Systems', class: 'CSE-C', room: '303' },
-    { time: '11:00 - 12:30', subject: 'Web Development', class: 'IT-A', room: '401' },
-  ],
-};
-
-const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+function g(slot: any, ...keys: string[]): string {
+  for (const k of keys) { const v = slot[k]; if (v != null) return String(v); }
+  return '';
+}
 
 export default function FacultyTimetablePage() {
   const navigate = useNavigate();
+  const { user } = useSupabaseAuth();
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const goToAttendance = (day: string, slot: { time: string; subject: string; class: string; room: string }) => {
+  useEffect(() => {
+    (async () => {
+      try {
+        const fid = user?.faculty?.id || user?.id || '';
+        if (!fid) { setLoading(false); return; }
+        const data = await timetableService.getForFaculty(fid);
+        setEntries(data as any[]);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load timetable');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [user]);
+
+  // Group entries by day of week
+  const grouped: Record<number, any[]> = {};
+  for (const e of entries) {
+    const day = e.dayOfWeek ?? e.day_of_week ?? 0;
+    if (!grouped[day]) grouped[day] = [];
+    grouped[day].push(e);
+  }
+  for (const d of Object.keys(grouped)) {
+    grouped[+d].sort((a: any, b: any) =>
+      g(a, 'startTime', 'start_time').localeCompare(g(b, 'startTime', 'start_time')));
+  }
+
+  const goToAttendance = (day: string, slot: any) => {
     navigate('/faculty/attendance', {
       state: {
-        className: slot.class,
-        subject: slot.subject,
-        slot: `${day} • ${slot.time}`,
+        className: g(slot, 'className', 'classId', 'class_id'),
+        subject: g(slot, 'subject', 'subjectName', 'subjectId', 'subject_id'),
+        slot: `${day} • ${g(slot, 'startTime', 'start_time')} - ${g(slot, 'endTime', 'end_time')}`,
       },
     });
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+        <span className="ml-3 text-slate-400">Loading timetable...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-20 text-red-400">
+        <AlertCircle className="w-6 h-6 mr-2" />{error}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -51,51 +81,59 @@ export default function FacultyTimetablePage() {
         <p className="text-slate-400">Your weekly teaching schedule</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-        {days.map((day, index) => (
-          <Card key={day} className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-white text-lg">{day}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {schedule[index + 1 as keyof typeof schedule]?.map((slot, i) => (
-                  <div
-                    key={i}
-                    className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10 space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-cyan-400" />
-                      <span className="text-sm text-cyan-400">{slot.time}</span>
-                    </div>
-                    <p className="font-medium text-white">{slot.subject}</p>
-                    <div className="flex items-center gap-3 mt-2 text-sm text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <BookOpen className="w-3 h-3" />
-                        {slot.class}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        Room {slot.room}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="text-xs text-cyan-300 flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> Tap to mark attendance directly from timetable
-                      </div>
-                      <Button size="sm" variant="secondary" onClick={() => goToAttendance(day, slot)}>
-                        Mark Attendance
-                      </Button>
-                    </div>
+      {entries.length === 0 ? (
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="py-12 text-center">
+            <p className="text-slate-400">No timetable entries found. Contact admin to set up your schedule.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {DAYS.map((day, index) => {
+            const slots = grouped[index + 1] || grouped[index] || [];
+            if (slots.length === 0) return null;
+            return (
+              <Card key={day} className="bg-slate-900/50 border-slate-800">
+                <CardHeader>
+                  <CardTitle className="text-white text-lg">{day}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {slots.map((slot: any, i: number) => {
+                      const st = g(slot, 'startTime', 'start_time');
+                      const et = g(slot, 'endTime', 'end_time');
+                      const subj = g(slot, 'subject', 'subjectName', 'subjectId', 'subject_id');
+                      const cls = g(slot, 'className', 'classId', 'class_id');
+                      const room = g(slot, 'room', 'roomNumber', 'room_number');
+                      return (
+                        <div key={slot.id || i} className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-cyan-400" />
+                            <span className="text-sm text-cyan-400">{st}{et ? ` - ${et}` : ''}</span>
+                          </div>
+                          <p className="font-medium text-white">{subj || 'Untitled'}</p>
+                          <div className="flex items-center gap-3 mt-2 text-sm text-slate-400">
+                            {cls && <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" />{cls}</span>}
+                            {room && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />Room {room}</span>}
+                          </div>
+                          <div className="flex items-center justify-between pt-1">
+                            <div className="text-xs text-cyan-300 flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> Tap to mark attendance
+                            </div>
+                            <Button size="sm" variant="secondary" onClick={() => goToAttendance(day, slot)}>
+                              Mark Attendance
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                )) || (
-                  <p className="text-slate-500 text-center py-4">No classes scheduled</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

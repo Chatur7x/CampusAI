@@ -1,9 +1,10 @@
 import { prisma } from '../utils/prisma';
 import { NotificationCreate } from '../types';
+import { io } from '../index';
 
 export const createNotification = async (data: NotificationCreate): Promise<void> => {
   try {
-    await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         userId: data.userId,
         title: data.title,
@@ -13,8 +14,8 @@ export const createNotification = async (data: NotificationCreate): Promise<void
       },
     });
 
-    // TODO: Emit real-time notification via WebSocket
-    // io.to(`user:${data.userId}`).emit('notification', notification);
+    // Emit real-time notification via WebSocket
+    io.to(`user:${data.userId}`).emit('notification', notification);
   } catch (error) {
     console.error('Failed to create notification:', error);
   }
@@ -120,10 +121,10 @@ export const broadcastNotification = async (
       data: notifications as any,
     });
 
-    // TODO: Emit real-time notifications via WebSocket
-    // for (const userId of userIds) {
-    //   io.to(`user:${userId}`).emit('notification', { title, message, type, data });
-    // }
+    // Emit real-time notifications via WebSocket
+    for (const userId of userIds) {
+      io.to(`user:${userId}`).emit('notification', { title, message, type, data });
+    }
   } catch (error) {
     console.error('Failed to broadcast notification:', error);
   }

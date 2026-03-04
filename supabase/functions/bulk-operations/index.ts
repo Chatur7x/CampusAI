@@ -161,8 +161,17 @@ Deno.serve(async (req) => {
 
             // Send welcome email with credentials if notifications enabled
             if (options.sendNotifications) {
-              // TODO: Send email via Resend/SendGrid
-              console.log(`Welcome email to ${row.email} with password: ${password}`)
+              // Queue a notification record for the new user
+              await supabase.from('notifications').insert({
+                userId: authUser.user.id,
+                type: 'WELCOME',
+                title: 'Welcome to CampusAI',
+                message: `Your account has been created. Login at ${Deno.env.get('APP_URL') || 'https://campusai.app'} with your email and the temporary password sent to you.`,
+                status: 'unread',
+              }).then(({ error }) => {
+                if (error) console.warn(`Notification insert failed for ${row.email}:`, error.message);
+              });
+              console.log(`Welcome notification created for ${row.email}`);
             }
 
             processed++

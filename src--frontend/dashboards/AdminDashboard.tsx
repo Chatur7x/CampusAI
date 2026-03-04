@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, memo } from 'react';
+import { useState, useEffect, lazy, Suspense, memo } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { Button } from '@/components/ui/button';
@@ -25,8 +25,10 @@ import {
   LogOut,
   User,
   Loader2,
+  Brain,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 // Lazy load all admin pages for consistency
 const AdminOverview = lazy(() => import('@/pages/admin/Overview'));
@@ -42,6 +44,7 @@ const AnalyticsPage = lazy(() => import('@/pages/admin/Analytics'));
 const NoticesPage = lazy(() => import('@/pages/admin/Notices'));
 const SettingsPage = lazy(() => import('@/pages/admin/Settings'));
 const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistration'));
+import AIDashboard from '@/components/ai/AIDashboard';
 
 // Premium Loading Component (Optimized)
 const PageLoader = () => (
@@ -75,6 +78,7 @@ const sidebarItems = [
   { icon: ShieldAlert, label: 'Security', path: '/admin/security', color: 'red' },
   { icon: Link2, label: 'Blockchain', path: '/admin/blockchain', color: 'orange' },
   { icon: BarChart3, label: 'Analytics', path: '/admin/analytics', color: 'teal' },
+  { icon: Brain, label: 'AI Analytics', path: '/admin/ai-analytics', color: 'violet' },
   { icon: Bell, label: 'Notices', path: '/admin/notices', color: 'yellow' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', color: 'slate' },
 ];
@@ -109,6 +113,31 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [attendanceRecords, setAttendanceRecords] = useState<{ date: string; status: string; courseId?: string }[]>([]);
+
+  // Fetch attendance records for AI Dashboard (admin sees all)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('attendance')
+          .select('date, status, subjectId')
+          .order('date', { ascending: false })
+          .limit(500);
+        if (data) {
+          setAttendanceRecords(
+            data.map((r: any) => ({
+              date: r.date || '',
+              status: (r.status || 'absent').toLowerCase(),
+              courseId: r.subjectId || undefined,
+            }))
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to fetch attendance for AI dashboard:', err);
+      }
+    })();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -294,6 +323,7 @@ export default function AdminDashboard() {
               <Route path="/security" element={<SecurityPage />} />
               <Route path="/blockchain" element={<BlockchainPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="admin" />} />
               <Route path="/notices" element={<NoticesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>

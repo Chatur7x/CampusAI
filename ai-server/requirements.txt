@@ -1,0 +1,43 @@
+# =============================================================
+# CAMPUSAI - Python AI/ML Server Dependencies
+# Relaxed pins for Python 3.14 compatibility
+# =============================================================
+
+# ── Core Server ──
+fastapi>=0.115
+uvicorn[standard]>=0.34
+python-multipart>=0.0.18
+pydantic>=2.10
+
+# ── Face Recognition (insightface only — deepface needs tensorflow, no 3.14 wheel) ──
+opencv-python-headless>=4.10
+insightface>=0.7.3
+onnxruntime>=1.20
+
+# ── Liveness / Vision ──
+mediapipe>=0.10.18
+
+# ── ML / Statistics ──
+scikit-learn>=1.5
+statsmodels>=0.14
+scipy>=1.14
+pandas>=2.2
+numpy>=1.26
+
+# ── Fraud Detection ──
+pyod>=2.0
+
+# ── Geo Validation ──
+geopy>=2.4
+
+# ── Model Monitoring ──
+mlflow>=2.19
+
+# ── Database ──
+supabase>=2.11
+httpx>=0.28
+
+# ── Utilities ──
+pillow>=11
+python-dotenv>=1.0
+joblib>=1.4

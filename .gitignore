@@ -39,3 +39,8 @@ supabase/.temp/
 # Python
 .venv/
 __pycache__/
+ai-server/.env
+ai-server/venv/
+ai-server/__pycache__/
+ai-server/**/__pycache__/
+mlruns/

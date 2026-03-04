@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../utils/prisma';
 import { logAction } from '../utils/audit';
+import { io } from '../index';
 
 // ==================== MESSAGING ====================
 export const sendMessage = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -54,8 +55,8 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response): Pro
       },
     });
 
-    // TODO: Emit real-time message via WebSocket
-    // io.to(`user:${receiverId}`).emit('new_message', message);
+    // Emit real-time message via WebSocket
+    io.to(`user:${receiverId}`).emit('new_message', message);
 
     res.status(201).json({
       success: true,
