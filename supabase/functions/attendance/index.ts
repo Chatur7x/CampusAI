@@ -1,9 +1,10 @@
 // @ts-nocheck
 // =============================================================
 // AISMS - Supabase Edge Function
-// Attendance: fetch + manual mark (basic)
+// Attendance: fetch + manual mark (aligned to Supabase schema)
 // =============================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const ALLOWED_MARK_ROLES = ['ADMIN', 'SUPER_ADMIN', 'FACULTY', 'CLASS_INCHARGE']
@@ -20,7 +21,6 @@ Deno.serve(async (req) => {
   )
 
   try {
-    // Auth check
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return json({ success: false, message: 'Missing Authorization header' }, 401)
@@ -44,25 +44,20 @@ Deno.serve(async (req) => {
       const endDate = url.searchParams.get('endDate')
       const subjectId = url.searchParams.get('subjectId')
 
-      const where: Record<string, unknown> = {}
-      if (studentId) where['studentId'] = studentId
-      if (classId) where['classId'] = classId
-      if (subjectId) where['subjectId'] = subjectId
-      if (startDate || endDate) {
-        where['date'] = {}
-        if (startDate) where['date']['gte'] = startDate
-        if (endDate) where['date']['lte'] = endDate
-      }
-
-      const { data, error } = await supabase
+      let query = supabase
         .from('attendance')
-        .select('*')
-        .match(where)
+        .select('*, student:student_id(class_id)')
         .order('date', { ascending: false })
 
+      if (studentId) query = query.eq('student_id', studentId)
+      if (subjectId) query = query.eq('subject_id', subjectId)
+      if (classId) query = query.eq('student.class_id', classId)
+      if (startDate) query = query.gte('date', startDate)
+      if (endDate) query = query.lte('date', endDate)
+
+      const { data, error } = await query
       if (error) return json({ success: false, message: error.message }, 500)
 
-      // Simple stats
       const total = data?.length || 0
       const present = data?.filter((a) => a.status === 'PRESENT').length || 0
       const absent = data?.filter((a) => a.status === 'ABSENT').length || 0
@@ -78,7 +73,7 @@ Deno.serve(async (req) => {
       }
 
       const body = await req.json()
-      const { studentId, status, subjectId, justification } = body
+      const { studentId, status, subjectId, justification, timetableEntryId } = body
       if (!studentId || !status) {
         return json({ success: false, message: 'studentId and status are required' }, 400)
       }
@@ -86,17 +81,20 @@ Deno.serve(async (req) => {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
+      const facultyId = await getFacultyId(supabase, user.id)
+
       const { data, error } = await supabase
         .from('attendance')
         .upsert({
-          studentId,
-          subjectId: subjectId ?? null,
+          student_id: studentId,
+          subject_id: subjectId ?? null,
+          timetable_entry_id: timetableEntryId ?? null,
           date: today.toISOString().split('T')[0],
           status,
           method: 'MANUAL',
-          verifiedBy: user.id,
+          verified_by: facultyId ?? null,
           justification: justification ?? null,
-        }, { onConflict: 'studentId,date,subjectId' })
+        }, { onConflict: 'student_id,date,subject_id' })
         .select()
         .single()
 
@@ -112,14 +110,26 @@ Deno.serve(async (req) => {
   }
 })
 
-async function getRole(supabase: any, userId: string): Promise<string | null> {
+async function getRole(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data, error } = await supabase
-    .from('users')
+    .from('profiles')
     .select('role')
-    .eq('id', userId)
+    .returns<{ role: string }>()
+    .eq('user_id', userId)
     .single()
   if (error) return null
   return data?.role ?? null
+}
+
+async function getFacultyId(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('faculty')
+    .select('id')
+    .returns<{ id: string }>()
+    .eq('user_id', userId)
+    .single()
+  if (error || !data) return null
+  return data.id
 }
 
 function json(body: unknown, status = 200) {

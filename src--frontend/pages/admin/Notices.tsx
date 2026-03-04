@@ -138,7 +138,7 @@ export default function NoticesPage() {
                 <Label className="text-slate-300">Priority</Label>
                 <Select
                   value={newNotice.priority}
-                  onValueChange={(value: any) => setNewNotice({ ...newNotice, priority: value })}
+                  onValueChange={(value: string) => setNewNotice({ ...newNotice, priority: value as typeof newNotice.priority })}
                 >
                   <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
                     <SelectValue />

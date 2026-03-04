@@ -14,7 +14,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Building2, Plus, Users, GraduationCap, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Department } from '@/types';
+import type { Department } from '@/lib/database.types';
 import { departmentService } from '@/lib/api';
 
 export default function DepartmentsPage() {

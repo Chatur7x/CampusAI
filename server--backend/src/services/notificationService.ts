@@ -8,8 +8,8 @@ export const createNotification = async (data: NotificationCreate): Promise<void
         userId: data.userId,
         title: data.title,
         message: data.message,
-        type: data.type,
-        data: data.data || null,
+        type: data.type as any,
+        data: (data.data || undefined) as any,
       },
     });
 
@@ -112,12 +112,12 @@ export const broadcastNotification = async (
       userId,
       title,
       message,
-      type,
-      data: data || null,
+      type: type as any,
+      data: (data || undefined) as any,
     }));
 
     await prisma.notification.createMany({
-      data: notifications,
+      data: notifications as any,
     });
 
     // TODO: Emit real-time notifications via WebSocket

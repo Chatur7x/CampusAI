@@ -414,7 +414,7 @@ async function getClassPerformance(facultyId: string): Promise<any[]> {
   });
 }
 
-async function getWeeklyTrend(departmentId: string): Promise<number[]> {
+async function getWeeklyTrend(departmentId: string): Promise<{ date: string; percentage: number }[]> {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 

@@ -1,9 +1,25 @@
 import { Response } from 'express';
-import { AuthenticatedRequest, AttendanceRecord, AIFaceVerification } from '../types';
+import crypto from 'crypto';
+import { AuthenticatedRequest, AttendanceRecord } from '../types';
 import { prisma } from '../utils/prisma';
-import { getBlockchain } from '../utils/blockchain';
 import { logAction } from '../utils/audit';
 import { createNotification } from '../services/notificationService';
+import { env } from '../config/env';
+import { verifyFaceExternal } from '../utils/faceVerification';
+
+const getPreviousAttendanceHash = async (): Promise<string | null> => {
+  const latest = await prisma.attendance.findFirst({
+    where: { blockchainHash: { not: null } },
+    orderBy: { createdAt: 'desc' },
+    select: { blockchainHash: true },
+  });
+  return latest?.blockchainHash || null;
+};
+
+const generateAttendanceHash = (payload: Record<string, unknown>): string => {
+  const salted = { ...payload, salt: env.blockchainSalt };
+  return crypto.createHash('sha256').update(JSON.stringify(salted)).digest('hex');
+};
 
 // ==================== AI FACE ATTENDANCE ====================
 export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -27,8 +43,15 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
       return;
     }
 
-    // Simulate AI face verification (in production, use actual face-api.js)
-    const verificationResult = await verifyFace(student.faceData, faceData);
+    // Delegate to external face verification provider; fail fast if not configured
+    let verificationResult;
+    try {
+      verificationResult = await verifyFaceExternal(student.faceData, faceData);
+    } catch (err) {
+      console.error('Face verification error:', err);
+      res.status(503).json({ success: false, message: 'Face verification service unavailable' });
+      return;
+    }
 
     if (!verificationResult.isMatch) {
       // Log security alert
@@ -51,8 +74,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
     }
 
     // Check confidence threshold
-    const CONFIDENCE_THRESHOLD = parseFloat(process.env.FACE_CONFIDENCE_THRESHOLD || '0.6');
-    if (verificationResult.confidence < CONFIDENCE_THRESHOLD) {
+    if (verificationResult.confidence < env.faceConfidenceThreshold) {
       res.status(401).json({
         success: false,
         message: 'Face confidence too low. Please try again.',
@@ -61,16 +83,15 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
       return;
     }
 
-    // Generate blockchain hash
-    const blockchain = getBlockchain();
-    const attendanceData = {
+    const previousHash = await getPreviousAttendanceHash();
+    const blockchainHash = generateAttendanceHash({
       studentId,
       subjectId,
       date: new Date().toISOString(),
       method: 'AI_FACE',
       confidence: verificationResult.confidence,
-    };
-    const block = blockchain.addBlock(attendanceData);
+      previousHash,
+    });
 
     // Create attendance record
     const today = new Date();
@@ -91,8 +112,8 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
         location: location || null,
         deviceInfo: deviceInfo || req.headers['user-agent'],
         ipAddress: req.ip,
-        blockchainHash: block.hash,
-        previousHash: block.previousHash,
+        blockchainHash,
+        previousHash,
       },
       create: {
         studentId,
@@ -104,8 +125,8 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
         location: location || null,
         deviceInfo: deviceInfo || req.headers['user-agent'],
         ipAddress: req.ip,
-        blockchainHash: block.hash,
-        previousHash: block.previousHash,
+        blockchainHash,
+        previousHash,
       },
     });
 
@@ -139,8 +160,8 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
           livenessScore: verificationResult.livenessScore,
         },
         blockchain: {
-          hash: block.hash,
-          index: block.index,
+          hash: blockchainHash,
+          previousHash,
         },
       },
     });
@@ -149,20 +170,6 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
-
-// Simulated face verification (replace with actual face-api.js in production)
-async function verifyFace(storedFaceData: string, providedFaceData: string): Promise<AIFaceVerification> {
-  // In production, use face-api.js to compare face descriptors
-  // This is a simulation
-  const randomConfidence = 0.7 + Math.random() * 0.25;
-  return {
-    studentId: '',
-    faceData: providedFaceData,
-    confidence: randomConfidence,
-    livenessScore: 0.95,
-    isMatch: randomConfidence > 0.75,
-  };
-}
 
 // ==================== MANUAL ATTENDANCE ====================
 export const markAttendanceManual = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -185,19 +192,20 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    // Generate blockchain hash for manual entry
-    const blockchain = getBlockchain();
-    const attendanceData = {
-      studentId,
-      subjectId,
-      date: new Date().toISOString(),
-      method: 'MANUAL',
-      verifiedBy: req.user.id,
-    };
-    const block = blockchain.addBlock(attendanceData);
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    const previousHash = await getPreviousAttendanceHash();
+    const blockchainHash = generateAttendanceHash({
+      studentId,
+      subjectId,
+      date: today.toISOString(),
+      method: 'MANUAL',
+      status,
+      verifiedBy: req.user.id,
+      justification,
+      previousHash,
+    });
 
     const attendance = await prisma.attendance.upsert({
       where: {
@@ -212,8 +220,8 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
         method: 'MANUAL',
         verifiedBy: req.user.id,
         justification,
-        blockchainHash: block.hash,
-        previousHash: block.previousHash,
+        blockchainHash,
+        previousHash,
       },
       create: {
         studentId,
@@ -223,8 +231,8 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
         method: 'MANUAL',
         verifiedBy: req.user.id,
         justification,
-        blockchainHash: block.hash,
-        previousHash: block.previousHash,
+        blockchainHash,
+        previousHash,
       },
     });
 
@@ -250,7 +258,7 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
     res.status(200).json({
       success: true,
       message: 'Attendance marked successfully',
-      data: { attendance, blockchain: { hash: block.hash, index: block.index } },
+      data: { attendance, blockchain: { hash: blockchainHash, previousHash } },
     });
   } catch (error) {
     console.error('Manual attendance error:', error);
@@ -268,23 +276,27 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    const blockchain = getBlockchain();
     const results = [];
     const errors = [];
 
+    let previousHash = await getPreviousAttendanceHash();
+
     for (const entry of attendanceList) {
       try {
-        const attendanceData = {
-          studentId: entry.studentId,
-          subjectId,
-          date,
-          method: 'MANUAL',
-          verifiedBy: req.user.id,
-        };
-        const block = blockchain.addBlock(attendanceData);
-
         const attendanceDate = new Date(date);
         attendanceDate.setHours(0, 0, 0, 0);
+
+        const blockchainHash = generateAttendanceHash({
+          studentId: entry.studentId,
+          subjectId,
+          date: attendanceDate.toISOString(),
+          method: 'MANUAL',
+          status: entry.status,
+          verifiedBy: req.user.id,
+          justification: entry.justification,
+          previousHash,
+        });
+
 
         const attendance = await prisma.attendance.upsert({
           where: {
@@ -299,8 +311,8 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
             method: 'MANUAL',
             verifiedBy: req.user.id,
             justification: entry.justification,
-            blockchainHash: block.hash,
-            previousHash: block.previousHash,
+            blockchainHash,
+            previousHash,
           },
           create: {
             studentId: entry.studentId,
@@ -310,12 +322,13 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
             method: 'MANUAL',
             verifiedBy: req.user.id,
             justification: entry.justification,
-            blockchainHash: block.hash,
-            previousHash: block.previousHash,
+            blockchainHash,
+            previousHash,
           },
         });
 
         results.push(attendance);
+        previousHash = blockchainHash;
       } catch (err) {
         errors.push({ studentId: entry.studentId, error: (err as Error).message });
       }
@@ -430,7 +443,7 @@ export const getClassAttendance = async (req: AuthenticatedRequest, res: Respons
       enrollmentId: student.enrollmentId,
       name: `${student.user.profile?.firstName} ${student.user.profile?.lastName}`,
       avatar: student.user.profile?.avatar,
-      status: student.attendance[0]?.status || 'NOT_MARKED',
+      status: (student.attendance[0]?.status || 'NOT_MARKED') as string,
       method: student.attendance[0]?.method,
       confidenceScore: student.attendance[0]?.confidenceScore,
     }));

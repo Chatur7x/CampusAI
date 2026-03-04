@@ -22,8 +22,8 @@ import {
 } from '@/components/ui/select';
 import { Calendar, Plus, Trash2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import type { TimetableEntry, Class, Faculty } from '@/types';
-import { timetableService, classService, facultyService } from '@/lib/api';
+import type { TimetableEntry, Class, Faculty, Course, Profile } from '@/lib/database.types';
+import { timetableService, classService, facultyService, courseService } from '@/lib/api';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TIME_SLOTS = [
@@ -40,26 +40,36 @@ const COLORS = [
   'bg-blue-500/20 text-blue-300 border-blue-500/30',
 ];
 
+type TimetableEntryWithRelations = TimetableEntry & {
+  course?: Course;
+  faculty?: (Faculty & { profile?: Profile | null }) | null;
+};
+
+type FacultyWithProfile = Faculty & { profile?: Profile | null };
+
 export default function TimetablePage() {
-  const [entries, setEntries] = useState<TimetableEntry[]>([]);
+  const [entries, setEntries] = useState<TimetableEntryWithRelations[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [facultyList, setFacultyList] = useState<Faculty[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [facultyList, setFacultyList] = useState<FacultyWithProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<TimetableEntry | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<TimetableEntryWithRelations | null>(null);
   const [form, setForm] = useState({
     classId: '',
-    subjectId: '',
+    courseId: '',
     facultyId: '',
     dayOfWeek: 0,
     startTime: '09:00',
     endTime: '10:00',
     roomNumber: '',
   });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchClasses();
+    fetchCourses();
     fetchFaculty();
   }, []);
 
@@ -71,7 +81,7 @@ export default function TimetablePage() {
     setIsLoading(true);
     try {
       const data = await timetableService.getForClass(selectedClassId);
-      setEntries(data);
+      setEntries(data as TimetableEntryWithRelations[]);
     } catch (error) {
       console.error('Error fetching timetable:', error);
     } finally {
@@ -100,9 +110,30 @@ export default function TimetablePage() {
     }
   };
 
-  const handleAdd = async () => {
+  const fetchCourses = async () => {
     try {
-      await timetableService.create({ ...form, classId: selectedClassId });
+      const data = await courseService.getAll();
+      setCourses(data);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!selectedClassId || !form.courseId || !form.facultyId) {
+      toast.error('Class, course, and faculty are required');
+      return;
+    }
+    try {
+      await timetableService.create({
+        class_id: selectedClassId,
+        course_id: form.courseId,
+        faculty_id: form.facultyId,
+        day_of_week: form.dayOfWeek,
+        start_time: form.startTime,
+        end_time: form.endTime,
+        room: form.roomNumber || null,
+      });
       toast.success('Timetable entry added');
       setIsAddOpen(false);
       fetchTimetable();
@@ -126,12 +157,12 @@ export default function TimetablePage() {
 
   const getEntriesForSlot = (dayIdx: number, time: string) => {
     return entries.filter(
-      (e) => e.dayOfWeek === dayIdx && e.startTime <= time && e.endTime > time
+      (e) => e.day_of_week === dayIdx && e.start_time <= time && e.end_time > time
     );
   };
 
-  const getColorForSubject = (subjectId: string) => {
-    const idx = Math.abs(subjectId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % COLORS.length;
+  const getColorForSubject = (courseId: string) => {
+    const idx = Math.abs(courseId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % COLORS.length;
     return COLORS[idx];
   };
 
@@ -170,10 +201,21 @@ export default function TimetablePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-slate-300">Day</Label>
-                    <Select value={String(form.dayOfWeek)} onValueChange={(v) => setForm({ ...form, dayOfWeek: parseInt(v) })}>
+                    <Select value={String(form.dayOfWeek)} onValueChange={(v) => setForm({ ...form, dayOfWeek: parseInt(v, 10) })}>
                       <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700">
                         {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Course</Label>
+                    <Select value={form.courseId} onValueChange={(v) => setForm({ ...form, courseId: v })}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        {courses.map((course) => (
+                          <SelectItem key={course.id} value={course.id}>{course.code} - {course.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -183,7 +225,7 @@ export default function TimetablePage() {
                       <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700">
                         {facultyList.map((f) => (
-                          <SelectItem key={f.id} value={f.id}>{f.user?.profile?.firstName} {f.user?.profile?.lastName}</SelectItem>
+                          <SelectItem key={f.id} value={f.id}>{f.profile?.first_name} {f.profile?.last_name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -224,13 +266,13 @@ export default function TimetablePage() {
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center"><Clock className="w-5 h-5 text-emerald-400" /></div>
-            <div><p className="text-2xl font-bold text-white">{new Set(entries.map(e => e.subjectId)).size}</p><p className="text-xs text-slate-400">Subjects</p></div>
+            <div><p className="text-2xl font-bold text-white">{new Set(entries.map(e => e.course_id)).size}</p><p className="text-xs text-slate-400">Courses</p></div>
           </CardContent>
         </Card>
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center"><Calendar className="w-5 h-5 text-cyan-400" /></div>
-            <div><p className="text-2xl font-bold text-white">{new Set(entries.map(e => e.facultyId)).size}</p><p className="text-xs text-slate-400">Faculty Assigned</p></div>
+            <div><p className="text-2xl font-bold text-white">{new Set(entries.map(e => e.faculty_id)).size}</p><p className="text-xs text-slate-400">Faculty Assigned</p></div>
           </CardContent>
         </Card>
       </div>
@@ -267,11 +309,11 @@ export default function TimetablePage() {
                         {slotEntries.map((entry) => (
                           <div
                             key={entry.id}
-                            className={`${getColorForSubject(entry.subjectId || entry.id)} rounded p-2 text-xs border cursor-pointer group relative`}
+                            className={`${getColorForSubject(entry.course_id || entry.id)} rounded p-2 text-xs border cursor-pointer group relative`}
                           >
-                            <p className="font-medium truncate">{entry.subject?.name || 'Subject'}</p>
-                            <p className="opacity-70 truncate">{entry.faculty?.user?.profile?.firstName || 'Faculty'}</p>
-                            {entry.roomNumber && <p className="opacity-50">{entry.roomNumber}</p>}
+                            <p className="font-medium truncate">{entry.course?.name || 'Course'}</p>
+                            <p className="opacity-70 truncate">{entry.faculty?.profile?.first_name || 'Faculty'}</p>
+                            {entry.room && <p className="opacity-50">{entry.room}</p>}
                             <div className="absolute top-1 right-1 hidden group-hover:flex gap-0.5">
                               <Button variant="ghost" size="icon" className="h-5 w-5 text-white/70 hover:text-white" onClick={() => { setSelectedEntry(entry); setIsDeleteOpen(true); }}>
                                 <Trash2 className="w-3 h-3" />

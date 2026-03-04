@@ -1,18 +1,19 @@
 import nodemailer from 'nodemailer';
+import { env } from '../config/env';
 
-const transporter = nodemailer.createTransporter({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
+const transporter = nodemailer.createTransport({
+  host: env.smtp.host,
+  port: env.smtp.port,
+  secure: env.smtp.secure,
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: env.smtp.user,
+    pass: env.smtp.pass,
   },
 });
 
 export const sendOTP = async (email: string, otp: string): Promise<void> => {
   const mailOptions = {
-    from: process.env.FROM_EMAIL,
+    from: env.smtp.from,
     to: email,
     subject: 'Your CampusAI Verification Code',
     html: `
@@ -32,10 +33,10 @@ export const sendOTP = async (email: string, otp: string): Promise<void> => {
 };
 
 export const sendPasswordReset = async (email: string, resetToken: string): Promise<void> => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+  const resetUrl = `${env.frontendUrl}/reset-password?token=${resetToken}`;
   
   const mailOptions = {
-    from: process.env.FROM_EMAIL,
+    from: env.smtp.from,
     to: email,
     subject: 'Password Reset Request - CampusAI',
     html: `
@@ -54,7 +55,7 @@ export const sendPasswordReset = async (email: string, resetToken: string): Prom
 
 export const sendNotification = async (email: string, title: string, message: string): Promise<void> => {
   const mailOptions = {
-    from: process.env.FROM_EMAIL,
+    from: env.smtp.from,
     to: email,
     subject: title,
     html: `

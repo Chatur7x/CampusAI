@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useMemo, memo } from 'react';
+import { type ComponentType, type SVGProps } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +16,6 @@ import {
   Plus,
   ArrowUpRight,
   ArrowDownRight,
-  Loader2,
   BarChart3,
 } from 'lucide-react';
 import {
@@ -30,7 +31,7 @@ import {
 } from 'recharts';
 import { toast } from 'sonner';
 import { analyticsService, securityService } from '@/lib/api';
-import supabase from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface DashboardStats {
   totalStudents: number;
@@ -53,6 +54,30 @@ interface DepartmentStat {
   attendancePercentage: number;
 }
 
+// Dashboard data can be flat (from RPC) or nested
+
+interface AuditSummary {
+  integrityScore?: number | string;
+  validChains?: number;
+  invalidChains?: number;
+  totalStudentsAudited?: number;
+  lastAuditAt?: string;
+}
+
+type StatCardConfig = {
+  title: string;
+  value: string | number;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  color: string;
+  bgColor: string;
+  trend: string;
+  trendUp: boolean;
+};
+
+type StatCardProps = {
+  stat: StatCardConfig;
+};
+
 type SecurityAlert = {
   id: string;
   type: string;
@@ -62,8 +87,17 @@ type SecurityAlert = {
   resolved?: boolean;
 };
 
+interface ChainSummary {
+  integrityScore: number;
+  validChains: number;
+  invalidChains: number;
+  total: number;
+  lastAuditAt: string;
+}
+
 // Premium Skeleton Loader
-const DashboardSkeleton = memo(() => (
+const DashboardSkeleton = memo(function DashboardSkeleton() {
+  return (
   <div className="space-y-6">
     {/* Header Skeleton */}
     <div className="rounded-3xl border border-slate-800/50 bg-slate-900/60 p-6 h-32">
@@ -73,7 +107,7 @@ const DashboardSkeleton = memo(() => (
     
     {/* Stats Grid Skeleton */}
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {[...Array(4)].map((_, i) => (
+      {Array.from({ length: 4 }, (_, i) => (
         <div key={i} className="bg-slate-950/70 border border-slate-800/50 rounded-3xl p-6">
           <div className="h-4 w-24 bg-slate-800/70 rounded mb-3" />
           <div className="h-8 w-16 bg-slate-800/70 rounded mb-3" />
@@ -82,11 +116,12 @@ const DashboardSkeleton = memo(() => (
       ))}
     </div>
   </div>
-));
+  );
+});
 
 // Memoized Stat Card Component
-const StatCard = memo(({ stat, index }: { stat: any; index: number }) => {
-  const Icon = stat.icon;
+function StatCardComponent({ stat }: StatCardProps): JSX.Element {
+  const Icon: ComponentType<SVGProps<SVGSVGElement>> = stat.icon;
   return (
     <Card 
       className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-[1.02] group"
@@ -115,14 +150,16 @@ const StatCard = memo(({ stat, index }: { stat: any; index: number }) => {
       </CardContent>
     </Card>
   );
-});
+}
+
+const StatCard = memo(StatCardComponent);
 
 export default function AdminOverview() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [monthlyTrend, setMonthlyTrend] = useState<MonthlyTrend[]>([]);
   const [departmentStats, setDepartmentStats] = useState<DepartmentStat[]>([]);
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
-  const [chainSummary, setChainSummary] = useState({ integrityScore: 0, validChains: 0, invalidChains: 0, total: 0, lastAuditAt: '' });
+  const [chainSummary, setChainSummary] = useState<ChainSummary>({ integrityScore: 0, validChains: 0, invalidChains: 0, total: 0, lastAuditAt: '' });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -130,7 +167,8 @@ export default function AdminOverview() {
     
     const fetchDashboardData = async () => {
       try {
-        const [dashboard, deptSummary, securityAlerts, audit] = await Promise.all([
+        // Use Promise.allSettled so individual failures don't block the whole dashboard
+        const results = await Promise.allSettled([
           analyticsService.getAdminDashboard(),
           analyticsService.getDepartmentSummary(),
           securityService.getAlerts(false),
@@ -139,30 +177,66 @@ export default function AdminOverview() {
 
         if (!isMounted) return;
 
-        if (dashboard) {
-          setStats((dashboard as any).stats ?? (dashboard as any));
-          setMonthlyTrend((dashboard as any).monthlyTrend ?? []);
-          setDepartmentStats((dashboard as any).departmentStats ?? []);
+        // 1) Dashboard stats (RPC returns flat object, not nested)
+        if (results[0].status === 'fulfilled' && results[0].value) {
+          const dashboard = results[0].value as any;
+          // RPC returns flat: { totalStudents, totalFaculty, ... }
+          // Check if it's nested (AdminDashboardResponse) or flat
+          if (dashboard.stats) {
+            setStats(dashboard.stats);
+            setMonthlyTrend(dashboard.monthlyTrend ?? []);
+            setDepartmentStats(dashboard.departmentStats ?? []);
+          } else {
+            // Flat object from RPC
+            setStats({
+              totalStudents: dashboard.totalStudents || 0,
+              totalFaculty: dashboard.totalFaculty || 0,
+              totalDepartments: dashboard.totalDepartments || 0,
+              todayAttendance: dashboard.todayAttendance || 0,
+              recentAlerts: dashboard.recentAlerts || 0,
+              pendingLeaves: dashboard.pendingLeaves || 0,
+            });
+          }
+        } else if (results[0].status === 'rejected') {
+          console.warn('Dashboard stats failed:', results[0].reason);
         }
 
-        if (deptSummary && deptSummary.length) {
-          setDepartmentStats(deptSummary as any);
+        // 2) Department summary
+        if (results[1].status === 'fulfilled') {
+          const deptSummary = results[1].value as DepartmentStat[] | null;
+          if (deptSummary && deptSummary.length) {
+            setDepartmentStats(deptSummary);
+          }
+        } else {
+          console.warn('Department summary failed:', results[1].reason);
         }
 
-        if (securityAlerts) {
-          setAlerts(securityAlerts.slice(0, 5) as SecurityAlert[]);
+        // 3) Security alerts
+        if (results[2].status === 'fulfilled') {
+          const securityAlerts = results[2].value as SecurityAlert[] | null;
+          if (securityAlerts) {
+            setAlerts(securityAlerts.slice(0, 5));
+          }
+        } else {
+          console.warn('Security alerts failed:', results[2].reason);
         }
 
-        const summary = (audit?.data as any)?.data?.summary;
-        if (summary) {
-          const integrity = parseFloat(String(summary.integrityScore || '0').replace('%', ''));
-          setChainSummary({
-            integrityScore: Number.isFinite(integrity) ? integrity : 0,
-            validChains: summary.validChains || 0,
-            invalidChains: summary.invalidChains || 0,
-            total: summary.totalStudentsAudited || 0,
-            lastAuditAt: summary.lastAuditAt || '',
-          });
+        // 4) Blockchain audit (edge function — may not be deployed)
+        if (results[3].status === 'fulfilled') {
+          const audit = results[3].value as { data: { summary?: AuditSummary } | null };
+          const summary = audit?.data?.summary;
+          if (summary) {
+            const integrity = parseFloat(String(summary.integrityScore || '0').replace('%', ''));
+            setChainSummary({
+              integrityScore: Number.isFinite(integrity) ? integrity : 0,
+              validChains: summary.validChains || 0,
+              invalidChains: summary.invalidChains || 0,
+              total: summary.totalStudentsAudited || 0,
+              lastAuditAt: summary.lastAuditAt || '',
+            });
+          }
+        } else {
+          console.warn('Blockchain audit failed (edge function may not be deployed):', results[3].reason);
         }
       } catch (error) {
         if (!isMounted) return;
@@ -183,7 +257,7 @@ export default function AdminOverview() {
   }, []);
 
   // Memoized stat cards to prevent recalculation
-  const statCards = useMemo(() => [
+  const statCards = useMemo<StatCardConfig[]>(() => [
     {
       title: 'Total Students',
       value: stats?.totalStudents || 0,
@@ -255,8 +329,8 @@ export default function AdminOverview() {
 
       {/* Optimized Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((stat, index) => (
-          <StatCard key={index} stat={stat} index={index} />
+        {statCards.map((stat) => (
+          <StatCard key={stat.title} stat={stat} />
         ))}
       </div>
 

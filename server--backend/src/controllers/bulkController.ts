@@ -426,7 +426,7 @@ export const bulkAttendanceCorrection = async (req: AuthenticatedRequest, res: R
             studentId_date_subjectId: {
               studentId,
               date: attendanceDate,
-              subjectId: null,
+              subjectId: null as any,
             },
           },
         });
@@ -436,7 +436,7 @@ export const bulkAttendanceCorrection = async (req: AuthenticatedRequest, res: R
             studentId_date_subjectId: {
               studentId,
               date: attendanceDate,
-              subjectId: null,
+              subjectId: null as any,
             },
           },
           data: {

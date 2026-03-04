@@ -6,11 +6,23 @@ import { Badge } from '@/components/ui/badge';
 import { Link2, Shield, CheckCircle, AlertTriangle, RefreshCw, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BlockchainStatus, Block, Attendance } from '@/types';
-import supabase from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export default function BlockchainPage() {
   const [status, setStatus] = useState<BlockchainStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  type AttendanceRow = {
+    id: string;
+    student_id: string;
+    date: string;
+    status: string;
+    method: string;
+    blockchain_hash: string | null;
+    previous_hash: string | null;
+    nonce: number | null;
+    created_at: string;
+  };
 
   useEffect(() => {
     fetchBlockchainStatus();
@@ -20,12 +32,15 @@ export default function BlockchainPage() {
     try {
       setIsLoading(true);
 
+      const attendanceQuery = supabase
+        .from('attendance')
+        .select('id, student_id, date, status, method, blockchain_hash, previous_hash, nonce, created_at', {
+          count: 'exact',
+        })
+        .returns<AttendanceRow[]>() as any;
+
       const [recordsRes, auditRes] = await Promise.all([
-        supabase
-          .from('attendance')
-          .select('id, student_id, date, status, method, blockchain_hash, previous_hash, nonce, created_at', {
-            count: 'exact',
-          })
+        attendanceQuery
           .not('blockchain_hash', 'is', null)
           .order('created_at', { ascending: false })
           .limit(25),
@@ -35,30 +50,33 @@ export default function BlockchainPage() {
       ]);
 
       if (recordsRes.error) throw recordsRes.error;
-      if (auditRes.error) throw auditRes.error;
+      const auditError = (auditRes as any).error;
+      if (auditError) throw auditError;
 
-      const records = recordsRes.data || [];
+      const records = (recordsRes.data || []) as AttendanceRow[];
       const count = recordsRes.count || records.length;
 
       const chain: Block[] = records.slice(0, 10).map((r, idx) => ({
         index: count - idx,
         timestamp: new Date(r.created_at as string).getTime(),
         data: { studentId: r.student_id, status: r.status, date: r.date },
-        previousHash: (r as any).previous_hash || 'GENESIS',
-        hash: (r as any).blockchain_hash || 'MISSING',
-        nonce: (r as any).nonce || 0,
+        previousHash: r.previous_hash || 'GENESIS',
+        hash: r.blockchain_hash || 'MISSING',
+        nonce: r.nonce || 0,
       }));
 
       const recentRecords: Attendance[] = records.slice(0, 5).map((r) => ({
         id: r.id,
         studentId: r.student_id,
         date: r.date,
-        status: r.status,
-        method: r.method,
-        blockchainHash: (r as any).blockchain_hash,
-      } as Attendance));
+        status: r.status as any,
+        method: r.method as any,
+        blockchainHash: r.blockchain_hash || '',
+        createdAt: r.created_at,
+        updatedAt: r.created_at,
+      }));
 
-      const auditSummary = (auditRes.data as any)?.data?.summary;
+      const auditSummary = (auditRes?.data as { summary?: { invalidChains?: number } } | undefined)?.summary;
       const tamperedFromAudit = auditSummary?.invalidChains || 0;
 
       const hasBrokenLink = chain.some((b, idx) => idx > 0 && b.previousHash !== chain[idx - 1].hash);

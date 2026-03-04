@@ -178,12 +178,12 @@ export default function AdminDashboard() {
               <div className="absolute inset-0 bg-violet-500 rounded-full blur-md opacity-40" />
               <Avatar className="relative border-2 border-violet-500/30">
                 <AvatarFallback className="bg-gradient-to-br from-violet-500/30 to-purple-500/30 text-violet-200 font-semibold">
-                  {getInitials(user?.profile?.firstName ? `${user.profile.firstName} ${user.profile.lastName ?? ''}` : user?.email || 'U')}
+                  {getInitials(user?.profile?.first_name ? `${user.profile.first_name} ${user.profile.last_name ?? ''}` : user?.email || 'U')}
                 </AvatarFallback>
               </Avatar>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{user?.profile?.firstName || user?.email || 'User'}</p>
+              <p className="text-sm font-semibold text-white truncate">{user?.profile?.first_name || user?.email || 'User'}</p>
               <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
             </div>
             <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout" className="hover:bg-red-500/10 hover:text-red-400">
@@ -255,12 +255,12 @@ export default function AdminDashboard() {
                       <div className="absolute inset-0 bg-violet-500 rounded-full blur-md opacity-40" />
                       <Avatar className="relative w-8 h-8 border-2 border-violet-500/30">
                         <AvatarFallback className="bg-gradient-to-br from-violet-500/30 to-purple-500/30 text-violet-200 text-sm font-semibold">
-                          {getInitials(user?.profile?.firstName ? `${user.profile.firstName} ${user.profile.lastName ?? ''}` : user?.email || 'U')}
+                          {getInitials(user?.profile?.first_name ? `${user.profile.first_name} ${user.profile.last_name ?? ''}` : user?.email || 'U')}
                         </AvatarFallback>
                       </Avatar>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{user?.profile?.firstName || user?.email || 'User'}</p>
+                      <p className="text-sm font-medium text-white truncate">{user?.profile?.first_name || user?.email || 'User'}</p>
                       <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
                     </div>
                   </div>

@@ -51,7 +51,8 @@ const sidebarItems = [
 ];
 
 export default function StudentDashboard() {
-  const { user, student, signOut: logout } = useSupabaseAuth();
+  const { user, signOut: logout } = useSupabaseAuth();
+  const student = user?.student || null;
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -126,15 +127,15 @@ export default function StudentDashboard() {
               <Button variant="ghost" className="w-full justify-start gap-3 px-3 hover:bg-white/5">
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-emerald-500/20 text-emerald-400 text-sm">
-                    {getInitials(user?.profile?.firstName + ' ' + user?.profile?.lastName || 'Student User')}
+                    {getInitials((user?.profile?.first_name || '') + ' ' + (user?.profile?.last_name || '') || 'Student User')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-medium text-white">
-                    {user?.profile?.firstName} {user?.profile?.lastName}
+                    {user?.profile?.first_name} {user?.profile?.last_name}
                   </p>
                   <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
-                  <p className="text-[11px] text-slate-500">{student?.enrollmentId}</p>
+                  <p className="text-[11px] text-slate-500">{student?.enrollment_id}</p>
                 </div>
                 <ChevronDown className="w-4 h-4 text-slate-400" />
               </Button>

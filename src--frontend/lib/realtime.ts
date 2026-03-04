@@ -4,7 +4,7 @@
 // =============================================================
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type { Notification, Attendance, Notice, SecurityAlert, Message } from './database.types';
 
@@ -28,7 +28,7 @@ interface UseRealtimeOptions {
 
 export function useRealtime(
   options: UseRealtimeOptions,
-  onData: (payload: any) => void
+  onData: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void
 ) {
   const { table, schema = 'public', filter, event = '*', enabled = true } = options;
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -41,14 +41,14 @@ export function useRealtime(
     const channel = supabase
       .channel(channelName)
       .on(
-        'postgres_changes' as any,
+        'postgres_changes',
         {
           event,
           schema,
           table: table as string,
           filter,
         },
-        (payload: any) => {
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
           onData(payload);
         }
       )
@@ -235,14 +235,17 @@ export function useRealtimeAttendance(options: {
     },
     useCallback((payload) => {
       if (payload.eventType === 'INSERT') {
-        setAttendance(prev => [payload.new as Attendance, ...prev]);
+        const next = payload.new as unknown as Attendance;
+        setAttendance(prev => [next, ...prev]);
       } else if (payload.eventType === 'UPDATE') {
+        const next = payload.new as unknown as Attendance;
         setAttendance(prev =>
-          prev.map(a => a.id === (payload.new as Attendance).id ? payload.new as Attendance : a)
+          prev.map(a => a.id === next.id ? next : a)
         );
       } else if (payload.eventType === 'DELETE') {
+        const old = payload.old as unknown as Attendance;
         setAttendance(prev =>
-          prev.filter(a => a.id !== (payload.old as Attendance).id)
+          prev.filter(a => a.id !== old.id)
         );
       }
     }, [])

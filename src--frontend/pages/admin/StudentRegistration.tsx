@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import supabase from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { classService, departmentService } from '@/lib/api';
-import type { Class, Department } from '@/types';
+import type { Class, Department } from '@/lib/database.types';
 
 const steps = ['Personal Details', 'Academic Details', 'Address Details'];
 
@@ -144,7 +144,7 @@ export default function StudentRegistrationPage() {
 
   const filteredClasses = useMemo(() => {
     return classes.filter((c) => {
-      const deptId = (c as any).department_id || c.departmentId;
+      const deptId = c.department_id;
       return !form.departmentId || deptId === form.departmentId;
     });
   }, [classes, form.departmentId]);
@@ -252,7 +252,7 @@ export default function StudentRegistrationPage() {
 
       setSubmitted(true);
       toast.success('Student registered • Credentials emailed');
-      setForm((prev) => ({ ...initialForm, departmentId: form.departmentId, classId: form.classId }));
+      setForm(() => ({ ...initialForm, departmentId: form.departmentId, classId: form.classId }));
       setStep(0);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to register student';

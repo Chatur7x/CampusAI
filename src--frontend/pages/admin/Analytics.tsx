@@ -17,11 +17,17 @@ import { toast } from 'sonner';
 
 type TrendPoint = { date: string; attendance_percentage: number };
 type DepartmentPoint = { department_name: string; average_attendance: number };
+type AdminDashboardSummary = {
+  average_attendance_percentage?: number;
+  total_students?: number;
+  classes_today?: number;
+  leaves_pending?: number;
+};
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<any>(null);
+  const [dashboard, setDashboard] = useState<AdminDashboardSummary | null>(null);
   const [daily, setDaily] = useState<TrendPoint[]>([]);
   const [department, setDepartment] = useState<DepartmentPoint[]>([]);
 
@@ -35,11 +41,11 @@ export default function AnalyticsPage() {
           analyticsService.getDepartmentSummary(),
         ]);
         setDashboard(dash ?? {});
-        setDaily((dailySummary ?? []).map((d: any) => ({
+        setDaily((dailySummary ?? []).map((d: { date: string; average_attendance?: number }) => ({
           date: d.date,
           attendance_percentage: Number(d.average_attendance ?? 0),
         })));
-        setDepartment((deptSummary ?? []).map((d: any) => ({
+        setDepartment((deptSummary ?? []).map((d: { department_name?: string; department_code?: string; average_attendance?: number }) => ({
           department_name: d.department_name ?? d.department_code ?? 'Dept',
           average_attendance: Number(d.average_attendance ?? 0),
         })));
@@ -78,7 +84,7 @@ export default function AnalyticsPage() {
     },
     {
       label: 'Leaves Pending',
-      value: dashboard?.pending_leaves ?? '--',
+      value: dashboard?.leaves_pending ?? '--',
       icon: BarChart3,
       bg: 'bg-cyan-500/10',
       color: 'text-cyan-400',

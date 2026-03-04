@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { timetableService, studentService, attendanceService, leaveService } from '@/lib/api';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
-import type { TimetableEntry, Student } from '@/lib/database.types';
+import type { TimetableEntry } from '@/lib/database.types';
 
 interface ClassPerformance {
   className: string;

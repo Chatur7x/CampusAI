@@ -58,7 +58,8 @@ const sidebarItems = [
 ];
 
 export default function FacultyDashboard() {
-  const { user, faculty, signOut: logout } = useSupabaseAuth();
+  const { user, signOut: logout } = useSupabaseAuth();
+  const faculty = user?.faculty || null;
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -133,12 +134,12 @@ export default function FacultyDashboard() {
               <Button variant="ghost" className="w-full justify-start gap-3 px-3 hover:bg-white/5">
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-cyan-500/20 text-cyan-400 text-sm">
-                    {getInitials(user?.profile?.firstName + ' ' + user?.profile?.lastName || 'Faculty User')}
+                    {getInitials((user?.profile?.first_name || '') + ' ' + (user?.profile?.last_name || '') || 'Faculty User')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-medium text-white">
-                    {user?.profile?.firstName} {user?.profile?.lastName}
+                    {user?.profile?.first_name} {user?.profile?.last_name}
                   </p>
                   <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
                   <p className="text-[11px] text-slate-500">{faculty?.designation}</p>

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { Block } from '../types';
+import { env } from '../config/env';
 
 class Blockchain {
   private chain: Block[] = [];
@@ -146,7 +147,7 @@ let blockchainInstance: Blockchain | null = null;
 
 export const getBlockchain = (): Blockchain => {
   if (!blockchainInstance) {
-    blockchainInstance = new Blockchain(parseInt(process.env.BLOCKCHAIN_DIFFICULTY || '4'));
+    blockchainInstance = new Blockchain(env.blockchainDifficulty);
   }
   return blockchainInstance;
 };

@@ -1,12 +1,46 @@
 import { Response } from 'express';
+import crypto from 'crypto';
 import { AuthenticatedRequest, LoginRequest, RegisterRequest } from '../types';
 import { prisma } from '../utils/prisma';
 import { hashPassword, comparePassword, generateBackupCodes } from '../utils/bcrypt';
-import { generateToken, generateRefreshToken } from '../utils/jwt';
+import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { generateOTP, storeOTP, verifyOTP, generateTOTPSecret } from '../utils/otp';
 import { sendOTP, sendPasswordReset } from '../utils/email';
 import { logAction } from '../utils/audit';
-import crypto from 'crypto';
+
+// Lightweight role lookup for login UI hints
+export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const email = (req.query.email as string | undefined)?.toLowerCase();
+    if (!email || !email.includes('@')) {
+      res.status(400).json({ success: false, message: 'Email query parameter required' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { role: true, mfaEnabled: true, isActive: true },
+    });
+
+    if (!user) {
+      res.status(200).json({ success: true, data: { exists: false } });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        exists: true,
+        role: user.role,
+        mfaEnabled: user.mfaEnabled,
+        isActive: user.isActive,
+      },
+    });
+  } catch (error) {
+    console.error('Role lookup error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
 
 export const login = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -284,6 +318,20 @@ export const refreshToken = async (req: AuthenticatedRequest, res: Response): Pr
   try {
     const { refreshToken: token } = req.body;
 
+    if (!token) {
+      res.status(400).json({ success: false, message: 'Refresh token is required' });
+      return;
+    }
+
+    let payload;
+    try {
+      payload = verifyRefreshToken(token);
+    } catch (err) {
+      console.error('Refresh token verification failed:', err);
+      res.status(401).json({ success: false, message: 'Invalid or malformed refresh token' });
+      return;
+    }
+
     const session = await prisma.session.findUnique({
       where: { token },
       include: { user: true },
@@ -291,6 +339,11 @@ export const refreshToken = async (req: AuthenticatedRequest, res: Response): Pr
 
     if (!session || session.expiresAt < new Date()) {
       res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+      return;
+    }
+
+    if (session.userId !== payload.userId) {
+      res.status(401).json({ success: false, message: 'Token user mismatch' });
       return;
     }
 
@@ -379,23 +432,91 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const resetToken = crypto.randomBytes(48).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        // Store reset token in a separate field or use a password reset table
-        // For simplicity, we'll use the mfaSecret field temporarily
-        mfaSecret: resetToken,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.passwordReset.deleteMany({ where: { userId: user.id } });
+      await tx.passwordReset.create({
+        data: {
+          userId: user.id,
+          token: resetToken,
+          expiresAt,
+        },
+      });
     });
 
     await sendPasswordReset(email, resetToken);
 
+    await logAction({
+      userId: user.id,
+      action: 'REQUEST_PASSWORD_RESET',
+      entityType: 'user',
+      entityId: user.id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     res.status(200).json({ success: true, message: 'If the email exists, a reset link has been sent.' });
   } catch (error) {
     console.error('Forgot password error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+export const resetPassword = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      res.status(400).json({ success: false, message: 'Token and newPassword are required' });
+      return;
+    }
+
+    const reset = await prisma.passwordReset.findUnique({ where: { token } });
+
+    if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
+      res.status(400).json({ success: false, message: 'Invalid or expired token' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: reset.userId } });
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: reset.userId },
+        data: {
+          password: hashedPassword,
+          loginAttempts: 0,
+          lockoutUntil: null,
+        },
+      });
+
+      await tx.session.deleteMany({ where: { userId: reset.userId } });
+      await tx.passwordReset.update({
+        where: { id: reset.id },
+        data: { usedAt: new Date() },
+      });
+    });
+
+    await logAction({
+      userId: reset.userId,
+      action: 'RESET_PASSWORD',
+      entityType: 'user',
+      entityId: reset.userId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.status(200).json({ success: true, message: 'Password reset successful. Please log in again.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

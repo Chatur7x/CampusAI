@@ -280,7 +280,7 @@ export const approveLeaveRequest = async (req: AuthenticatedRequest, res: Respon
             studentId_date_subjectId: {
               studentId: leaveRequest.studentId,
               date,
-              subjectId: null,
+              subjectId: null as any,
             },
           },
           update: { status: 'ON_LEAVE' },

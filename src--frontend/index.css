@@ -1,51 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 142.1 76.2% 36.3%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    --background: 232 45% 6%; /* midnight royal */
+    --foreground: 210 40% 98%;
+    --card: 234 45% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 234 45% 8%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 226 85% 60%; /* royal blue */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 140 65% 45%; /* royal green */
+    --secondary-foreground: 210 40% 98%;
+    --muted: 266 45% 16%; /* royal purple muted */
+    --muted-foreground: 250 25% 75%;
+    --accent: 276 65% 55%; /* royal purple */
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 70% 50%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 142.1 76.2% 36.3%;
-    --radius: 0.5rem;
+    --border: 232 45% 16%;
+    --input: 232 45% 16%;
+    --ring: 226 85% 60%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 232 45% 6%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 234 45% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 234 45% 8%;
     --popover-foreground: 210 40% 98%;
-    --primary: 142.1 70.6% 45.3%;
-    --primary-foreground: 144.9 80.4% 10%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 226 85% 60%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 140 65% 45%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 266 45% 16%;
+    --muted-foreground: 250 25% 75%;
+    --accent: 276 65% 55%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 142.1 76.2% 36.3%;
+    --border: 232 45% 16%;
+    --input: 232 45% 16%;
+    --ring: 226 85% 60%;
   }
 }
 
@@ -55,7 +57,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
     margin: 0;
   }
 }
@@ -98,9 +100,9 @@
   }
 
   .glow {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.15),
-                0 0 40px rgba(16, 185, 129, 0.1),
-                0 0 60px rgba(16, 185, 129, 0.05);
+    box-shadow: 0 10px 40px rgba(59, 130, 246, 0.25),
+                0 20px 60px rgba(59, 130, 246, 0.18),
+                0 30px 80px rgba(110, 231, 183, 0.12);
   }
 
   .glass {
@@ -109,6 +111,44 @@
 
   .glass-hover {
     @apply hover:bg-white/10 hover:border-white/20 transition-all duration-200;
+  }
+
+  .neo-3d {
+    box-shadow:
+      0 25px 60px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .royal-grid {
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(79, 70, 229, 0.14) 0, transparent 35%),
+      radial-gradient(circle at 80% 10%, rgba(16, 185, 129, 0.12) 0, transparent 32%),
+      radial-gradient(circle at 70% 80%, rgba(79, 70, 229, 0.18) 0, transparent 40%),
+      linear-gradient(120deg, rgba(76, 29, 149, 0.25) 0%, rgba(37, 99, 235, 0.22) 50%, rgba(16, 185, 129, 0.2) 100%);
+  }
+
+  .royal-gradient {
+    background: conic-gradient(from 120deg,
+      rgba(76, 29, 149, 0.25),
+      rgba(37, 99, 235, 0.3),
+      rgba(16, 185, 129, 0.28),
+      rgba(76, 29, 149, 0.25));
+    filter: blur(50px);
+    opacity: 0.8;
+    animation: spin-slow 24s linear infinite;
+  }
+
+  .blob {
+    background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.8), transparent 45%),
+                radial-gradient(circle at 70% 40%, rgba(16, 185, 129, 0.75), transparent 40%),
+                radial-gradient(circle at 45% 75%, rgba(147, 51, 234, 0.7), transparent 40%);
+    animation: blob-move 14s ease-in-out infinite;
+    filter: blur(20px);
+  }
+
+  .tilt:hover {
+    transform: perspective(800px) rotateX(6deg) rotateY(-6deg) scale(1.01);
   }
 }
 
@@ -175,6 +215,18 @@
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+@keyframes spin-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes blob-move {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  25% { transform: translate3d(-12px, 10px, 0) scale(1.05); }
+  50% { transform: translate3d(8px, -14px, 0) scale(0.97); }
+  75% { transform: translate3d(-6px, -6px, 0) scale(1.02); }
 }
 
 /* Scrollbar styling */

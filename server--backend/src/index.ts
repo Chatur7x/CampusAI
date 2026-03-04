@@ -1,31 +1,45 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import router from './routes';
+import { apiRateLimiter } from './middleware/rateLimiter';
+import { env } from './config/env';
 
 const app = express();
 
-// Important: This allows your React app (5173) to talk to this Server (5000)
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
-}));
+const allowedOrigins = env.corsOrigins;
 
-app.use(express.json());
+app.set('trust proxy', 1); // honor X-Forwarded-For when behind proxies
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
+
+app.use(express.json({ limit: '10mb' }));
 
 // Health check route
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'CampusAI Backend is running!' });
 });
 
-// Mock Auth Route (Prevents Frontend from hanging on a blank screen)
-app.get('/api/auth/me', (req: Request, res: Response) => {
-  res.json({ user: null, isAuthenticated: false }); 
+// Mount API routes
+app.use('/api', apiRateLimiter, router);
+
+// 404 handler
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ success: false, message: 'Endpoint not found' });
+});
+
+// Global error handler
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`📡 API health check: http://localhost:${PORT}/api/health`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/api/health`);
 });

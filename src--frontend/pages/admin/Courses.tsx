@@ -31,11 +31,11 @@ import {
 } from '@/components/ui/select';
 import { Search, Plus, Edit, Trash2, BookOpen, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Course, Department } from '@/types';
+import type { Course, Department } from '@/lib/database.types';
 import { courseService, departmentService } from '@/lib/api';
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<(Course & { department?: Department | null })[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,7 +48,7 @@ export default function CoursesPage() {
     code: '',
     credits: 3,
     semester: 1,
-    departmentId: '',
+    department_id: '',
     description: '',
   });
 
@@ -80,7 +80,14 @@ export default function CoursesPage() {
 
   const handleAdd = async () => {
     try {
-      await courseService.create(form);
+      await courseService.create({
+        name: form.name,
+        code: form.code,
+        credits: form.credits,
+        semester: form.semester,
+        department_id: form.department_id,
+        description: form.description,
+      } as any);
       toast.success('Course created successfully');
       setIsAddOpen(false);
       resetForm();
@@ -94,7 +101,14 @@ export default function CoursesPage() {
   const handleEdit = async () => {
     if (!selectedCourse) return;
     try {
-      await courseService.update(selectedCourse.id, form);
+      await courseService.update(selectedCourse.id, {
+        name: form.name,
+        code: form.code,
+        credits: form.credits,
+        semester: form.semester,
+        department_id: form.department_id,
+        description: form.description,
+      } as any);
       toast.success('Course updated successfully');
       setIsEditOpen(false);
       resetForm();
@@ -126,7 +140,7 @@ export default function CoursesPage() {
       code: course.code,
       credits: course.credits,
       semester: course.semester,
-      departmentId: course.departmentId,
+      department_id: (course as any).department_id,
       description: course.description || '',
     });
     setIsEditOpen(true);
@@ -138,7 +152,7 @@ export default function CoursesPage() {
   };
 
   const resetForm = () => {
-    setForm({ name: '', code: '', credits: 3, semester: 1, departmentId: '', description: '' });
+    setForm({ name: '', code: '', credits: 3, semester: 1, department_id: '', description: '' });
     setSelectedCourse(null);
   };
 
@@ -204,8 +218,8 @@ export default function CoursesPage() {
         <div className="space-y-2">
           <Label className="text-slate-300">Department</Label>
           <Select
-            value={form.departmentId}
-            onValueChange={(v) => setForm({ ...form, departmentId: v })}
+              value={form.department_id}
+            onValueChange={(v) => setForm({ ...form, department_id: v })}
           >
             <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
               <SelectValue placeholder="Select" />
@@ -348,7 +362,7 @@ export default function CoursesPage() {
                       </div>
                     </TableCell>
                     <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{course.code}</Badge></TableCell>
-                    <TableCell className="text-slate-300">{course.department?.name || getDeptName(course.departmentId)}</TableCell>
+                    <TableCell className="text-slate-300">{course.department?.name || getDeptName(course.department_id)}</TableCell>
                     <TableCell><Badge className="bg-cyan-500/20 text-cyan-400">{course.credits} cr</Badge></TableCell>
                     <TableCell className="text-slate-300">Sem {course.semester}</TableCell>
                     <TableCell className="text-right">

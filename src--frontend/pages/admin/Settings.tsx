@@ -46,19 +46,15 @@ export default function SettingsPage() {
       try {
         setLoading(true);
         const data = await settingsService.getAll();
-        const map = { ...defaults } as SettingState;
-        (data || []).forEach((s: any) => {
+        const map: SettingState = { ...defaults };
+        (data || []).forEach((s: { key: string; value: string }) => {
           const key = s.key as keyof SettingState;
           if (key in map) {
-            const val = s.value;
-            if (val === 'true' || val === 'false') {
-              // boolean strings
-              (map as any)[key] = val === 'true';
-            } else if (!isNaN(Number(val))) {
-              (map as any)[key] = Number(val);
-            } else {
-              (map as any)[key] = val;
-            }
+            const raw = s.value;
+            const boolVal = raw === 'true' ? true : raw === 'false' ? false : undefined;
+            const numVal = Number(raw);
+            const parsed = boolVal ?? (Number.isNaN(numVal) ? raw : numVal);
+            (map as any)[key] = parsed;
           }
         });
         setSettings(map);
@@ -89,7 +85,8 @@ export default function SettingsPage() {
     }
   };
 
-  const update = (key: keyof SettingState, value: any) => setSettings((prev) => ({ ...prev, [key]: value }));
+  const update = <K extends keyof SettingState>(key: K, value: SettingState[K]) =>
+    setSettings((prev) => ({ ...prev, [key]: value }));
 
   return (
     <div className="space-y-6">

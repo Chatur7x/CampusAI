@@ -30,26 +30,27 @@ import {
 } from '@/components/ui/select';
 import { Search, Plus, Edit, Trash2, Users, Building2, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Class, Department, Faculty } from '@/types';
+import type { Class as DbClass, Department, Faculty, Profile } from '@/lib/database.types';
 import { classService, departmentService, facultyService } from '@/lib/api';
 
 export default function ClassesPage() {
-  const [classes, setClasses] = useState<Class[]>([]);
+  type ClassWithRelations = DbClass & { department?: Department | null; class_incharge?: (Faculty & { profile?: Profile | null }) | null };
+  const [classes, setClasses] = useState<ClassWithRelations[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [facultyList, setFacultyList] = useState<Faculty[]>([]);
+  const [facultyList, setFacultyList] = useState<(Faculty & { profile?: Profile | null })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [selectedClass, setSelectedClass] = useState<ClassWithRelations | null>(null);
   const [form, setForm] = useState({
     name: '',
     section: 'A',
-    departmentId: '',
-    courseId: '',
-    inchargeId: '',
-    roomNumber: '',
+    department_id: '',
+    course_id: '',
+    class_incharge_id: '',
+    room: '',
     capacity: 60,
     academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
   });
@@ -92,7 +93,16 @@ export default function ClassesPage() {
 
   const handleAdd = async () => {
     try {
-      await classService.create(form);
+      await classService.create({
+        name: form.name,
+        section: form.section,
+        department_id: form.department_id,
+        course_id: form.course_id || null,
+        class_incharge_id: form.class_incharge_id || null,
+        room: form.room || null,
+        capacity: form.capacity,
+        academic_year: form.academicYear,
+      } as any);
       toast.success('Class created successfully');
       setIsAddOpen(false);
       resetForm();
@@ -105,7 +115,16 @@ export default function ClassesPage() {
   const handleEdit = async () => {
     if (!selectedClass) return;
     try {
-      await classService.update(selectedClass.id, form);
+      await classService.update(selectedClass.id, {
+        name: form.name,
+        section: form.section,
+        department_id: form.department_id,
+        course_id: form.course_id || null,
+        class_incharge_id: form.class_incharge_id || null,
+        room: form.room || null,
+        capacity: form.capacity,
+        academic_year: form.academicYear,
+      } as any);
       toast.success('Class updated successfully');
       setIsEditOpen(false);
       resetForm();
@@ -128,25 +147,25 @@ export default function ClassesPage() {
     }
   };
 
-  const openEdit = (cls: Class) => {
+  const openEdit = (cls: ClassWithRelations) => {
     setSelectedClass(cls);
     setForm({
       name: cls.name,
       section: cls.section,
-      departmentId: cls.departmentId,
-      courseId: cls.courseId || '',
-      inchargeId: cls.inchargeId || '',
-      roomNumber: cls.roomNumber || '',
+      department_id: cls.department_id,
+      course_id: (cls as any).course_id || '',
+      class_incharge_id: (cls as any).class_incharge_id || '',
+      room: (cls as any).room || '',
       capacity: cls.capacity,
-      academicYear: cls.academicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+      academicYear: (cls as any).academic_year || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     });
     setIsEditOpen(true);
   };
 
   const resetForm = () => {
     setForm({
-      name: '', section: 'A', departmentId: '', courseId: '', inchargeId: '',
-      roomNumber: '', capacity: 60, academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+      name: '', section: 'A', department_id: '', course_id: '', class_incharge_id: '',
+      room: '', capacity: 60, academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     });
     setSelectedClass(null);
   };
@@ -187,7 +206,7 @@ export default function ClassesPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label className="text-slate-300">Department</Label>
-          <Select value={form.departmentId} onValueChange={(v) => setForm({ ...form, departmentId: v })}>
+          <Select value={form.department_id} onValueChange={(v) => setForm({ ...form, department_id: v })}>
             <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
               <SelectValue placeholder="Select department" />
             </SelectTrigger>
@@ -200,14 +219,14 @@ export default function ClassesPage() {
         </div>
         <div className="space-y-2">
           <Label className="text-slate-300">Class Incharge</Label>
-          <Select value={form.inchargeId} onValueChange={(v) => setForm({ ...form, inchargeId: v })}>
+          <Select value={form.class_incharge_id} onValueChange={(v) => setForm({ ...form, class_incharge_id: v })}>
             <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
               <SelectValue placeholder="Select faculty" />
             </SelectTrigger>
             <SelectContent className="bg-slate-800 border-slate-700">
               {facultyList.map((f) => (
                 <SelectItem key={f.id} value={f.id}>
-                  {f.user?.profile?.firstName} {f.user?.profile?.lastName} ({f.employeeId})
+                  {f.profile?.first_name} {f.profile?.last_name} ({f.employee_id})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -218,8 +237,8 @@ export default function ClassesPage() {
         <div className="space-y-2">
           <Label className="text-slate-300">Room Number</Label>
           <Input
-            value={form.roomNumber}
-            onChange={(e) => setForm({ ...form, roomNumber: e.target.value })}
+            value={form.room}
+            onChange={(e) => setForm({ ...form, room: e.target.value })}
             className="bg-slate-800 border-slate-700 text-white"
             placeholder="e.g., Lab-301"
           />

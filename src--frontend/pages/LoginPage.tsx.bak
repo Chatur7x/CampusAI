@@ -1,0 +1,233 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { BadgeCheck, Fingerprint, Loader2, Mail, Radar, Sparkles, UserCheck, ShieldCheck } from "lucide-react";
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const { session, supabaseUser } = useSupabaseAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [roleHint, setRoleHint] = useState<string | null>(null);
+  const [roleStatus, setRoleStatus] = useState<"idle" | "checking" | "found" | "missing">("idle");
+  const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "http://localhost:5000/api", []);
+
+  useEffect(() => {
+    if (session) {
+      const metadata = supabaseUser?.user_metadata as Record<string, unknown> | null;
+      const userRole = typeof metadata?.role === 'string' ? metadata.role : 'student';
+      const dashboardPath =
+        userRole === "SUPER_ADMIN" || userRole === "ADMIN"
+          ? "/admin"
+          : userRole === "FACULTY" || userRole === "CLASS_INCHARGE"
+          ? "/faculty"
+          : "/student";
+      navigate(dashboardPath, { replace: true });
+    }
+  }, [session, navigate, supabaseUser]);
+
+  // Role detection as user types email
+  useEffect(() => {
+    if (!email || !email.includes("@")) {
+      setRoleStatus("idle");
+      setRoleHint(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      const roleLookupController = new AbortController();
+      const timeout = window.setTimeout(() => roleLookupController.abort(), 1000); // hard stop at 1s to avoid UI hangs
+      try {
+        setRoleStatus("checking");
+        const res = await fetch(`${apiBase}/auth/role?email=${encodeURIComponent(email)}`, {
+          signal: roleLookupController.signal,
+        });
+        const body = await res.json();
+        if (res.ok && body?.success && body.data?.exists) {
+          setRoleStatus("found");
+          setRoleHint(body.data.role);
+          return;
+        }
+        setRoleStatus("missing");
+        setRoleHint(null);
+      } catch (err) {
+        // If role detection fails or times out, silently ignore so login isn’t blocked
+        setRoleStatus("idle");
+        setRoleHint(null);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }, 200);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [email, apiBase]);
+
+  const signInWithPassword = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw signInError;
+    } catch (err) {
+      setError((err as Error).message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (oauthError) throw oauthError;
+    } catch (err) {
+      setError((err as Error).message || "Google sign-in failed");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen relative overflow-hidden text-slate-50 flex items-center justify-center px-4 py-10 royal-grid">
+      <div className="absolute -left-32 -top-32 w-96 h-96 royal-gradient rounded-full" />
+      <div className="absolute right-[-12%] bottom-[-10%] w-[520px] h-[520px] royal-gradient rounded-full" />
+      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08), transparent 26%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.04), transparent 24%)" }} />
+
+      <div className="w-full max-w-6xl relative grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+        <div className="relative p-8 lg:p-12 glass neo-3d rounded-3xl overflow-hidden tilt transition-transform duration-300">
+          <div className="absolute -left-10 -top-16 w-72 h-72 blob rounded-full" />
+          <div className="absolute right-6 top-8 text-sm text-white/70 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-300" />
+            Adaptive security in real-time
+          </div>
+          <div className="relative space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-400/10 border border-emerald-300/30 text-emerald-100 text-xs uppercase tracking-[0.18em]">Royal Access</div>
+            <h1 className="text-4xl lg:text-5xl font-semibold leading-tight text-white">
+              Enter the <span className="text-emerald-200">Royal Campus</span>
+            </h1>
+            <p className="text-slate-200/80 text-lg max-w-xl">
+              Layered glass panels, encrypted by design. Login with adaptive verification, real-time protection, and a luminous royal palette.
+            </p>
+
+            <div className="grid grid-cols-2 gap-4 pt-4">
+              <div className="glass glass-hover rounded-2xl p-4 border border-emerald-300/20 neo-3d">
+                <div className="flex items-center gap-3">
+                  <BadgeCheck className="w-5 h-5 text-emerald-300" />
+                  <div>
+                    <p className="text-sm text-white font-semibold">Zero-trust ready</p>
+                    <p className="text-xs text-white/60">JWT + RLS enforced</p>
+                  </div>
+                </div>
+              </div>
+              <div className="glass glass-hover rounded-2xl p-4 border border-indigo-300/20 neo-3d">
+                <div className="flex items-center gap-3">
+                  <Fingerprint className="w-5 h-5 text-indigo-200" />
+                  <div>
+                    <p className="text-sm text-white font-semibold">Biometric aware</p>
+                    <p className="text-xs text-white/60">Face verification linked</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative">
+          <div className="absolute -inset-6 bg-gradient-to-br from-indigo-500/20 via-emerald-400/10 to-purple-500/20 blur-3xl" />
+          <div className="relative glass neo-3d rounded-3xl p-8 lg:p-10 border border-white/10 backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,0.4)]">
+            <div className="mb-6 text-center space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs uppercase tracking-[0.18em] text-white/80">
+                <Radar className="w-4 h-4 text-emerald-200" /> Secure Login
+              </div>
+              <h2 className="text-2xl font-semibold text-white">CampusAI Portal</h2>
+              <p className="text-sm text-white/70">Sign in with your institutional identity</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="glass rounded-2xl p-5 border border-white/10 space-y-4">
+                <label className="text-sm text-white/80 flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-indigo-200" /> Email
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white placeholder:text-white/40 focus:ring-2 focus:ring-emerald-400/40"
+                    placeholder="you@campus.edu"
+                  />
+                  {roleStatus === "checking" && (
+                    <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-emerald-200" />
+                  )}
+                  {roleStatus === "found" && roleHint && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-emerald-200 flex items-center gap-1">
+                      <UserCheck className="w-4 h-4" /> {roleHint}
+                    </span>
+                  )}
+                  {roleStatus === "missing" && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-200">Not found</span>
+                  )}
+                </div>
+
+                <label className="text-sm text-white/80 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-200" /> Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white placeholder:text-white/40 focus:ring-2 focus:ring-emerald-400/40"
+                  placeholder="••••••••"
+                />
+
+                {error && <p className="text-sm text-rose-200 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">{error}</p>}
+
+                <button
+                  onClick={signInWithPassword}
+                  disabled={loading}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 text-slate-950 font-semibold py-3 neo-3d hover:scale-[1.01] transition-transform duration-150 disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
+                  Sign in with Password
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={signInWithGoogle}
+                  disabled={loading}
+                  className="glass glass-hover rounded-xl border border-white/15 text-white py-3 flex items-center justify-center gap-2 neo-3d"
+                >
+                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" aria-hidden />
+                  Google Login
+                </button>
+                <button
+                  onClick={() => supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo: `${window.location.origin}/auth/callback` } })}
+                  disabled={loading}
+                  className="glass glass-hover rounded-xl border border-white/15 text-white py-3 flex items-center justify-center gap-2 neo-3d"
+                >
+                  <img src="https://www.svgrepo.com/show/475696/github-color.svg" className="w-5 h-5" aria-hidden />
+                  GitHub
+                </button>
+              </div>
+
+              <p className="text-center text-xs text-white/50">
+                Password or Google OAuth • Role hint updates as you type your email
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

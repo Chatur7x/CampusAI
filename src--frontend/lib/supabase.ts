@@ -26,11 +26,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'x-app-name': 'CampusAI',
       'x-app-version': '1.0.0',
     },
-    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
-      return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
-    },
   },
 });
 

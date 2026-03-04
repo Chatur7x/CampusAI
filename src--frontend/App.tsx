@@ -24,6 +24,34 @@ function Loading() {
   );
 }
 
+/** Resolve dashboard path from user role */
+function dashboardPath(role?: string): string {
+  switch (role) {
+    case 'SUPER_ADMIN':
+    case 'ADMIN':
+      return '/admin';
+    case 'FACULTY':
+    case 'CLASS_INCHARGE':
+      return '/faculty';
+    default:
+      return '/student';
+  }
+}
+
+/**
+ * Auth callback page — Supabase PKCE / OAuth redirect lands here.
+ * The URL hash/query contains the auth tokens; the onAuthStateChange
+ * listener in SupabaseAuthContext picks them up automatically.
+ * We just wait for the session to appear and redirect.
+ */
+function AuthCallback() {
+  const { isAuthenticated, isLoading, user } = useSupabaseAuth();
+  if (isLoading) return <Loading />;
+  if (isAuthenticated) return <Navigate to={dashboardPath(user?.role)} replace />;
+  // If not authenticated after processing, go back to login
+  return <Navigate to="/login" replace />;
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useSupabaseAuth();
   if (isLoading) return <Loading />;
@@ -42,12 +70,13 @@ function AppRoutes() {
           path="/login"
           element={
             isAuthenticated ? (
-              <Navigate to={user?.role === "ADMIN" ? "/admin" : user?.role === "FACULTY" ? "/faculty" : "/student"} replace />
+              <Navigate to={dashboardPath(user?.role)} replace />
             ) : (
               <LoginPage />
             )
           }
         />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/admin/*" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
         <Route path="/faculty/*" element={<ProtectedRoute><FacultyDashboard /></ProtectedRoute>} />
         <Route path="/student/*" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />

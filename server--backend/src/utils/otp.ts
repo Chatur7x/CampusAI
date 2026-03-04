@@ -52,8 +52,8 @@ export const generateTOTPSecret = (): string => {
 };
 
 // Generate TOTP code (simplified version)
-export const generateTOTP = (secret: string, window: number = 30): string => {
-  const counter = Math.floor(Date.now() / 1000 / window);
+export const generateTOTP = (secret: string, window: number = 30, counterOverride?: number): string => {
+  const counter = counterOverride ?? Math.floor(Date.now() / 1000 / window);
   const hmac = crypto.createHmac('sha1', secret);
   hmac.update(Buffer.from(counter.toString(16).padStart(16, '0'), 'hex'));
   const digest = hmac.digest();
@@ -66,8 +66,9 @@ export const generateTOTP = (secret: string, window: number = 30): string => {
 };
 
 export const verifyTOTP = (secret: string, token: string, window: number = 30, drift: number = 1): boolean => {
+  const baseCounter = Math.floor(Date.now() / 1000 / window);
   for (let i = -drift; i <= drift; i++) {
-    const expectedToken = generateTOTP(secret, window);
+    const expectedToken = generateTOTP(secret, window, baseCounter + i);
     if (expectedToken === token) {
       return true;
     }

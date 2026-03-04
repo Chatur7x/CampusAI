@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 // =============================================================
 // CAMPUSAI - SUPABASE EDGE FUNCTION
@@ -242,7 +243,7 @@ Deno.serve(async (req) => {
           subjectId?: string
         }[]
 
-        const { data: result, error } = await supabase
+        const { error } = await supabase
           .from('attendance')
           .upsert(
             records.map(r => ({

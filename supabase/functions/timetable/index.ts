@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 // =============================================================
 // AISMS - Supabase Edge Function
 // Timetable: fetch + create/update/delete
 // =============================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN']
@@ -36,7 +38,7 @@ Deno.serve(async (req) => {
       const facultyId = url.searchParams.get('facultyId')
       const studentId = url.searchParams.get('studentId')
 
-      let where: Record<string, unknown> = {}
+      const where: Record<string, unknown> = {}
       if (classId) where['classId'] = classId
       if (facultyId) where['facultyId'] = facultyId
 
@@ -103,16 +105,32 @@ Deno.serve(async (req) => {
   }
 })
 
-async function getRole(supabase: any, userId: string): Promise<string | null> {
-  const { data, error } = await supabase.from('users').select('role').eq('id', userId).single()
+async function getRole(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('role')
+    .returns<{ role: string }>()
+    .eq('id', userId)
+    .single()
   if (error) return null
   return data?.role ?? null
 }
 
-function groupByDay(entries: any[]): Record<number, any[]> {
-  const grouped: Record<number, any[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }
+type TimetableEntry = {
+  id: string
+  class_id: string
+  course_id: string
+  faculty_id: string
+  day_of_week: number
+  start_time: string
+  end_time: string
+  room: string | null
+}
+
+function groupByDay(entries: TimetableEntry[]): Record<number, TimetableEntry[]> {
+  const grouped: Record<number, TimetableEntry[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }
   for (const entry of entries) {
-    const day = entry.dayOfWeek ?? 0
+    const day = entry.day_of_week ?? 0
     grouped[day] = grouped[day] || []
     grouped[day].push(entry)
   }

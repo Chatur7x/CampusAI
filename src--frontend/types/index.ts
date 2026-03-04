@@ -128,7 +128,7 @@ export interface Class {
 
 // ==================== ATTENDANCE TYPES ====================
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'ON_LEAVE';
-export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC';
+export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC' | 'FACE' | 'FINGERPRINT';
 
 export interface Attendance {
   id: string;
@@ -223,7 +223,7 @@ export interface Notification {
   title: string;
   message: string;
   type: NotificationType;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   isRead: boolean;
   createdAt: string;
 }
@@ -258,7 +258,7 @@ export interface DashboardStats {
 export interface Block {
   index: number;
   timestamp: number;
-  data: any;
+  data: Record<string, unknown>;
   previousHash: string;
   hash: string;
   nonce: number;

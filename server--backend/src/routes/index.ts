@@ -26,7 +26,9 @@ router.post('/auth/refresh-token', authController.refreshToken);
 router.post('/auth/logout', authenticate, authController.logout);
 router.post('/auth/setup-mfa', authenticate, authController.setupMFA);
 router.post('/auth/forgot-password', authController.forgotPassword);
+router.post('/auth/reset-password', authController.resetPassword);
 router.get('/auth/me', authenticate, authController.getMe);
+router.get('/auth/role', authRateLimiter, authController.getRoleByEmail);
 
 // ==================== ATTENDANCE ROUTES ====================
 router.post('/attendance/face', authenticate, attendanceController.markAttendanceWithFace);

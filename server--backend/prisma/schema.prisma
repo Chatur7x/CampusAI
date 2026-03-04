@@ -36,6 +36,7 @@ model User {
   student           Student?
   faculty           Faculty?
   admin             Admin?
+  passwordResets    PasswordReset[]
 
   @@map("users")
 }
@@ -74,6 +75,21 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
+}
+
+// Password reset tokens stored server-side (no in-memory fallbacks)
+model PasswordReset {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_resets")
 }
 
 // ==================== ROLE-BASED MODELS ====================

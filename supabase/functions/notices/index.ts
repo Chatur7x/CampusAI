@@ -1,9 +1,10 @@
 // @ts-nocheck
 // =============================================================
 // AISMS - Supabase Edge Function
-// Notices: list + create/update/delete + get by id
+// Notices: list + create/update/delete + get by id (Supabase schema aligned)
 // =============================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN']
@@ -47,25 +48,21 @@ Deno.serve(async (req) => {
       const priority = url.searchParams.get('priority')
       const search = url.searchParams.get('search')
 
-      const filters: any = {
-        isActive: true,
-        OR: [
-          { targetRoles: { contains: role } },
-          { targetRoles: { is: null } },
-          { targetRoles: { eq: '{}' } },
-        ],
-        OR2: [
-          { expiryDate: null },
-          { expiryDate: { gte: new Date().toISOString() } },
-        ],
-      }
-      if (priority) filters.priority = priority
-      let query = supabase.from('notices').select('*', { count: 'exact' }).eq('isActive', true)
+      const roleFilter = `{${role}}`
+      let query = supabase
+        .from('notices')
+        .select('*', { count: 'exact' })
+        .eq('is_active', true)
+        .or(`expiry_date.is.null,expiry_date.gte.${new Date().toISOString()}`)
+        .or(`target_roles.cs.${roleFilter},target_roles.eq.{}`)
+        .order('created_at', { ascending: false })
+
       if (priority) query = query.eq('priority', priority)
       if (search) {
         query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`)
       }
-      query = query.range((page - 1) * limit, page * limit - 1).order('createdAt', { ascending: false })
+
+      query = query.range((page - 1) * limit, page * limit - 1)
 
       const { data, count, error } = await query
       if (error) return json({ success: false, message: error.message }, 500)
@@ -76,7 +73,18 @@ Deno.serve(async (req) => {
     if (req.method === 'POST') {
       if (!CREATE_ROLES.includes(role)) return json({ success: false, message: 'Insufficient permissions' }, 403)
       const body = await req.json()
-      const { title, content, priority = 'NORMAL', targetRoles = [], targetDepartments = [], targetClasses = [], attachments = [], expiryDate } = body
+      const {
+        title,
+        content,
+        priority = 'MEDIUM',
+        targetRoles = [],
+        targetDepartments = [],
+        targetClasses = [],
+        attachments = [],
+        expiryDate,
+        isPinned = false,
+      } = body
+
       if (!title || !content) return json({ success: false, message: 'title and content are required' }, 400)
 
       const { data, error } = await supabase
@@ -85,13 +93,14 @@ Deno.serve(async (req) => {
           title,
           content,
           priority,
-          targetRoles,
-          targetDepartments,
-          targetClasses,
+          target_roles: targetRoles,
+          target_departments: targetDepartments,
+          target_classes: targetClasses,
           attachments,
-          expiryDate: expiryDate ? new Date(expiryDate).toISOString() : null,
-          publishedBy: user.id,
-          isActive: true,
+          expiry_date: expiryDate ? new Date(expiryDate).toISOString() : null,
+          published_by: user.id,
+          is_active: true,
+          is_pinned: isPinned,
         })
         .select()
         .single()
@@ -107,7 +116,13 @@ Deno.serve(async (req) => {
 
       const { data, error } = await supabase
         .from('notices')
-        .update({ ...body, expiryDate: body.expiryDate ? new Date(body.expiryDate).toISOString() : null })
+        .update({
+          ...body,
+          target_roles: body.targetRoles ?? body.target_roles,
+          target_departments: body.targetDepartments ?? body.target_departments,
+          target_classes: body.targetClasses ?? body.target_classes,
+          expiry_date: body.expiryDate ? new Date(body.expiryDate).toISOString() : body.expiry_date ?? null,
+        })
         .eq('id', id)
         .select()
         .single()
@@ -121,7 +136,7 @@ Deno.serve(async (req) => {
       if (!id) return json({ success: false, message: 'id is required' }, 400)
       const { error } = await supabase
         .from('notices')
-        .update({ isActive: false })
+        .update({ is_active: false })
         .eq('id', id)
       if (error) return json({ success: false, message: error.message }, 500)
       return json({ success: true, message: 'Notice deleted' })
@@ -134,8 +149,13 @@ Deno.serve(async (req) => {
   }
 })
 
-async function getRole(supabase: any, userId: string): Promise<string | null> {
-  const { data, error } = await supabase.from('users').select('role').eq('id', userId).single()
+async function getRole(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .returns<{ role: string }>()
+    .eq('user_id', userId)
+    .single()
   if (error) return null
   return data?.role ?? null
 }

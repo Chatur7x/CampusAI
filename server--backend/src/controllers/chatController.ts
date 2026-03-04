@@ -116,8 +116,8 @@ export const getConversations = async (req: AuthenticatedRequest, res: Response)
         const lastMessage = await prisma.message.findFirst({
           where: {
             OR: [
-              { senderId: req.user.id, receiverId: userId },
-              { senderId: userId, receiverId: req.user.id },
+              { senderId: req.user!.id, receiverId: userId },
+              { senderId: userId, receiverId: req.user!.id },
             ],
           },
           orderBy: { createdAt: 'desc' },
@@ -126,7 +126,7 @@ export const getConversations = async (req: AuthenticatedRequest, res: Response)
         const unreadCount = await prisma.message.count({
           where: {
             senderId: userId,
-            receiverId: req.user.id,
+            receiverId: req.user!.id,
             isRead: false,
           },
         });

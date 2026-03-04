@@ -18,7 +18,7 @@ export type Json =
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'FACULTY' | 'CLASS_INCHARGE' | 'STUDENT';
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'ON_LEAVE';
-export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC';
+export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC' | 'FACE' | 'FINGERPRINT';
 export type LeaveType = 'SICK' | 'PERSONAL' | 'FAMILY_EMERGENCY' | 'ACADEMIC' | 'OTHER';
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -65,6 +65,12 @@ export interface Department {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // UI helpers
+  _count?: {
+    students?: number;
+    faculty?: number;
+  };
 }
 
 export interface Faculty {
@@ -107,6 +113,16 @@ export interface Class {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // UI helpers / camelCase aliases
+  roomNumber?: string | null;
+  academicYear?: string;
+  department?: Department | null;
+  course?: Course | null;
+  incharge?: Faculty | null;
+  _count?: {
+    students?: number;
+  };
 }
 
 export interface Student {
@@ -125,6 +141,17 @@ export interface Student {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // UI helpers / camelCase aliases
+  enrollmentId?: string;
+  departmentId?: string;
+  classId?: string;
+  faceData?: string | null;
+  faceRegistered?: boolean;
+  user?: { email?: string; profile?: Profile | null } | null;
+  profile?: Profile | null;
+  department?: Department | null;
+  class?: Class | null;
 }
 
 export interface Attendance {
@@ -146,6 +173,12 @@ export interface Attendance {
   remarks: string | null;
   created_at: string;
   updated_at: string;
+
+  // Aliases used in UI
+  subject_id?: string | null;
+  timetable_entry_id?: string | null;
+  justification?: string | null;
+  confidence_score?: number | null;
 }
 
 export interface Leave {
@@ -179,6 +212,7 @@ export interface Notice {
   published_by: string;
   published_at: string | null;
   expires_at: string | null;
+  expiry_date?: string | null;
   created_at: string;
   updated_at: string;
 }
