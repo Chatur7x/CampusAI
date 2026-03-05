@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -34,17 +34,27 @@ import {
 import { toast } from 'sonner';
 import { attendanceService } from '@/lib/api';
 
-// Student Pages
-import StudentOverview from '@/pages/student/Overview';
-import StudentTimetablePage from '@/pages/student/Timetable';
-import MyAttendancePage from '@/pages/student/MyAttendance';
-import SecureAttendanceStudent from '@/components/attendance/SecureAttendanceStudent';
-import AttendanceCalculatorPage from '@/pages/student/AttendanceCalculator';
-import StudentNoticesPage from '@/pages/student/Notices';
-import StudentSettingsPage from '@/pages/student/Settings';
-import FaceRegistration from '@/components/ai/FaceRegistration';
-import FaceAttendance from '@/components/ai/FaceAttendance';
-import AIDashboard from '@/components/ai/AIDashboard';
+// Student Pages — lazy loaded for faster initial bundle
+const StudentOverview = lazy(() => import('@/pages/student/Overview'));
+const StudentTimetablePage = lazy(() => import('@/pages/student/Timetable'));
+const MyAttendancePage = lazy(() => import('@/pages/student/MyAttendance'));
+const SecureAttendanceStudent = lazy(() => import('@/components/attendance/SecureAttendanceStudent'));
+const AttendanceCalculatorPage = lazy(() => import('@/pages/student/AttendanceCalculator'));
+const StudentNoticesPage = lazy(() => import('@/pages/student/Notices'));
+const StudentSettingsPage = lazy(() => import('@/pages/student/Settings'));
+const FaceRegistration = lazy(() => import('@/components/ai/FaceRegistration'));
+const FaceAttendance = lazy(() => import('@/components/ai/FaceAttendance'));
+const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
+
+// Loading spinner for lazy-loaded pages
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[60vh]">
+    <div className="relative">
+      <div className="h-12 w-12 rounded-full border-2 border-slate-800" />
+      <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-transparent border-t-emerald-500 animate-spin" />
+    </div>
+  </div>
+);
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/student' },
@@ -260,18 +270,20 @@ export default function StudentDashboard() {
       {/* Main Content */}
       <main className="flex-1 lg:ml-0 pt-16 lg:pt-0 relative z-10">
         <div className="p-6 lg:p-8">
-          <Routes>
-            <Route path="/" element={<StudentOverview />} />
-            <Route path="/live-attendance" element={<SecureAttendanceStudent />} />
-            <Route path="/timetable" element={<StudentTimetablePage />} />
-            <Route path="/attendance" element={<MyAttendancePage />} />
-            <Route path="/calculator" element={<AttendanceCalculatorPage />} />
-            <Route path="/face-register" element={<FaceRegistration />} />
-            <Route path="/face-attendance" element={<FaceAttendance />} />
-            <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="student" studentId={student?.id || user?.id} studentName={`${user?.profile?.first_name || ''} ${user?.profile?.last_name || ''}`.trim() || 'Student'} />} />
-            <Route path="/notices" element={<StudentNoticesPage />} />
-            <Route path="/settings" element={<StudentSettingsPage />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<StudentOverview />} />
+              <Route path="/live-attendance" element={<SecureAttendanceStudent />} />
+              <Route path="/timetable" element={<StudentTimetablePage />} />
+              <Route path="/attendance" element={<MyAttendancePage />} />
+              <Route path="/calculator" element={<AttendanceCalculatorPage />} />
+              <Route path="/face-register" element={<FaceRegistration />} />
+              <Route path="/face-attendance" element={<FaceAttendance />} />
+              <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="student" studentId={student?.id || user?.id} studentName={`${user?.profile?.first_name || ''} ${user?.profile?.last_name || ''}`.trim() || 'Student'} />} />
+              <Route path="/notices" element={<StudentNoticesPage />} />
+              <Route path="/settings" element={<StudentSettingsPage />} />
+            </Routes>
+          </Suspense>
         </div>
       </main>
     </div>

@@ -19,4 +19,71 @@ export default defineConfig({
   server: {
     allowedHosts: ['klk5st-5173.csb.app'],
   },
+
+  // ── Build Performance Optimizations ──────────────────────────
+  build: {
+    target: 'esnext',           // Modern browsers only — smaller output, native ESM
+    minify: 'esbuild',          // Fastest minifier (default, but explicit)
+    cssCodeSplit: true,          // Split CSS per async chunk
+    sourcemap: false,            // No source maps in production
+    chunkSizeWarningLimit: 600,  // Warn above 600KB
+
+    rollupOptions: {
+      output: {
+        // Split vendor code into separate cached chunks
+        manualChunks(id: string) {
+          // React core — rarely changes, cache forever
+          if (id.includes('node_modules/react/') ||
+              id.includes('node_modules/react-dom/') ||
+              id.includes('node_modules/react-router')) {
+            return 'react-vendor';
+          }
+          // Supabase SDK — large, stable
+          if (id.includes('node_modules/@supabase/')) {
+            return 'supabase-vendor';
+          }
+          // Radix UI primitives — many small packages, bundle together
+          if (id.includes('node_modules/@radix-ui/')) {
+            return 'ui-vendor';
+          }
+          // Charts — only needed on analytics pages
+          if (id.includes('node_modules/recharts') ||
+              id.includes('node_modules/d3-')) {
+            return 'charts-vendor';
+          }
+          // Animation — only needed where framer-motion is used
+          if (id.includes('node_modules/framer-motion')) {
+            return 'animation-vendor';
+          }
+          // Face/AI libraries — only on face registration/attendance pages
+          if (id.includes('node_modules/face-api') ||
+              id.includes('node_modules/@mediapipe') ||
+              id.includes('node_modules/@tensorflow')) {
+            return 'face-ai-vendor';
+          }
+          // Lucide icons
+          if (id.includes('node_modules/lucide-react')) {
+            return 'icons-vendor';
+          }
+        },
+      },
+    },
+  },
+
+  // ── Dev Server Optimizations ─────────────────────────────────
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@supabase/supabase-js',
+      'lucide-react',
+      'clsx',
+      'tailwind-merge',
+      'class-variance-authority',
+      'sonner',
+      'date-fns',
+      'cmdk',
+    ],
+  },
 });

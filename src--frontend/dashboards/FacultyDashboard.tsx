@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -34,18 +34,28 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
-// Faculty Pages
-import FacultyOverview from '@/pages/faculty/Overview';
-import MyClassesPage from '@/pages/faculty/MyClasses';
-import MyStudentsPage from '@/pages/faculty/MyStudents';
-import FacultyTimetablePage from '@/pages/faculty/Timetable';
-import AttendanceSessionPage from '@/pages/faculty/AttendanceSession';
-import LiveAttendanceFaculty from '@/components/attendance/LiveAttendanceFaculty';
-import FacultyAnalyticsPage from '@/pages/faculty/Analytics';
-import FacultyNoticesPage from '@/pages/faculty/Notices';
-import FacultySettingsPage from '@/pages/faculty/Settings';
-import StudentRegistrationPage from '@/pages/admin/StudentRegistration';
-import AIDashboard from '@/components/ai/AIDashboard';
+// Faculty Pages — lazy loaded for faster initial bundle
+const FacultyOverview = lazy(() => import('@/pages/faculty/Overview'));
+const MyClassesPage = lazy(() => import('@/pages/faculty/MyClasses'));
+const MyStudentsPage = lazy(() => import('@/pages/faculty/MyStudents'));
+const FacultyTimetablePage = lazy(() => import('@/pages/faculty/Timetable'));
+const AttendanceSessionPage = lazy(() => import('@/pages/faculty/AttendanceSession'));
+const LiveAttendanceFaculty = lazy(() => import('@/components/attendance/LiveAttendanceFaculty'));
+const FacultyAnalyticsPage = lazy(() => import('@/pages/faculty/Analytics'));
+const FacultyNoticesPage = lazy(() => import('@/pages/faculty/Notices'));
+const FacultySettingsPage = lazy(() => import('@/pages/faculty/Settings'));
+const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistration'));
+const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
+
+// Loading spinner for lazy-loaded pages
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[60vh]">
+    <div className="relative">
+      <div className="h-12 w-12 rounded-full border-2 border-slate-800" />
+      <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-transparent border-t-cyan-500 animate-spin" />
+    </div>
+  </div>
+);
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/faculty' },
@@ -266,19 +276,21 @@ export default function FacultyDashboard() {
       {/* Main Content */}
       <main className="flex-1 lg:ml-0 pt-16 lg:pt-0 relative z-10">
         <div className="p-6 lg:p-8">
-          <Routes>
-            <Route path="/" element={<FacultyOverview />} />
-            <Route path="/live-attendance" element={<LiveAttendanceFaculty />} />
-            <Route path="/classes" element={<MyClassesPage />} />
-            <Route path="/students" element={<MyStudentsPage />} />
-            <Route path="/timetable" element={<FacultyTimetablePage />} />
-            <Route path="/attendance" element={<AttendanceSessionPage />} />
-            <Route path="/analytics" element={<FacultyAnalyticsPage />} />
-            <Route path="/notices" element={<FacultyNoticesPage />} />
-            <Route path="/settings" element={<FacultySettingsPage />} />
-            <Route path="/register-student" element={<StudentRegistrationPage />} />
-            <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="faculty" />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<FacultyOverview />} />
+              <Route path="/live-attendance" element={<LiveAttendanceFaculty />} />
+              <Route path="/classes" element={<MyClassesPage />} />
+              <Route path="/students" element={<MyStudentsPage />} />
+              <Route path="/timetable" element={<FacultyTimetablePage />} />
+              <Route path="/attendance" element={<AttendanceSessionPage />} />
+              <Route path="/analytics" element={<FacultyAnalyticsPage />} />
+              <Route path="/notices" element={<FacultyNoticesPage />} />
+              <Route path="/settings" element={<FacultySettingsPage />} />
+              <Route path="/register-student" element={<StudentRegistrationPage />} />
+              <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="faculty" />} />
+            </Routes>
+          </Suspense>
         </div>
       </main>
     </div>

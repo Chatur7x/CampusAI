@@ -1,11 +1,13 @@
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import LoginPage from "@/pages/LoginPage";
-import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { CommandPalette } from "@/components/CommandPalette";
 import { Toaster } from "@/components/ui/sonner";
+
+// Lazy load everything except the shell providers
+const LoginPage = React.lazy(() => import("@/pages/LoginPage"));
+const ResetPasswordPage = React.lazy(() => import("@/pages/ResetPasswordPage"));
+const CommandPalette = React.lazy(() => import("@/components/CommandPalette").then(m => ({ default: m.CommandPalette })));
 
 const AdminDashboard = React.lazy(() => import("@/dashboards/AdminDashboard"));
 const FacultyDashboard = React.lazy(() => import("@/dashboards/FacultyDashboard"));
@@ -65,7 +67,9 @@ function AppRoutes() {
 
   return (
     <>
-      <CommandPalette />
+      <Suspense fallback={null}>
+        <CommandPalette />
+      </Suspense>
       <Routes>
         <Route
           path="/login"
@@ -73,12 +77,14 @@ function AppRoutes() {
             isAuthenticated ? (
               <Navigate to={dashboardPath(user?.role)} replace />
             ) : (
-              <LoginPage />
+              <Suspense fallback={<Loading />}>
+                <LoginPage />
+              </Suspense>
             )
           }
         />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/auth/reset-password" element={<Suspense fallback={<Loading />}><ResetPasswordPage /></Suspense>} />
         <Route path="/admin/*" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
         <Route path="/faculty/*" element={<ProtectedRoute><FacultyDashboard /></ProtectedRoute>} />
         <Route path="/student/*" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />

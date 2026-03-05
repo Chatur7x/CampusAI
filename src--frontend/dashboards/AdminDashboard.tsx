@@ -44,7 +44,7 @@ const AnalyticsPage = lazy(() => import('@/pages/admin/Analytics'));
 const NoticesPage = lazy(() => import('@/pages/admin/Notices'));
 const SettingsPage = lazy(() => import('@/pages/admin/Settings'));
 const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistration'));
-import AIDashboard from '@/components/ai/AIDashboard';
+const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
 
 // Premium Loading Component (Optimized)
 const PageLoader = () => (

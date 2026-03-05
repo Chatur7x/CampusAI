@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+/* Google Fonts loaded asynchronously via index.html <link> tags */
 
 @tailwind base;
 @tailwind components;
@@ -256,4 +256,18 @@
 /* Selection */
 ::selection {
   @apply bg-primary/20 text-foreground;
+}
+
+/* ── Performance: GPU acceleration for animated elements ── */
+.animate-spin,
+.animate-pulse,
+.animate-bounce {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* Lazy-render off-screen sections for long pages */
+.content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
 }
