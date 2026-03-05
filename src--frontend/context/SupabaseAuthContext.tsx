@@ -244,9 +244,19 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    // Safety timeout — if getSession() hangs (paused Supabase, slow network),
+    // resolve loading after 2 seconds so the login page appears quickly.
+    const loadingTimeout = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn('Auth initialization timed out after 2s — showing login page');
+        setIsLoading(false);
+      }
+    }, 2000);
+
     // 1. Get initial session (fast — reads from localStorage)
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (!mounted) return;
+      clearTimeout(loadingTimeout);
       setSession(s);
       setSupabaseUser(s?.user ?? null);
 
@@ -260,6 +270,12 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
           if (mounted && fullUser) setUser(fullUser);
         });
       } else {
+        setIsLoading(false);
+      }
+    }).catch(() => {
+      // Network failure — stop loading, let the login page show
+      if (mounted) {
+        clearTimeout(loadingTimeout);
         setIsLoading(false);
       }
     });
@@ -292,6 +308,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserData]);

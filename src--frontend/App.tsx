@@ -4,8 +4,10 @@ import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthCon
 import { ThemeProvider } from "@/context/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 
-// Lazy load everything except the shell providers
-const LoginPage = React.lazy(() => import("@/pages/LoginPage"));
+// LoginPage is eagerly loaded — it's the first page every user sees, no point lazy-loading it
+import LoginPage from "@/pages/LoginPage";
+
+// Everything else is lazy-loaded (only fetched when navigated to)
 const ResetPasswordPage = React.lazy(() => import("@/pages/ResetPasswordPage"));
 const CommandPalette = React.lazy(() => import("@/components/CommandPalette").then(m => ({ default: m.CommandPalette })));
 
@@ -57,7 +59,16 @@ function AuthCallback() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useSupabaseAuth();
-  if (isLoading) return <Loading />;
+  
+  // While checking auth, show a minimal fast-rendering spinner (not the full Loading page)
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="h-10 w-10 rounded-full border-2 border-slate-800 border-t-emerald-500 animate-spin" />
+      </div>
+    );
+  }
+  
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Suspense fallback={<Loading />}>{children}</Suspense>;
 }
@@ -77,9 +88,7 @@ function AppRoutes() {
             isAuthenticated ? (
               <Navigate to={dashboardPath(user?.role)} replace />
             ) : (
-              <Suspense fallback={<Loading />}>
-                <LoginPage />
-              </Suspense>
+              <LoginPage />
             )
           }
         />
