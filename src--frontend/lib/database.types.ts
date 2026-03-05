@@ -1,6 +1,12 @@
 // =============================================================
-// CAMPUSAI - SUPABASE DATABASE TYPES
-// Auto-generated TypeScript types for Supabase
+// CAMPUSAI - SUPABASE DATABASE TYPES (snake_case compat layer)
+//
+// NOTE: The actual DB uses camelCase columns (Prisma-generated).
+// These snake_case types are kept for backward compatibility with
+// code that was written against the original migration 001 schema.
+// New code should import from '@/types/index' (camelCase) instead.
+//
+// The api.ts service layer handles mapping transparently.
 // =============================================================
 
 export type Json =

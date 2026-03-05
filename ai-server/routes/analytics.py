@@ -11,10 +11,13 @@ from pydantic import BaseModel
 
 from models.performance_analysis import pearson_correlation, predict_grade, batch_correlation
 from models.behavior_profiling import train_profiles, classify_student, batch_classify
+from models.risk_prediction import train_isolation_forest, train_logistic_regression, predict_risk
+from models.fraud_detection import train_fraud_model, detect_fraud
 from models.monitoring import (
     get_model_health, get_all_models_health, check_drift,
     check_data_drift, log_prediction, log_accuracy,
 )
+from utils.db import fetch_attendance_records
 
 logger = logging.getLogger("campusai.routes.analytics")
 router = APIRouter()
@@ -155,3 +158,101 @@ async def log_acc(req: LogAccuracyRequest):
     """Log accuracy metric."""
     log_accuracy(req.model_name, req.accuracy)
     return {"logged": True}
+
+
+# ── Model Training Pipeline ──────────────────────────────────
+
+class TrainModelsRequest(BaseModel):
+    """Trigger training of ML models using historical attendance data."""
+    min_records: int = 50
+    class_id: Optional[str] = None
+
+
+@router.post("/train")
+async def train_all_models(req: TrainModelsRequest):
+    """
+    Fetch historical attendance data from Supabase and train:
+    - IsolationForest (anomaly detection)
+    - Fraud detection model (One-Class SVM)
+    - Behavior profiling clusters (KMeans)
+
+    Returns training summary with record counts.
+    """
+    results = {}
+    try:
+        records = fetch_attendance_records(class_id=req.class_id)
+        if len(records) < req.min_records:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough data: {len(records)} records (need {req.min_records})"
+            )
+
+        # Prepare feature dicts for training
+        record_dicts = []
+        for r in records:
+            record_dicts.append({
+                "attendance_pct": 100 if r.get("status") == "PRESENT" else 0,
+                "consecutive_absences": 0,
+                "late_count": 1 if r.get("status") == "LATE" else 0,
+                "total_classes": 1,
+                "date": r.get("date", ""),
+            })
+
+        # 1. Train Isolation Forest for risk prediction
+        try:
+            iso_result = train_isolation_forest(record_dicts)
+            results["isolation_forest"] = {"status": "trained", **iso_result}
+        except Exception as e:
+            results["isolation_forest"] = {"status": "failed", "error": str(e)}
+
+        # 2. Train fraud detection model
+        try:
+            fraud_result = train_fraud_model(record_dicts)
+            results["fraud_detection"] = {"status": "trained", **fraud_result}
+        except Exception as e:
+            results["fraud_detection"] = {"status": "failed", "error": str(e)}
+
+        # 3. Train behavior profiles
+        try:
+            # Aggregate per-student for profiling
+            student_map: dict = {}
+            for r in records:
+                sid = r.get("studentId") or r.get("student_id") or "unknown"
+                if sid not in student_map:
+                    student_map[sid] = {"attendance_pct": 0, "total": 0, "present": 0, "late": 0}
+                student_map[sid]["total"] += 1
+                if r.get("status") == "PRESENT":
+                    student_map[sid]["present"] += 1
+                if r.get("status") == "LATE":
+                    student_map[sid]["late"] += 1
+
+            profile_records = []
+            for sid, s in student_map.items():
+                pct = round((s["present"] / s["total"]) * 100, 1) if s["total"] > 0 else 0
+                profile_records.append({
+                    "student_id": sid,
+                    "attendance_pct": pct,
+                    "absence_streak_max": s["total"] - s["present"],
+                    "late_pct": round((s["late"] / s["total"]) * 100, 1) if s["total"] > 0 else 0,
+                    "variance_weekly": 5.0,
+                })
+
+            if len(profile_records) >= 3:
+                n_clusters = min(4, len(profile_records))
+                profile_result = train_profiles(profile_records, n_clusters)
+                results["behavior_profiles"] = {"status": "trained", **profile_result}
+            else:
+                results["behavior_profiles"] = {"status": "skipped", "reason": "too few students"}
+        except Exception as e:
+            results["behavior_profiles"] = {"status": "failed", "error": str(e)}
+
+        return {
+            "success": True,
+            "total_records": len(records),
+            "models": results,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Training pipeline failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

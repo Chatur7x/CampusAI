@@ -379,10 +379,36 @@ Deno.serve(async (req) => {
 
 // Helper functions
 async function sendEmail(options: { to: string; subject: string; body: string }) {
-  // Integration with email service (SendGrid, Resend, etc.)
-  // This would use the actual email API
-  console.log('Sending email:', options)
-  return true
+  const resendKey = Deno.env.get('RESEND_API_KEY')
+  if (!resendKey) {
+    // No email provider configured — log and skip
+    console.warn('[sendEmail] RESEND_API_KEY not set, skipping email to:', options.to)
+    return false
+  }
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: Deno.env.get('EMAIL_FROM') || 'CampusAI <noreply@campusai.app>',
+        to: [options.to],
+        subject: options.subject,
+        html: options.body.replace(/\n/g, '<br>'),
+      }),
+    })
+    if (!res.ok) {
+      console.warn('[sendEmail] Resend API error:', await res.text())
+      return false
+    }
+    return true
+  } catch (err) {
+    console.warn('[sendEmail] Failed:', err)
+    return false
+  }
 }
 
 async function notifyGuardians(supabase: ReturnType<typeof createClient>, studentId: string, message: string) {

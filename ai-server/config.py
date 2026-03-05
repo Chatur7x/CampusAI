@@ -39,4 +39,7 @@ MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "./mlruns")
 # ── Server ──
 AI_SERVER_HOST = os.getenv("AI_SERVER_HOST", "0.0.0.0")
 AI_SERVER_PORT = int(os.getenv("AI_SERVER_PORT", "8000"))
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,https://campusai.app,https://*.vercel.app"
+).split(",")

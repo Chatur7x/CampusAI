@@ -22,6 +22,16 @@ logger = logging.getLogger("campusai")
 async def lifespan(app: FastAPI):
     """Startup / shutdown hooks."""
     logger.info("🚀 CampusAI server starting …")
+
+    # Pre-load InsightFace model at startup (avoids first-request timeout)
+    try:
+        from models.face_recognition_module import _get_face_app
+        logger.info("Pre-loading InsightFace buffalo_l model …")
+        _get_face_app()
+        logger.info("✅ InsightFace model loaded and ready")
+    except Exception as e:
+        logger.warning(f"InsightFace pre-load skipped: {e}")
+
     # Optionally set MLflow tracking URI
     try:
         import mlflow

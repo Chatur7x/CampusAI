@@ -20,6 +20,40 @@ def get_supabase() -> Client:
     return client
 
 
+# ── Column name helpers ──────────────────────────────────────
+# The DB may use camelCase (Prisma) or snake_case (migration 001).
+# We try camelCase first, then fall back to snake_case.
+
+_COL_MAP = {
+    "userId": ["userId", "user_id"],
+    "classId": ["classId", "class_id"],
+    "studentId": ["studentId", "student_id"],
+    "faceData": ["faceData", "face_data"],
+    "faceRegistered": ["faceRegistered", "face_registered"],
+    "enrollmentId": ["enrollmentId", "enrollment_id"],
+}
+
+def _col(name: str) -> str:
+    """Return the first column alias that exists. Defaults to camelCase."""
+    return _COL_MAP.get(name, [name])[0]
+
+
+def _try_query(sb, table: str, select: str, eq_col: str, eq_val, single: bool = True):
+    """Try query with camelCase column, fall back to snake_case."""
+    aliases = _COL_MAP.get(eq_col, [eq_col])
+    for col in aliases:
+        try:
+            q = sb.table(table).select(select).eq(col, eq_val)
+            res = q.maybe_single().execute() if single else q.execute()
+            if res.data is not None:
+                return res
+        except Exception:
+            continue
+    # Final attempt with first alias
+    q = sb.table(table).select(select).eq(aliases[0], eq_val)
+    return q.maybe_single().execute() if single else q.execute()
+
+
 # ── Convenience helpers ──────────────────────────────────────
 
 def fetch_student(student_id: str) -> dict | None:
@@ -30,32 +64,59 @@ def fetch_student(student_id: str) -> dict | None:
 
 def fetch_student_by_user(user_id: str) -> dict | None:
     sb = get_supabase()
-    res = sb.table("students").select("*").eq("userId", user_id).maybe_single().execute()
+    res = _try_query(sb, "students", "*", "userId", user_id, single=True)
     return res.data
 
 
 def update_face_data(student_id: str, embedding_json: str):
     sb = get_supabase()
-    sb.table("students").update({
-        "faceData": embedding_json,
-        "faceRegistered": True,
-    }).eq("id", student_id).execute()
+    # Try camelCase first, then snake_case
+    try:
+        sb.table("students").update({
+            "faceData": embedding_json,
+            "faceRegistered": True,
+        }).eq("id", student_id).execute()
+    except Exception:
+        sb.table("students").update({
+            "face_data": embedding_json,
+            "face_registered": True,
+        }).eq("id", student_id).execute()
 
 
 def fetch_attendance_records(student_id: str | None = None, class_id: str | None = None):
     sb = get_supabase()
     q = sb.table("attendance").select("*")
     if student_id:
-        q = q.eq("studentId", student_id)
+        for col in _COL_MAP.get("studentId", ["studentId"]):
+            try:
+                test = sb.table("attendance").select("id").eq(col, student_id).limit(1).execute()
+                if test.data is not None:
+                    q = q.eq(col, student_id)
+                    break
+            except Exception:
+                continue
+        else:
+            q = q.eq("studentId", student_id)
     if class_id:
-        q = q.eq("classId", class_id)
+        q = q.eq(_col("classId"), class_id)
     res = q.order("date", desc=True).execute()
     return res.data or []
 
 
 def fetch_all_students_with_faces(class_id: str | None = None):
     sb = get_supabase()
-    q = sb.table("students").select("id, userId, enrollmentId, faceData, faceRegistered, classId").eq("faceRegistered", True)
+    # Try with camelCase select first
+    try:
+        q = sb.table("students").select("id, userId, enrollmentId, faceData, faceRegistered, classId").eq("faceRegistered", True)
+        if class_id:
+            q = q.eq("classId", class_id)
+        result = q.execute()
+        if result.data:
+            return result.data
+    except Exception:
+        pass
+    # Fallback to snake_case
+    q = sb.table("students").select("id, user_id, enrollment_id, face_data, face_registered, class_id").eq("face_registered", True)
     if class_id:
-        q = q.eq("classId", class_id)
+        q = q.eq("class_id", class_id)
     return q.execute().data or []

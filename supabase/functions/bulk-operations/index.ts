@@ -159,19 +159,47 @@ Deno.serve(async (req) => {
               guardian_email: row.guardianEmail || null,
             })
 
-            // Send welcome email with credentials if notifications enabled
+            // Send welcome email + in-app notification if enabled
             if (options.sendNotifications) {
-              // Queue a notification record for the new user
+              const appUrl = Deno.env.get('APP_URL') || 'https://campusai.app';
+              const welcomeMsg = `Your CampusAI account has been created. Login at ${appUrl} with your email and the temporary password provided.`;
+
+              // 1. In-app notification
               await supabase.from('notifications').insert({
                 userId: authUser.user.id,
                 type: 'WELCOME',
                 title: 'Welcome to CampusAI',
-                message: `Your account has been created. Login at ${Deno.env.get('APP_URL') || 'https://campusai.app'} with your email and the temporary password sent to you.`,
+                message: welcomeMsg,
                 status: 'unread',
               }).then(({ error }) => {
                 if (error) console.warn(`Notification insert failed for ${row.email}:`, error.message);
               });
-              console.log(`Welcome notification created for ${row.email}`);
+
+              // 2. Send welcome email via Resend (if RESEND_API_KEY is set)
+              const resendKey = Deno.env.get('RESEND_API_KEY');
+              if (resendKey) {
+                try {
+                  await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${resendKey}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      from: Deno.env.get('EMAIL_FROM') || 'CampusAI <noreply@campusai.app>',
+                      to: [row.email],
+                      subject: 'Welcome to CampusAI — Your Account is Ready',
+                      html: `<h2>Welcome to CampusAI</h2>
+                        <p>Hello ${row.firstName || 'Student'},</p>
+                        <p>${welcomeMsg}</p>
+                        <p><a href="${appUrl}/login">Login Now</a></p>
+                        <p>— CampusAI Team</p>`,
+                    }),
+                  });
+                } catch (emailErr) {
+                  console.warn(`Welcome email failed for ${row.email}:`, emailErr);
+                }
+              }
             }
 
             processed++

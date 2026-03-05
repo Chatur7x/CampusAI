@@ -156,4 +156,55 @@ export const resetBlockchain = (): void => {
   blockchainInstance = null;
 };
 
+// ── Persistence helpers (blockchain_hashes table) ──────────
+import prisma from './prisma';
+
+/**
+ * Persist a new block to the blockchain_hashes table.
+ * Call this after addBlock() to ensure durability across restarts.
+ */
+export async function persistBlock(block: Block): Promise<void> {
+  try {
+    await prisma.blockchainHash.create({
+      data: {
+        blockIndex: block.index,
+        hash: block.hash,
+        previousHash: block.previousHash,
+        data: JSON.stringify(block.data),
+        nonce: block.nonce,
+        timestamp: new Date(block.timestamp),
+      },
+    });
+  } catch (err) {
+    console.error('[Blockchain] Failed to persist block:', err);
+  }
+}
+
+/**
+ * Load persisted chain from DB on startup.
+ */
+export async function loadChainFromDB(): Promise<void> {
+  try {
+    const rows = await prisma.blockchainHash.findMany({ orderBy: { blockIndex: 'asc' } });
+    if (rows.length === 0) return;
+    const chain = getBlockchain();
+    // Blocks already loaded from genesis — skip index 0
+    for (const row of rows) {
+      if (row.blockIndex === 0) continue;
+      const restored: Block = {
+        index: row.blockIndex,
+        hash: row.hash,
+        previousHash: row.previousHash,
+        data: JSON.parse(row.data as string),
+        nonce: row.nonce,
+        timestamp: row.timestamp.getTime(),
+      };
+      chain.getChain().push(restored);
+    }
+    console.log(`[Blockchain] Loaded ${rows.length} blocks from DB`);
+  } catch (err) {
+    console.error('[Blockchain] DB load failed, starting fresh:', err);
+  }
+}
+
 export default Blockchain;

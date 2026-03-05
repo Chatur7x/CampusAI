@@ -1,3 +1,15 @@
+// =============================================================
+// CAMPUSAI - APPLICATION TYPES (camelCase)
+// These types match the actual Prisma-generated DB columns.
+// For Supabase query types, see lib/database.types.ts
+//
+// CONVENTION:
+//   - DB columns → camelCase (Prisma): userId, firstName, classId
+//   - These types → camelCase (same as DB)
+//   - database.types.ts → snake_case (original migration, kept for compat)
+//   - api.ts service layer handles the mapping transparently
+// =============================================================
+
 // ==================== USER TYPES ====================
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'FACULTY' | 'CLASS_INCHARGE' | 'STUDENT';
 

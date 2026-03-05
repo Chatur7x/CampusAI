@@ -54,7 +54,24 @@ Deno.serve(async (req) => {
         .order('dayOfWeek', { ascending: true })
         .order('startTime', { ascending: true })
 
-      if (error) return json({ success: false, message: error.message }, 500)
+      if (error) {
+        // Fallback: try timetable_entries with snake_case columns
+        const snakeWhere: Record<string, unknown> = {}
+        if (classId) snakeWhere['class_id'] = classId
+        if (facultyId) snakeWhere['faculty_id'] = facultyId
+        if (where['classId'] && !classId) snakeWhere['class_id'] = where['classId']
+
+        const fallback = await supabase
+          .from('timetable_entries')
+          .select('*')
+          .match(snakeWhere)
+          .order('day_of_week', { ascending: true })
+          .order('start_time', { ascending: true })
+
+        if (fallback.error) return json({ success: false, message: fallback.error.message }, 500)
+        const grouped = groupByDay(fallback.data || [])
+        return json({ success: true, data: { entries: fallback.data, groupedByDay: grouped } })
+      }
 
       const grouped = groupByDay(data || [])
       return json({ success: true, data: { entries: data, groupedByDay: grouped } })
@@ -130,7 +147,8 @@ type TimetableEntry = {
 function groupByDay(entries: TimetableEntry[]): Record<number, TimetableEntry[]> {
   const grouped: Record<number, TimetableEntry[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }
   for (const entry of entries) {
-    const day = entry.day_of_week ?? 0
+    // Handle both camelCase (dayOfWeek) and snake_case (day_of_week)
+    const day = (entry as any).dayOfWeek ?? entry.day_of_week ?? 0
     grouped[day] = grouped[day] || []
     grouped[day].push(entry)
   }
