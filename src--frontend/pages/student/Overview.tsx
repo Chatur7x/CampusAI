@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { GraduationCap, AlertCircle, CheckCircle, Clock, Bell } from 'lucide-react';
+import { GraduationCap, AlertCircle, CheckCircle, Clock, Bell, Loader2 } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -11,27 +11,154 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
 
+interface AttendanceRecord {
+  date: string;
+  status: string;
+  subjectId?: string;
+}
 
-const monthlyData = [
-  { month: 'Jan', attendance: 85 },
-  { month: 'Feb', attendance: 88 },
-  { month: 'Mar', attendance: 92 },
-  { month: 'Apr', attendance: 90 },
-  { month: 'May', attendance: 87 },
-  { month: 'Jun', attendance: 89 },
-];
+interface TodayClass {
+  subject: string;
+  startTime: string;
+  endTime: string;
+  attended?: boolean;
+}
+
+interface NoticeItem {
+  id: string;
+  title: string;
+  content: string;
+  priority: string;
+  createdAt: string;
+}
 
 export default function StudentOverview() {
-  const [attendance] = useState({
-    percentage: 87.5,
-    present: 42,
-    absent: 4,
-    late: 2,
-    total: 48,
-    riskLevel: 'LOW',
-    safeAbsenceMargin: 3,
-  });
+  const { user } = useSupabaseAuth();
+  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [todayClasses, setTodayClasses] = useState<TodayClass[]>([]);
+  const [notices, setNotices] = useState<NoticeItem[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const studentId = user.student?.id || user.id;
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        // 1. Fetch attendance records (last 6 months)
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const { data: attData } = await supabase
+          .from('attendance')
+          .select('date, status, subjectId')
+          .eq('studentId', studentId)
+          .gte('date', sixMonthsAgo.toISOString().slice(0, 10))
+          .order('date', { ascending: true });
+
+        // 2. Fetch today's timetable
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = days[new Date().getDay()];
+        const classId = (user.student as any)?.classId;
+
+        let scheduleRows: any[] = [];
+        if (classId) {
+          // Try timetable first, fallback to timetable_entries
+          const { data: tt } = await supabase
+            .from('timetable')
+            .select('subjectId, startTime, endTime')
+            .eq('classId', classId)
+            .eq('dayOfWeek', today);
+          if (tt && tt.length) {
+            scheduleRows = tt;
+          } else {
+            const { data: te } = await supabase
+              .from('timetable_entries')
+              .select('subject_id, start_time, end_time')
+              .eq('class_id', classId)
+              .eq('day_of_week', today);
+            scheduleRows = (te || []).map((r: any) => ({
+              subjectId: r.subject_id,
+              startTime: r.start_time,
+              endTime: r.end_time,
+            }));
+          }
+        }
+
+        // Resolve subject names
+        const subjectIds = [...new Set(scheduleRows.map((r: any) => r.subjectId).filter(Boolean))];
+        let subjectMap: Record<string, string> = {};
+        if (subjectIds.length) {
+          const { data: subs } = await supabase
+            .from('courses')
+            .select('id, name')
+            .in('id', subjectIds);
+          subjectMap = Object.fromEntries((subs || []).map((s: any) => [s.id, s.name]));
+        }
+
+        const todaySchedule: TodayClass[] = scheduleRows.map((r: any) => ({
+          subject: subjectMap[r.subjectId] || 'Unknown Subject',
+          startTime: r.startTime || '',
+          endTime: r.endTime || '',
+        }));
+
+        // 3. Fetch recent notices
+        const { data: noticeData } = await supabase
+          .from('notices')
+          .select('id, title, content, priority, createdAt')
+          .order('createdAt', { ascending: false })
+          .limit(3);
+
+        if (!cancelled) {
+          setRecords(attData || []);
+          setTodayClasses(todaySchedule);
+          setNotices(noticeData || []);
+        }
+      } catch (err) {
+        console.error('Overview fetch error:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Compute attendance stats from real data
+  const attendance = useMemo(() => {
+    const present = records.filter(r => r.status === 'PRESENT').length;
+    const absent = records.filter(r => r.status === 'ABSENT').length;
+    const late = records.filter(r => r.status === 'LATE').length;
+    const total = records.length;
+    const percentage = total > 0 ? Math.round((present / total) * 1000) / 10 : 0;
+    const riskLevel = percentage >= 85 ? 'LOW' : percentage >= 75 ? 'MEDIUM' : 'HIGH';
+    const safeAbsenceMargin = Math.max(0, Math.floor(total * 0.25) - absent);
+    return { percentage, present, absent, late, total, riskLevel, safeAbsenceMargin };
+  }, [records]);
+
+  // Monthly trend from real records
+  const monthlyData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const byMonth = new Map<string, { present: number; total: number }>();
+    for (const r of records) {
+      const d = new Date(r.date);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!byMonth.has(key)) byMonth.set(key, { present: 0, total: 0 });
+      const entry = byMonth.get(key)!;
+      entry.total++;
+      if (r.status === 'PRESENT') entry.present++;
+    }
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => ({
+        month: months[parseInt(key.split('-')[1])],
+        attendance: val.total > 0 ? Math.round((val.present / val.total) * 100) : 0,
+      }));
+  }, [records]);
 
   const attendanceColor = attendance.percentage >= 75 ? '#22c55e' : attendance.percentage >= 60 ? '#f59e0b' : '#ef4444';
 
@@ -189,38 +316,27 @@ export default function StudentOverview() {
             <CardTitle className="text-white">Today's Classes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center gap-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">Data Structures</p>
-                  <p className="text-sm text-slate-400">9:00 AM - 10:30 AM</p>
-                </div>
-                <Badge className="bg-emerald-500/20 text-emerald-400">Present</Badge>
+            {loading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
               </div>
-              <div className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50">
-                <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-slate-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">Algorithms</p>
-                  <p className="text-sm text-slate-400">11:00 AM - 12:30 PM</p>
-                </div>
-                <Badge variant="outline" className="text-slate-400">Upcoming</Badge>
+            ) : todayClasses.length === 0 ? (
+              <p className="text-slate-400 text-sm text-center py-8">No classes scheduled today.</p>
+            ) : (
+              <div className="space-y-3">
+                {todayClasses.map((cls, i) => (
+                  <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-white">{cls.subject}</p>
+                      <p className="text-sm text-slate-400">{cls.startTime} - {cls.endTime}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50">
-                <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-slate-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">Database Systems</p>
-                  <p className="text-sm text-slate-400">2:00 PM - 3:30 PM</p>
-                </div>
-                <Badge variant="outline" className="text-slate-400">Upcoming</Badge>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -234,26 +350,33 @@ export default function StudentOverview() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <div className="p-3 rounded-lg bg-slate-800/30">
-              <div className="flex items-center justify-between">
-                <p className="font-medium text-white">Mid-term Examination Schedule</p>
-                <Badge className="bg-red-500/20 text-red-400">HIGH</Badge>
-              </div>
-              <p className="text-sm text-slate-400 mt-1">
-                Mid-term exams will commence from March 15th. Check your schedule.
-              </p>
+          {loading ? (
+            <div className="flex items-center justify-center h-20">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
             </div>
-            <div className="p-3 rounded-lg bg-slate-800/30">
-              <div className="flex items-center justify-between">
-                <p className="font-medium text-white">Library Hours Extended</p>
-                <Badge className="bg-amber-500/20 text-amber-400">MEDIUM</Badge>
-              </div>
-              <p className="text-sm text-slate-400 mt-1">
-                Library will now be open until 10 PM on weekdays.
-              </p>
+          ) : notices.length === 0 ? (
+            <p className="text-slate-400 text-sm text-center py-6">No recent notices.</p>
+          ) : (
+            <div className="space-y-3">
+              {notices.map((notice) => (
+                <div key={notice.id} className="p-3 rounded-lg bg-slate-800/30">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-white">{notice.title}</p>
+                    <Badge className={
+                      notice.priority === 'HIGH' ? 'bg-red-500/20 text-red-400' :
+                      notice.priority === 'MEDIUM' ? 'bg-amber-500/20 text-amber-400' :
+                      'bg-slate-500/20 text-slate-400'
+                    }>
+                      {notice.priority || 'LOW'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-slate-400 mt-1 line-clamp-2">
+                    {notice.content}
+                  </p>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,29 +7,97 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, XCircle, Clock, AlertCircle, Send, Scan } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertCircle, Send, Scan, Loader2 } from 'lucide-react';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
+import { leaveService } from '@/lib/api';
+import { toast } from 'sonner';
 
-const attendanceHistory = [
-  { date: '2024-03-01', status: 'PRESENT', subject: 'Data Structures' },
-  { date: '2024-03-01', status: 'PRESENT', subject: 'Algorithms' },
-  { date: '2024-02-29', status: 'ABSENT', subject: 'Database Systems' },
-  { date: '2024-02-28', status: 'PRESENT', subject: 'Data Structures' },
-  { date: '2024-02-28', status: 'LATE', subject: 'Algorithms' },
-  { date: '2024-02-27', status: 'PRESENT', subject: 'Database Systems' },
-];
+interface AttRecord {
+  date: string;
+  status: string;
+  subject: string;
+  subjectId?: string;
+}
 
-const subjectStats = [
-  { subject: 'Data Structures', total: 20, present: 18, percentage: 90 },
-  { subject: 'Algorithms', total: 18, present: 16, percentage: 89 },
-  { subject: 'Database Systems', total: 15, present: 12, percentage: 80 },
-  { subject: 'Web Development', total: 12, present: 11, percentage: 92 },
-];
+interface SubjectStat {
+  subject: string;
+  total: number;
+  present: number;
+  percentage: number;
+}
 
 export default function MyAttendancePage() {
   const navigate = useNavigate();
+  const { user } = useSupabaseAuth();
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [plannedDate, setPlannedDate] = useState<string>("");
-  const [reason, setReason] = useState("");
+  const [plannedDate, setPlannedDate] = useState<string>('');
+  const [reason, setReason] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [attendanceHistory, setAttendanceHistory] = useState<AttRecord[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const studentId = user.student?.id || user.id;
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        // Fetch all attendance records for this student
+        const { data: attData } = await supabase
+          .from('attendance')
+          .select('date, status, subjectId')
+          .eq('studentId', studentId)
+          .order('date', { ascending: false })
+          .limit(100);
+
+        const rows = attData || [];
+
+        // Resolve subject names from courses table
+        const subjectIds = [...new Set(rows.map((r: any) => r.subjectId).filter(Boolean))];
+        let subjectMap: Record<string, string> = {};
+        if (subjectIds.length) {
+          const { data: subs } = await supabase
+            .from('courses')
+            .select('id, name')
+            .in('id', subjectIds);
+          subjectMap = Object.fromEntries((subs || []).map((s: any) => [s.id, s.name]));
+        }
+
+        const history: AttRecord[] = rows.map((r: any) => ({
+          date: r.date,
+          status: r.status || 'PRESENT',
+          subject: subjectMap[r.subjectId] || 'Unknown Subject',
+          subjectId: r.subjectId,
+        }));
+
+        if (!cancelled) setAttendanceHistory(history);
+      } catch (err) {
+        console.error('Attendance fetch error:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Compute subject stats from real data
+  const subjectStats = useMemo<SubjectStat[]>(() => {
+    const map = new Map<string, { subject: string; total: number; present: number }>();
+    for (const r of attendanceHistory) {
+      if (!map.has(r.subject)) map.set(r.subject, { subject: r.subject, total: 0, present: 0 });
+      const entry = map.get(r.subject)!;
+      entry.total++;
+      if (r.status === 'PRESENT') entry.present++;
+    }
+    return Array.from(map.values()).map(s => ({
+      ...s,
+      percentage: s.total > 0 ? Math.round((s.present / s.total) * 100) : 0,
+    }));
+  }, [attendanceHistory]);
 
   const summary = useMemo(() => {
     const present = attendanceHistory.filter((r) => r.status === 'PRESENT').length;
@@ -94,6 +162,13 @@ export default function MyAttendancePage() {
             <CardTitle className="text-white">Attendance History</CardTitle>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+              </div>
+            ) : attendanceHistory.length === 0 ? (
+              <p className="text-slate-400 text-sm text-center py-12">No attendance records yet.</p>
+            ) : (
             <div className="space-y-3 max-h-[520px] overflow-auto pr-1">
               {attendanceHistory.map((record, index) => (
                 <div
@@ -111,6 +186,7 @@ export default function MyAttendancePage() {
                 </div>
               ))}
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -194,7 +270,33 @@ export default function MyAttendancePage() {
                 placeholder="Let your class incharge know why you will be absent."
               />
             </div>
-            <Button className="w-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 text-slate-950 font-semibold">
+            <Button
+              className="w-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 text-slate-950 font-semibold"
+              disabled={sending || !plannedDate || !reason.trim()}
+              onClick={async () => {
+                if (!user || !plannedDate || !reason.trim()) return;
+                setSending(true);
+                try {
+                  const studentId = user.student?.id || user.id;
+                  await leaveService.create({
+                    studentId,
+                    startDate: plannedDate,
+                    endDate: plannedDate,
+                    reason: reason.trim(),
+                    status: 'PENDING',
+                  } as any);
+                  toast.success('Absence notification sent to your class incharge.');
+                  setPlannedDate('');
+                  setReason('');
+                } catch (err) {
+                  toast.error('Failed to send notification. Please try again.');
+                  console.error(err);
+                } finally {
+                  setSending(false);
+                }
+              }}
+            >
+              {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Send information
             </Button>
             <p className="text-xs text-slate-400">This sends a note to your class incharge. Approvals are handled by faculty.</p>

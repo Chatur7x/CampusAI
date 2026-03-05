@@ -256,15 +256,29 @@ export default function AdminOverview() {
     };
   }, []);
 
-  // Memoized stat cards to prevent recalculation
-  const statCards = useMemo<StatCardConfig[]>(() => [
+  // Memoized stat cards — trends computed from monthly data when available
+  const statCards = useMemo<StatCardConfig[]>(() => {
+    // Compute a simple trend: compare last 2 months from monthlyTrend if available
+    const computeTrend = (): string => {
+      if (monthlyTrend.length >= 2) {
+        const last = monthlyTrend[monthlyTrend.length - 1].percentage;
+        const prev = monthlyTrend[monthlyTrend.length - 2].percentage;
+        const diff = last - prev;
+        return `${diff >= 0 ? '+' : ''}${diff.toFixed(0)}%`;
+      }
+      return '--';
+    };
+    const attendanceTrend = computeTrend();
+    const isTrendUp = attendanceTrend.startsWith('+') || attendanceTrend === '--';
+
+    return [
     {
       title: 'Total Students',
       value: stats?.totalStudents || 0,
       icon: GraduationCap,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10',
-      trend: '+12%',
+      trend: '--',
       trendUp: true,
     },
     {
@@ -273,7 +287,7 @@ export default function AdminOverview() {
       icon: Users,
       color: 'text-cyan-400',
       bgColor: 'bg-cyan-500/10',
-      trend: '+5%',
+      trend: '--',
       trendUp: true,
     },
     {
@@ -282,7 +296,7 @@ export default function AdminOverview() {
       icon: Building2,
       color: 'text-violet-400',
       bgColor: 'bg-violet-500/10',
-      trend: '0%',
+      trend: '--',
       trendUp: true,
     },
     {
@@ -291,10 +305,11 @@ export default function AdminOverview() {
       icon: TrendingUp,
       color: 'text-amber-400',
       bgColor: 'bg-amber-500/10',
-      trend: '-2%',
-      trendUp: false,
+      trend: attendanceTrend,
+      trendUp: isTrendUp,
     },
-  ], [stats]);
+  ];
+  }, [stats, monthlyTrend]);
 
   const quickActions = useMemo(() => [
     { label: 'Add Student', icon: Plus, href: '/admin/students', color: 'text-emerald-400' },

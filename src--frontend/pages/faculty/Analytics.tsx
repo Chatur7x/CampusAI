@@ -38,14 +38,19 @@ export default function FacultyAnalyticsPage() {
     (async () => {
       setLoading(true);
       try {
-        // 1. Fetch attendance records for classes this faculty teaches
+        // 1. Fetch attendance records — try camelCase first, then snake_case
+        let rows: any[] = [];
         const { data: records } = await supabase
           .from('attendance')
-          .select('date, status, subjectId')
+          .select('date, status, subjectId, subject_id')
           .gte('date', sinceStr)
           .order('date', { ascending: true });
 
-        const rows = records || [];
+        rows = (records || []).map((r: any) => ({
+          date: r.date,
+          status: r.status,
+          subjectId: r.subjectId || r.subject_id || null,
+        }));
 
         // 2. Daily aggregation
         const byDay = new Map<string, { present: number; absent: number; total: number }>();

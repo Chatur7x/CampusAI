@@ -37,9 +37,18 @@ export const createLeaveRequest = async (req: AuthenticatedRequest, res: Respons
     });
 
     // Notify class incharge
-    const classIncharge = await prisma.faculty.findFirst({
-      where: { id: student.classId },
-    });
+    let classIncharge: any = null;
+    if (student.classId) {
+      const classRecord = await prisma.class.findUnique({
+        where: { id: student.classId },
+        select: { inchargeId: true },
+      });
+      if (classRecord?.inchargeId) {
+        classIncharge = await prisma.faculty.findUnique({
+          where: { id: classRecord.inchargeId },
+        });
+      }
+    }
 
     if (classIncharge) {
       await createNotification({
