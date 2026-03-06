@@ -1,0 +1,11 @@
+.git
+__pycache__
+*.pyc
+.venv
+.env*
+.ruff_cache
+.mypy_cache
+*.egg-info
+audit_logs/
+mlruns/
+*.md
