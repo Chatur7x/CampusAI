@@ -12,9 +12,11 @@
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://akgjpqvpcugbmdenpxny.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrZ2pwcXZwY3VnYm1kZW5weG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3ODQ4ODEsImV4cCI6MjA4ODM2MDg4MX0.rICVHbdGOoSiBYtefSdNhbCbrffogzrkWHJ2zQWsCZ8';
+const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrZ2pwcXZwY3VnYm1kZW5weG55Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mjc4NDg4MSwiZXhwIjoyMDg4MzYwODgxfQ.qoH258RmgaqAsMX1UHhOrcToz3PhPHr42I-uz_paQuc';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 
 const USERS = [
   {
@@ -51,37 +53,31 @@ const USERS = [
 ];
 
 async function seedUsers() {
-  console.log('🚀 Starting user seed...\n');
+  console.log('🚀 Starting user seed (admin API)...\n');
 
   for (const user of USERS) {
     console.log(`Creating ${user.role}: ${user.email}`);
 
-    // 1. Sign up user in Supabase Auth
-    const { data, error } = await supabase.auth.signUp({
+    // Use admin API to create user (bypasses rate limits, auto-confirms email)
+    const { data, error } = await supabase.auth.admin.createUser({
       email: user.email,
       password: user.password,
-      options: {
-        data: {
-          role: user.role,
-          first_name: user.firstName,
-          last_name: user.lastName,
-        },
+      email_confirm: true,
+      user_metadata: {
+        role: user.role,
+        first_name: user.firstName,
+        last_name: user.lastName,
       },
     });
 
     if (error) {
-      if (error.message?.includes('already registered')) {
-        console.log(`  ⚠️  Already exists, skipping auth creation`);
-        
-        // Try to sign in to get user id
-        const { data: signInData } = await supabase.auth.signInWithPassword({
-          email: user.email,
-          password: user.password,
-        });
-        
-        if (signInData?.user) {
-          await ensureProfile(signInData.user.id, user);
-          await supabase.auth.signOut();
+      if (error.message?.includes('already been registered') || error.message?.includes('already exists')) {
+        console.log(`  ⚠️  Already exists, fetching existing user`);
+        const { data: { users } } = await supabase.auth.admin.listUsers();
+        const existing = users?.find(u => u.email === user.email);
+        if (existing) {
+          console.log(`  ℹ️  Found existing user: ${existing.id}`);
+          await ensureProfile(existing.id, user);
         }
       } else {
         console.log(`  ❌ Error: ${error.message}`);
@@ -95,11 +91,7 @@ async function seedUsers() {
     }
 
     console.log(`  ✅ Auth user created: ${data.user.id}`);
-    
     await ensureProfile(data.user.id, user);
-    
-    // Sign out so next sign-up works
-    await supabase.auth.signOut();
   }
 
   console.log('\n✅ Seed complete!');

@@ -1,6 +1,6 @@
 // Quick seed script – creates faculty + student users with all required rows
 const SUPABASE_URL = 'https://akgjpqvpcugbmdenpxny.supabase.co';
-const SERVICE_KEY = 'REPLACE_WITH_SERVICE_ROLE_KEY';
+const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrZ2pwcXZwY3VnYm1kZW5weG55Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mjc4NDg4MSwiZXhwIjoyMDg4MzYwODgxfQ.qoH258RmgaqAsMX1UHhOrcToz3PhPHr42I-uz_paQuc';
 
 const headers = {
   apikey: SERVICE_KEY,
