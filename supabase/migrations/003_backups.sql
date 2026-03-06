@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS backups (
 CREATE INDEX IF NOT EXISTS idx_backups_status_created ON backups(status, created_at DESC);
 
 -- Enable RLS
--- ALTER TABLE backups ENABLE ROW LEVEL SECURITY; -- disabled for deploy parser issue
+ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
 
 -- Only admins can read/write backups
 CREATE POLICY "Admins can view backups" ON backups

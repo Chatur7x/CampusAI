@@ -151,7 +151,11 @@ Deno.serve(async (req) => {
     // Check for geo-location anomaly
     if (location) {
       // Campus coordinates: Anurag University, Hyderabad
-      const campusConfig = { centerLat: 17.335, centerLng: 78.714, radiusMeters: geoConfig.meters }
+      const campusConfig = {
+        centerLat: parseFloat(Deno.env.get('CAMPUS_LAT') || '17.335'),
+        centerLng: parseFloat(Deno.env.get('CAMPUS_LNG') || '78.714'),
+        radiusMeters: geoConfig.meters,
+      }
       const inCampus = isWithinCampus(location.lat, location.lng, campusConfig)
       
       if (!inCampus && isVerified) {

@@ -412,18 +412,18 @@ async function sendEmail(options: { to: string; subject: string; body: string })
 }
 
 async function notifyGuardians(supabase: ReturnType<typeof createClient>, studentId: string, message: string) {
-  // Get parent/guardian contact and notify
+  // Get parent/guardian contact and notify (camelCase columns from Prisma)
   const { data: student } = await supabase
     .from('students')
-    .select('parent_name, parent_phone, parent_email')
+    .select('"guardianName", "guardianPhone", "guardianEmail"')
     .eq('id', studentId)
     .single()
 
-  if (student?.parent_email) {
+  if (student?.guardianEmail) {
     await sendEmail({
-      to: student.parent_email,
+      to: student.guardianEmail,
       subject: 'Student Attendance Alert',
-      body: `Dear ${student.parent_name},\n\n${message}\n\nPlease ensure your ward maintains regular attendance.\n\nRegards,\nCampusAI Team`,
+      body: `Dear ${student.guardianName},\n\n${message}\n\nPlease ensure your ward maintains regular attendance.\n\nRegards,\nCampusAI Team`,
     })
   }
 }
