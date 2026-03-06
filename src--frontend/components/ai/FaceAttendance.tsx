@@ -10,14 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
-  Camera, CheckCircle2, AlertTriangle, ScanFace, Shield,
+  CheckCircle2, AlertTriangle, ScanFace, Shield,
   Loader2, MapPin, Lock, Eye, ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
 import {
-  verifyFace, checkLiveness, checkFraud, validateGeo,
+  verifyFace, checkFraud, validateGeo,
   getCurrentLocation, captureFrame,
   type VerifyFaceResponse,
 } from '@/lib/ai/apiClient';

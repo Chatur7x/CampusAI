@@ -97,8 +97,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch user profile and role-specific data (background enrichment)
-  // IMPORTANT: The actual DB uses camelCase columns (userId, firstName, etc.)
-  // and has a separate 'users' table for email/role and 'profiles' for extra info.
+  // DB uses snake_case columns (user_id, first_name, etc.) and a single 'profiles' table.
   const fetchUserData = useCallback(async (su: SupabaseUser): Promise<AuthUser | null> => {
     try {
       // 1. Get profile from 'profiles' table (snake_case columns — Supabase migration schema)

@@ -32,7 +32,7 @@ interface AIDashboardProps {
   studentId?: string;
 }
 
-type RiskCategory = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+type _RiskCategory = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 const RISK_COLORS: Record<string, string> = {
   LOW: 'text-green-600 bg-green-500/10 border-green-500',
@@ -54,7 +54,7 @@ export default function AIDashboard({
   attendanceRecords,
   studentPerformances = [],
   role,
-  studentName = 'Student',
+  studentName: _studentName = 'Student',
   studentId,
 }: AIDashboardProps) {
   const [loading, setLoading] = useState(true);

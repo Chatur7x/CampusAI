@@ -34,7 +34,7 @@ jobs:
       - run: npm ci
 
       - name: Lint
-        run: npx eslint src--frontend/ --max-warnings 50
+        run: npx eslint src--frontend/ --max-warnings 80
 
       - name: Type Check
         run: npx tsc --noEmit

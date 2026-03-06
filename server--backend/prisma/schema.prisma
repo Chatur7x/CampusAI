@@ -408,6 +408,20 @@ model SystemSetting {
   @@map("system_settings")
 }
 
+// ==================== BLOCKCHAIN PERSISTENCE ====================
+model BlockchainHash {
+  id            String   @id @default(uuid())
+  blockIndex    Int      @unique
+  hash          String
+  previousHash  String
+  data          String
+  nonce         Int
+  timestamp     DateTime
+  createdAt     DateTime @default(now())
+
+  @@map("blockchain_hashes")
+}
+
 // ==================== SECURITY ALERTS ====================
 model SecurityAlert {
   id          String   @id @default(uuid())

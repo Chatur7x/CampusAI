@@ -30,7 +30,7 @@ export default function FacultyAnalyticsPage() {
 
   useEffect(() => {
     if (!user) return;
-    const facultyId = (user as any).faculty?.id || user.id;
+    const _facultyId = (user as any).faculty?.id || user.id;
     const since = new Date();
     since.setDate(since.getDate() - Number(range));
     const sinceStr = since.toISOString().slice(0, 10);
@@ -85,7 +85,7 @@ export default function FacultyAnalyticsPage() {
 
         // Resolve subject names
         const subIds = [...bySub.keys()].filter(k => k !== 'Unknown');
-        let subNames: Record<string, string> = {};
+        const subNames: Record<string, string> = {};
         if (subIds.length > 0) {
           const { data: courses } = await supabase.from('courses').select('id, name').in('id', subIds);
           if (courses) courses.forEach((c: any) => { subNames[c.id] = c.name; });

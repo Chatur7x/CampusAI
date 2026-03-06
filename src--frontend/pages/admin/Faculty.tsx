@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -70,22 +71,21 @@ export default function FacultyPage() {
       console.error('Error fetching faculty:', error);
       toast.error('Failed to load faculty');
     } finally {
-type FacultyWithRelations = Faculty & { profile?: Profile | null; department?: Department | null };
       setIsLoading(false);
     }
-  const [faculty, setFaculty] = useState<FacultyWithRelations[]>([]);
+  };
 
   const fetchDepartments = async () => {
     try {
       const data = await departmentService.getAll();
       setDepartments(data);
     } catch (error) {
-  const [selectedFaculty, setSelectedFaculty] = useState<FacultyWithRelations | null>(null);
+      console.error('Error fetching departments:', error);
     }
   };
 
   const handleAdd = async () => {
-    setSelectedFaculty(f as FacultyWithRelations);
+    if (!form.firstName || !form.email || !form.employeeId || !form.departmentId) {
       toast.error('Fill required fields before adding');
       return;
     }
