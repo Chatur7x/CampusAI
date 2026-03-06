@@ -37,6 +37,15 @@ model User {
   faculty           Faculty?
   admin             Admin?
   passwordResets    PasswordReset[]
+  
+  // Cybersecurity relations
+  tokenBlacklist    TokenBlacklist[]
+  trustedDevices    TrustedDevice[]
+  loginHistory      LoginHistory[]
+  securityEvents    SecurityEvent[]
+  geoVerifications  GeoVerification[]
+  mfaBackupCodes    MfaBackupCode[]
+  apiRequestLogs    ApiRequestLog[]
 
   @@map("users")
 }
@@ -504,4 +513,120 @@ enum Severity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+// ==================== CYBERSECURITY MODELS ====================
+
+model TokenBlacklist {
+  id         String   @id @default(uuid())
+  tokenHash  String   @unique
+  userId     String
+  reason     String   @default("logout") // logout, password_change, admin_revoke, suspicious
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("token_blacklist")
+}
+
+model TrustedDevice {
+  id             String   @id @default(uuid())
+  userId         String
+  deviceHash     String
+  deviceName     String?
+  browser        String?
+  os             String?
+  ipAddress      String?
+  lastUsedAt     DateTime @default(now())
+  isTrusted      Boolean  @default(false)
+  trustExpiresAt DateTime?
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceHash])
+  @@map("trusted_devices")
+}
+
+model LoginHistory {
+  id            String   @id @default(uuid())
+  userId        String
+  ipAddress     String?
+  userAgent     String?
+  deviceHash    String?
+  location      Json?    // {lat, lng, city, country}
+  status        String   // success, failed, locked, mfa_required
+  failureReason String?
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("login_history")
+}
+
+model SecurityEvent {
+  id          String    @id @default(uuid())
+  eventType   String    // login_anomaly, geo_spoof, device_mismatch, brute_force, api_abuse, data_tamper
+  severity    Severity  @default(MEDIUM)
+  userId      String?
+  ipAddress   String?
+  userAgent   String?
+  description String
+  metadata    Json?
+  resolved    Boolean   @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("security_events")
+}
+
+model GeoVerification {
+  id             String   @id @default(uuid())
+  userId         String
+  latitude       Float
+  longitude      Float
+  accuracy       Float?
+  campusDistance  Float?
+  isWithinCampus Boolean
+  spoofDetected  Boolean  @default(false)
+  spoofReason    String?
+  attendanceId   String?
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("geo_verifications")
+}
+
+model MfaBackupCode {
+  id        String    @id @default(uuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_backup_codes")
+}
+
+model ApiRequestLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  method     String
+  path       String
+  statusCode Int?
+  ipAddress  String?
+  userAgent  String?
+  responseMs Int?
+  flagged    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("api_request_log")
 }

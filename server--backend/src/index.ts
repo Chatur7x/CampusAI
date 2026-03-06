@@ -1,10 +1,12 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import router from './routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
+import { apiRequestLogger, extraSecurityHeaders } from './middleware/security';
 import { env } from './config/env';
 import { verifyToken } from './utils/jwt';
 
@@ -53,6 +55,8 @@ app.set('trust proxy', 1); // honor X-Forwarded-For when behind proxies
 
 // Security headers
 app.use(helmet());
+app.use(extraSecurityHeaders);
+app.use(cookieParser());
 
 app.use(
   cors({
@@ -62,6 +66,9 @@ app.use(
 );
 
 app.use(express.json({ limit: '10mb' }));
+
+// API request logging for threat detection
+app.use('/api', apiRequestLogger);
 
 // Health check route
 app.get('/api/health', (req: Request, res: Response) => {

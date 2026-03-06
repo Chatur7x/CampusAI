@@ -7,6 +7,10 @@ import { generateToken, generateRefreshToken, verifyRefreshToken } from '../util
 import { generateOTP, storeOTP, verifyOTP, generateTOTPSecret } from '../utils/otp';
 import { sendOTP, sendPasswordReset } from '../utils/email';
 import { logAction } from '../utils/audit';
+import { logLogin } from '../utils/loginHistory';
+import { registerDevice, generateDeviceHash, parseUserAgent } from '../utils/deviceTrust';
+import { detectBruteForce, createSecurityEvent } from '../utils/securityEvents';
+import { blacklistToken, blacklistAllUserTokens } from '../utils/tokenBlacklist';
 
 // Lightweight role lookup for login UI hints
 export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -45,6 +49,11 @@ export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): 
 export const login = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body as LoginRequest;
+    const ipAddress = req.ip;
+    const userAgent = req.headers['user-agent'] || '';
+
+    // Check for brute force from this IP
+    await detectBruteForce(ipAddress || '', undefined);
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -65,6 +74,7 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
     // Check if account is locked
     if (user.lockoutUntil && user.lockoutUntil > new Date()) {
       const minutesLeft = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 60000);
+      await logLogin({ userId: user.id, ipAddress, userAgent, status: 'locked' });
       res.status(401).json({
         success: false,
         message: `Account locked. Try again in ${minutesLeft} minutes.`,
@@ -81,11 +91,16 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
 
       await prisma.user.update({
         where: { id: user.id },
-        data: {
-          loginAttempts: attempts,
-          lockoutUntil,
-        },
+        data: { loginAttempts: attempts, lockoutUntil },
       });
+
+      await logLogin({
+        userId: user.id, ipAddress, userAgent,
+        status: 'failed', failureReason: 'wrong_password',
+      });
+
+      // Check brute force for this specific user
+      await detectBruteForce(ipAddress || '', user.id);
 
       res.status(401).json({ success: false, message: 'Invalid credentials' });
       return;
@@ -94,18 +109,39 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
     // Reset login attempts
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        loginAttempts: 0,
-        lockoutUntil: null,
-        lastLoginAt: new Date(),
-      },
+      data: { loginAttempts: 0, lockoutUntil: null, lastLoginAt: new Date() },
     });
+
+    // Register/update device fingerprint
+    const deviceFingerprint = req.body.deviceFingerprint;
+    if (deviceFingerprint) {
+      const deviceHash = generateDeviceHash(deviceFingerprint);
+      const { isNew } = await registerDevice(user.id, deviceHash, {
+        ...deviceFingerprint,
+        userAgent,
+      }, ipAddress);
+
+      // New device → security event
+      if (isNew) {
+        const { browser, os } = parseUserAgent(userAgent);
+        await createSecurityEvent({
+          eventType: 'device_mismatch',
+          severity: 'MEDIUM',
+          userId: user.id,
+          ipAddress,
+          userAgent,
+          description: `New device detected: ${browser} on ${os}`,
+          metadata: { deviceFingerprint },
+        });
+      }
+    }
 
     // Check if MFA is required
     if (user.mfaEnabled) {
       const otp = generateOTP();
       storeOTP(user.id, otp, 10);
       await sendOTP(email, otp);
+      await logLogin({ userId: user.id, ipAddress, userAgent, status: 'mfa_required' });
 
       res.status(200).json({
         success: true,
@@ -126,11 +162,14 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
       data: {
         userId: user.id,
         token: refreshToken,
-        deviceInfo: req.headers['user-agent'],
-        ipAddress: req.ip,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        deviceInfo: userAgent,
+        ipAddress,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
+
+    // Log successful login
+    await logLogin({ userId: user.id, ipAddress, userAgent, status: 'success' });
 
     // Log action
     await logAction({
@@ -138,8 +177,8 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
       action: 'LOGIN',
       entityType: 'user',
       entityId: user.id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress,
+      userAgent,
     });
 
     res.status(200).json({
@@ -369,6 +408,12 @@ export const logout = async (req: AuthenticatedRequest, res: Response): Promise<
   try {
     const { refreshToken: token } = req.body;
 
+    // Blacklist the current access token so it can't be reused
+    const accessToken = req.headers.authorization?.substring(7);
+    if (accessToken && req.user) {
+      await blacklistToken(accessToken, req.user.id, 'logout');
+    }
+
     await prisma.session.deleteMany({ where: { token } });
 
     if (req.user) {
@@ -504,6 +549,9 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response): P
         data: { usedAt: new Date() },
       });
     });
+
+    // Revoke all existing tokens for this user
+    await blacklistAllUserTokens(reset.userId, 'password_change');
 
     await logAction({
       userId: reset.userId,

@@ -15,6 +15,7 @@ import * as bulkController from '../controllers/bulkController';
 import * as adminController from '../controllers/adminController';
 import * as blockchainController from '../controllers/blockchainController';
 import * as chatController from '../controllers/chatController';
+import * as securityController from '../controllers/securityController';
 
 const router = Router();
 
@@ -121,5 +122,33 @@ router.get('/chat/messages/:userId', authenticate, chatController.getMessages);
 router.put('/chat/messages/read/:userId', authenticate, chatController.markMessagesAsRead);
 router.delete('/chat/messages/:messageId', authenticate, chatController.deleteMessage);
 router.get('/chat/class/:classId', authenticate, chatController.getClassChat);
+
+// ==================== SECURITY ROUTES ====================
+// Dashboard (admin only)
+router.get('/security/dashboard', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), securityController.getDashboardStats);
+
+// Security events (admin only)
+router.get('/security/events', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), securityController.listSecurityEvents);
+router.put('/security/events/:id/resolve', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), securityController.resolveEvent);
+
+// Device trust (user = own, admin = all)
+router.get('/security/devices', authenticate, securityController.listDevices);
+router.put('/security/devices/:deviceId/trust', authenticate, securityController.trustDevice);
+router.delete('/security/devices/:deviceId', authenticate, securityController.deleteDevice);
+
+// Login history (user = own, admin = all)
+router.get('/security/login-history', authenticate, securityController.myLoginHistory);
+router.get('/security/login-history/all', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), securityController.allLoginHistory);
+
+// Geo verification history
+router.get('/security/geo-history', authenticate, securityController.geoHistory);
+
+// Sessions management
+router.get('/security/sessions', authenticate, securityController.listActiveSessions);
+router.delete('/security/sessions/:sessionId', authenticate, securityController.revokeSession);
+router.post('/security/sessions/revoke-all', authenticate, securityController.revokeAllSessions);
+
+// Token cleanup (admin only)
+router.post('/security/cleanup-tokens', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), securityController.cleanupTokens);
 
 export default router;

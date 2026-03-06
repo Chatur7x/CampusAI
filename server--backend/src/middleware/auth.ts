@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { verifyToken } from '../utils/jwt';
 import { prisma } from '../utils/prisma';
+import { isTokenBlacklisted } from '../utils/tokenBlacklist';
 
 export const authenticate = async (
   req: AuthenticatedRequest,
@@ -20,6 +21,12 @@ export const authenticate = async (
     
     if (!token) {
       res.status(401).json({ success: false, message: 'Token not provided' });
+      return;
+    }
+
+    // Check if token has been revoked (logout, password change, etc.)
+    if (await isTokenBlacklisted(token)) {
+      res.status(401).json({ success: false, message: 'Token has been revoked' });
       return;
     }
 
