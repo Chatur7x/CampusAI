@@ -154,17 +154,45 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50 flex relative overflow-hidden">
-      {/* Optimized Background Effects */}
-      <div className="pointer-events-none fixed inset-0 opacity-50">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.15),transparent_40%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_10%,rgba(16,185,129,0.12),transparent_35%)]" />
+    <div className="min-h-screen text-slate-50 flex relative overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 30%, #24243e 60%, #0f0c29 100%)" }}>
+
+      {/* Glassmorphism animations */}
+      <style>{`
+        @keyframes blobDrift {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -40px) scale(1.05); }
+          66% { transform: translate(-20px, 20px) scale(0.95); }
+        }
+      `}</style>
+
+      {/* Animated gradient blobs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute w-[600px] h-[600px] rounded-full opacity-40 blur-[120px]"
+          style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)", top: "-15%", left: "-10%", animation: "blobDrift 20s ease-in-out infinite" }} />
+        <div className="absolute w-[500px] h-[500px] rounded-full opacity-35 blur-[100px]"
+          style={{ background: "linear-gradient(135deg, #6366f1, #818cf8)", bottom: "-10%", right: "-5%", animation: "blobDrift 25s ease-in-out 3s infinite reverse" }} />
+        <div className="absolute w-[400px] h-[400px] rounded-full opacity-30 blur-[80px]"
+          style={{ background: "linear-gradient(135deg, #8b5cf6, #c084fc)", top: "40%", left: "50%", transform: "translate(-50%,-50%)", animation: "blobDrift 18s ease-in-out 1s infinite" }} />
+        <div className="absolute w-[300px] h-[300px] rounded-full opacity-25 blur-[90px]"
+          style={{ background: "linear-gradient(135deg, #a78bfa, #e879f9)", bottom: "20%", left: "15%", animation: "blobDrift 22s ease-in-out 5s infinite reverse" }} />
       </div>
+
+      {/* Frosted noise overlay */}
+      <div className="pointer-events-none fixed inset-0 opacity-[0.015]" aria-hidden
+        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
       
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-68 flex-col bg-slate-900/90 backdrop-blur-xl border-r border-slate-800/70 shadow-2xl relative z-10">
+      {/* Desktop Sidebar — frosted glass */}
+      <aside className="hidden lg:flex w-68 flex-col relative z-10 border-r"
+        style={{
+          background: "rgba(255, 255, 255, 0.06)",
+          backdropFilter: "blur(60px) saturate(180%)",
+          WebkitBackdropFilter: "blur(60px) saturate(180%)",
+          borderColor: "rgba(255, 255, 255, 0.12)",
+          boxShadow: "0 8px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)",
+        }}>
         {/* Premium Logo */}
-        <div className="p-6 border-b border-slate-800/70 bg-gradient-to-br from-slate-900/50 to-slate-900/30">
+        <div className="p-6 border-b border-white/[0.08]">
           <Link to="/admin" className="flex items-center gap-3 group">
             <div className="relative">
               <div className="absolute inset-0 bg-violet-500 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity" />
@@ -180,7 +208,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Toolbar */}
-        <div className="px-4 py-3 border-b border-slate-800/70 flex items-center gap-2 bg-slate-900/30">
+        <div className="px-4 py-3 border-b border-white/[0.08] flex items-center gap-2">
           <CommandPaletteTrigger className="flex-1" />
           <ThemeToggle />
           <NotificationBell />
@@ -201,8 +229,8 @@ export default function AdminDashboard() {
         </ScrollArea>
 
         {/* Premium User footer */}
-        <div className="p-4 border-t border-slate-800/70 bg-gradient-to-br from-slate-900/50 to-slate-900/30">
-          <div className="flex items-center gap-3 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50 mb-3">
+        <div className="p-4 border-t border-white/[0.08]">
+          <div className="flex items-center gap-3 p-3 rounded-xl border mb-3" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}>
             <div className="relative">
               <div className="absolute inset-0 bg-violet-500 rounded-full blur-md opacity-40" />
               <Avatar className="relative border-2 border-violet-500/30">
@@ -221,16 +249,24 @@ export default function AdminDashboard() {
           </div>
           <Button 
             onClick={handleLogout} 
-            className="w-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 border border-slate-600/50 shadow-lg" 
+            className="w-full border shadow-lg" 
             variant="secondary"
+            style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }}
           >
             <LogOut className="w-4 h-4 mr-2" /> Logout
           </Button>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800/70 shadow-2xl">
+      {/* Mobile Header — frosted glass */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 border-b"
+        style={{
+          background: 'rgba(255, 255, 255, 0.06)',
+          backdropFilter: 'blur(60px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(60px) saturate(180%)',
+          borderColor: 'rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 4px 30px rgba(0,0,0,0.3)',
+        }}>
         <div className="flex items-center justify-between p-4">
           <Link to="/admin" className="flex items-center gap-2 group">
             <div className="relative">
@@ -251,8 +287,9 @@ export default function AdminDashboard() {
                   <Menu className="w-5 h-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 bg-slate-900/98 backdrop-blur-xl border-slate-800 p-0">
-                <div className="p-6 border-b border-slate-800 bg-gradient-to-br from-slate-900/50 to-slate-900/30">
+              <SheetContent side="left" className="w-72 border-white/[0.12] p-0"
+                style={{ background: 'rgba(15, 12, 41, 0.95)', backdropFilter: 'blur(60px) saturate(180%)', WebkitBackdropFilter: 'blur(60px) saturate(180%)' }}>
+                <div className="p-6 border-b border-white/[0.08]">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="absolute inset-0 bg-violet-500 rounded-xl blur-lg opacity-50" />
@@ -278,8 +315,8 @@ export default function AdminDashboard() {
                     ))}
                   </nav>
                 </ScrollArea>
-                <div className="p-4 border-t border-slate-800 bg-gradient-to-br from-slate-900/50 to-slate-900/30">
-                  <div className="flex items-center gap-3 mb-3 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+                <div className="p-4 border-t border-white/[0.08]">
+                  <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}>
                     <div className="relative">
                       <div className="absolute inset-0 bg-violet-500 rounded-full blur-md opacity-40" />
                       <Avatar className="relative w-8 h-8 border-2 border-violet-500/30">
@@ -295,8 +332,9 @@ export default function AdminDashboard() {
                   </div>
                   <Button 
                     onClick={handleLogout} 
-                    className="w-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 border border-slate-600/50" 
+                    className="w-full border shadow-lg" 
                     variant="secondary"
+                    style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }}
                   >
                     <LogOut className="w-4 h-4 mr-2" /> Logout
                   </Button>

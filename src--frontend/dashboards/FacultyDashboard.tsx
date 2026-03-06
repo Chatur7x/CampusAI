@@ -118,12 +118,45 @@ export default function FacultyDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 flex relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.18),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_50%_75%,rgba(14,165,233,0.12),transparent_32%)]" />
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-68 flex-col bg-slate-900/80 backdrop-blur border-r border-slate-800/70 shadow-xl relative z-10">
+    <div className="min-h-screen text-slate-50 flex relative overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 30%, #24243e 60%, #0f0c29 100%)" }}>
+
+      {/* Glassmorphism animations */}
+      <style>{`
+        @keyframes blobDrift {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -40px) scale(1.05); }
+          66% { transform: translate(-20px, 20px) scale(0.95); }
+        }
+      `}</style>
+
+      {/* Animated gradient blobs — cyan/blue theme */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute w-[600px] h-[600px] rounded-full opacity-40 blur-[120px]"
+          style={{ background: "linear-gradient(135deg, #06b6d4, #0891b2)", top: "-15%", left: "-10%", animation: "blobDrift 20s ease-in-out infinite" }} />
+        <div className="absolute w-[500px] h-[500px] rounded-full opacity-35 blur-[100px]"
+          style={{ background: "linear-gradient(135deg, #3b82f6, #60a5fa)", bottom: "-10%", right: "-5%", animation: "blobDrift 25s ease-in-out 3s infinite reverse" }} />
+        <div className="absolute w-[400px] h-[400px] rounded-full opacity-30 blur-[80px]"
+          style={{ background: "linear-gradient(135deg, #22d3ee, #67e8f9)", top: "40%", left: "50%", transform: "translate(-50%,-50%)", animation: "blobDrift 18s ease-in-out 1s infinite" }} />
+        <div className="absolute w-[300px] h-[300px] rounded-full opacity-25 blur-[90px]"
+          style={{ background: "linear-gradient(135deg, #0ea5e9, #38bdf8)", bottom: "20%", left: "15%", animation: "blobDrift 22s ease-in-out 5s infinite reverse" }} />
+      </div>
+
+      {/* Frosted noise overlay */}
+      <div className="pointer-events-none fixed inset-0 opacity-[0.015]" aria-hidden
+        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+
+      {/* Desktop Sidebar — frosted glass */}
+      <aside className="hidden lg:flex w-68 flex-col relative z-10 border-r"
+        style={{
+          background: "rgba(255, 255, 255, 0.06)",
+          backdropFilter: "blur(60px) saturate(180%)",
+          WebkitBackdropFilter: "blur(60px) saturate(180%)",
+          borderColor: "rgba(255, 255, 255, 0.12)",
+          boxShadow: "0 8px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)",
+        }}>
         {/* Logo */}
-        <div className="p-6 border-b border-slate-800/70">
+        <div className="p-6 border-b border-white/[0.08]">
           <Link to="/faculty" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
               <LayoutDashboard className="w-5 h-5 text-white" />
@@ -136,7 +169,7 @@ export default function FacultyDashboard() {
         </div>
 
         {/* Toolbar */}
-        <div className="px-4 py-3 border-b border-slate-800/70 flex items-center gap-2">
+        <div className="px-4 py-3 border-b border-white/[0.08] flex items-center gap-2">
           <CommandPaletteTrigger className="flex-1" />
           <ThemeToggle />
           <NotificationBell />
@@ -154,8 +187,8 @@ export default function FacultyDashboard() {
                   to={item.path}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
                     isActive
-                      ? 'bg-white/10 text-white border-cyan-400/40 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]'
-                      : 'text-slate-300 border-transparent hover:border-slate-700 hover:bg-white/5 hover:text-white'
+                      ? 'bg-white/[0.1] text-white border-cyan-400/40 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]'
+                      : 'text-white/50 border-transparent hover:border-white/[0.1] hover:bg-white/[0.05] hover:text-white'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -167,7 +200,7 @@ export default function FacultyDashboard() {
         </ScrollArea>
 
         {/* User Profile */}
-        <div className="p-4 border-t border-slate-800/70">
+        <div className="p-4 border-t border-white/[0.08]">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-start gap-3 px-3 hover:bg-white/5">
@@ -186,18 +219,18 @@ export default function FacultyDashboard() {
                 <ChevronDown className="w-4 h-4 text-slate-400" />
               </Button>
             </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-slate-900/95 backdrop-blur border-slate-800">
-              <DropdownMenuLabel className="text-slate-400">My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-slate-800" />
-              <DropdownMenuItem className="text-white hover:bg-slate-800 cursor-pointer">
+              <DropdownMenuContent align="end" className="w-56 backdrop-blur border-white/[0.12]" style={{ background: 'rgba(15,12,41,0.9)', backdropFilter: 'blur(40px)' }}>
+              <DropdownMenuLabel className="text-white/40">My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-white/[0.08]" />
+              <DropdownMenuItem className="text-white hover:bg-white/[0.06] cursor-pointer">
                 <User className="w-4 h-4 mr-2" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-white hover:bg-slate-800 cursor-pointer">
+              <DropdownMenuItem className="text-white hover:bg-white/[0.06] cursor-pointer">
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuSeparator className="bg-white/[0.08]" />
               <DropdownMenuItem
                 onClick={handleLogout}
                 className="text-red-400 hover:bg-red-500/10 cursor-pointer"
@@ -213,8 +246,15 @@ export default function FacultyDashboard() {
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800/70">
+      {/* Mobile Header — frosted glass */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 border-b"
+        style={{
+          background: 'rgba(255, 255, 255, 0.06)',
+          backdropFilter: 'blur(60px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(60px) saturate(180%)',
+          borderColor: 'rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 4px 30px rgba(0,0,0,0.3)',
+        }}>
         <div className="flex items-center justify-between p-4">
           <Link to="/faculty" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
@@ -233,8 +273,9 @@ export default function FacultyDashboard() {
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 bg-slate-900 border-slate-800 p-0">
-              <div className="p-6 border-b border-slate-800">
+            <SheetContent side="left" className="w-64 border-white/[0.12] p-0"
+              style={{ background: 'rgba(15, 12, 41, 0.95)', backdropFilter: 'blur(60px) saturate(180%)', WebkitBackdropFilter: 'blur(60px) saturate(180%)' }}>
+              <div className="p-6 border-b border-white/[0.08]">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
                     <LayoutDashboard className="w-5 h-5 text-white" />
@@ -258,7 +299,7 @@ export default function FacultyDashboard() {
                         className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           isActive
                             ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                            : 'text-white/40 hover:text-white hover:bg-white/[0.05]'
                         }`}
                       >
                         <Icon className="w-5 h-5" />
