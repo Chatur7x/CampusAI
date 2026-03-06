@@ -14,6 +14,9 @@ import {
   Sparkles, Eye, ScanFace, Loader2, RefreshCw,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { attendanceService } from '@/lib/api';
 
 import {
   predictRisk, predictTrend, getCorrelation, classifyProfile,
@@ -25,7 +28,7 @@ import {
 // ── Types ──
 
 interface AIDashboardProps {
-  attendanceRecords: { date: string; status: string; courseId?: string }[];
+  attendanceRecords?: { date: string; status: string; courseId?: string }[];
   studentPerformances?: { attendance: number; grade: number; name?: string }[];
   role: 'student' | 'faculty' | 'admin';
   studentName?: string;
@@ -51,7 +54,7 @@ const RISK_ICONS: Record<string, React.ReactNode> = {
 // ── Component ──
 
 export default function AIDashboard({
-  attendanceRecords,
+  attendanceRecords: externalRecords,
   studentPerformances = [],
   role,
   studentName: _studentName = 'Student',
@@ -64,6 +67,46 @@ export default function AIDashboard({
   const [profileData, setProfileData] = useState<ProfileResult | null>(null);
   const [modelHealthData, setModelHealthData] = useState<ModelHealth[]>([]);
   const [error, setError] = useState('');
+  const [selfFetchedRecords, setSelfFetchedRecords] = useState<{ date: string; status: string; courseId?: string }[]>([]);
+
+  const { user } = useSupabaseAuth();
+
+  // Self-fetch attendance if not provided externally
+  useEffect(() => {
+    if (externalRecords && externalRecords.length > 0) return;
+    (async () => {
+      try {
+        if (role === 'student') {
+          const sid = user?.student?.id || user?.id || '';
+          if (!sid) return;
+          const records = await attendanceService.getForStudent(sid);
+          setSelfFetchedRecords(records.map((r: any) => ({
+            date: r.date || '',
+            status: (r.status || 'absent').toLowerCase(),
+            courseId: r.subject_id || r.course_id || undefined,
+          })));
+        } else {
+          const limit = role === 'admin' ? 500 : 200;
+          const { data } = await supabase
+            .from('attendance')
+            .select('date, status, course_id')
+            .order('date', { ascending: false })
+            .limit(limit);
+          if (data) {
+            setSelfFetchedRecords(data.map((r: any) => ({
+              date: r.date || '',
+              status: (r.status || 'absent').toLowerCase(),
+              courseId: r.course_id || undefined,
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn('AIDashboard: failed to self-fetch attendance', err);
+      }
+    })();
+  }, [role, user?.student?.id, user?.id, externalRecords]);
+
+  const attendanceRecords = (externalRecords && externalRecords.length > 0) ? externalRecords : selfFetchedRecords;
 
   // ── Computed stats ──
   const attendanceRate = useMemo(() => {

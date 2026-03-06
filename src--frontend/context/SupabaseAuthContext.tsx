@@ -100,12 +100,19 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   // DB uses snake_case columns (user_id, first_name, etc.) and a single 'profiles' table.
   const fetchUserData = useCallback(async (su: SupabaseUser): Promise<AuthUser | null> => {
     try {
-      // 1. Get profile from 'profiles' table (snake_case columns — Supabase migration schema)
-      const { data: rawProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', su.id)
-        .single();
+      // Determine role from metadata for parallel query
+      const metaRole = ((su.user_metadata?.role as string) || '').toUpperCase();
+      const isStudent = metaRole === 'STUDENT' || !metaRole;
+      const isFaculty = metaRole === 'FACULTY' || metaRole === 'CLASS_INCHARGE';
+
+      // Run profile + role-specific query IN PARALLEL (saves one round-trip)
+      const [profileResult, studentResult, facultyResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('user_id', su.id).single(),
+        isStudent ? supabase.from('students').select('*').eq('user_id', su.id).single() : Promise.resolve({ data: null }),
+        isFaculty ? supabase.from('faculty').select('*').eq('user_id', su.id).single() : Promise.resolve({ data: null }),
+      ]);
+
+      const rawProfile = profileResult.data;
 
       // Determine role: DB profile > user metadata > default to STUDENT
       const fallback = userFromSession(su);
@@ -164,53 +171,43 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
       let student: Student | null = null;
       let faculty: Faculty | null = null;
 
-      // Fetch role-specific data (snake_case columns — Supabase migration schema)
-      if (role === 'STUDENT') {
-        const { data } = await supabase
-          .from('students')
-          .select('*')
-          .eq('user_id', su.id)
-          .single();
-        if (data) {
-          student = {
-            id: data.id,
-            user_id: data.user_id,
-            enrollment_id: data.enrollment_id || '',
-            department_id: data.department_id || '',
-            class_id: data.class_id || '',
-            batch_year: data.batch_year || 0,
-            semester: data.semester || 1,
-            face_data: data.face_data || null,
-            face_registered: data.face_registered || false,
-            guardian_name: data.guardian_name || null,
-            guardian_phone: data.guardian_phone || null,
-            guardian_email: data.guardian_email || null,
-            is_active: data.is_active ?? true,
-            created_at: data.created_at || new Date().toISOString(),
-            updated_at: data.updated_at || new Date().toISOString(),
-          };
-        }
-      } else if (role === 'FACULTY' || role === 'CLASS_INCHARGE') {
-        const { data } = await supabase
-          .from('faculty')
-          .select('*')
-          .eq('user_id', su.id)
-          .single();
-        if (data) {
-          faculty = {
-            id: data.id,
-            user_id: data.user_id,
-            employee_id: data.employee_id || '',
-            designation: data.designation || '',
-            department_id: data.department_id || '',
-            joining_date: data.joining_date || '',
-            specialization: data.specialization || null,
-            qualifications: data.qualifications || [],
-            is_active: data.is_active ?? true,
-            created_at: data.created_at || new Date().toISOString(),
-            updated_at: data.updated_at || new Date().toISOString(),
-          };
-        }
+      // Use the parallel-fetched results (already resolved above)
+      const sData = studentResult.data;
+      if (sData) {
+        student = {
+          id: sData.id,
+          user_id: sData.user_id,
+          enrollment_id: sData.enrollment_id || '',
+          department_id: sData.department_id || '',
+          class_id: sData.class_id || '',
+          batch_year: sData.batch_year || 0,
+          semester: sData.semester || 1,
+          face_data: sData.face_data || null,
+          face_registered: sData.face_registered || false,
+          guardian_name: sData.guardian_name || null,
+          guardian_phone: sData.guardian_phone || null,
+          guardian_email: sData.guardian_email || null,
+          is_active: sData.is_active ?? true,
+          created_at: sData.created_at || new Date().toISOString(),
+          updated_at: sData.updated_at || new Date().toISOString(),
+        };
+      }
+
+      const fData = facultyResult.data;
+      if (fData) {
+        faculty = {
+          id: fData.id,
+          user_id: fData.user_id,
+          employee_id: fData.employee_id || '',
+          designation: fData.designation || '',
+          department_id: fData.department_id || '',
+          joining_date: fData.joining_date || '',
+          specialization: fData.specialization || null,
+          qualifications: fData.qualifications || [],
+          is_active: fData.is_active ?? true,
+          created_at: fData.created_at || new Date().toISOString(),
+          updated_at: fData.updated_at || new Date().toISOString(),
+        };
       }
 
       return {

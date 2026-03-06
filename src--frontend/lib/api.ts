@@ -339,29 +339,21 @@ export const facultyService = {
   async getAll(filters?: { departmentId?: string }): Promise<Faculty[]> {
     let query = supabase
       .from('faculty')
-      .select(`*, department:departments(*)`);
-    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+      .select(`*, department:departments(*), profile:profiles!user_id(*)`);
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('employee_id');
     if (error) handleError(error);
 
-    // Enrich with profile data
+    // Profile is now joined — just normalize
     if (data && data.length > 0) {
-      const userIds = data.map((f: any) => f.user_id).filter(Boolean);
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('user_id', userIds);
-        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
-        return data.map((f: any) => ({
-          ...f,
-          profile: profileMap.get(f.user_id) || null,
-          user_id: f.user_id,
-          employee_id: f.employee_id,
-          department_id: f.department_id,
-          joining_date: f.joining_date,
-        }));
-      }
+      return data.map((f: any) => ({
+        ...f,
+        profile: f.profile || null,
+        user_id: f.user_id,
+        employee_id: f.employee_id,
+        department_id: f.department_id,
+        joining_date: f.joining_date,
+      }));
     }
     return data || [];
   },
@@ -369,37 +361,25 @@ export const facultyService = {
   async getById(id: string): Promise<Faculty | null> {
     const { data, error } = await supabase
       .from('faculty')
-      .select(`*, department:departments(*)`)
+      .select(`*, department:departments(*), profile:profiles!user_id(*)`)
       .eq('id', id)
       .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     if (!data) return null;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', data.user_id)
-      .single();
-
-    return { ...data, profile, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
+    return { ...data, profile: data.profile || null, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
   },
 
   async getByUserId(userId: string): Promise<Faculty | null> {
     const { data, error } = await supabase
       .from('faculty')
-      .select(`*, department:departments(*)`)
+      .select(`*, department:departments(*), profile:profiles!user_id(*)`)
       .eq('user_id', userId)
       .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     if (!data) return null;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    return { ...data, profile, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
+    return { ...data, profile: data.profile || null, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
   },
 
   async create(faculty: Partial<Faculty>): Promise<Faculty | null> {
@@ -464,36 +444,28 @@ export const studentService = {
   async getAll(filters?: { classId?: string; departmentId?: string }): Promise<Student[]> {
     let query = supabase
       .from('students')
-      .select(`*, department:departments(*), class:classes(*)`);
-    if (filters?.class_id) query = query.eq('class_id', filters.class_id);
-    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+      .select(`*, department:departments(*), class:classes(*), profile:profiles!user_id(*)`);
+    if (filters?.classId) query = query.eq('class_id', filters.classId);
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('enrollment_id');
     if (error) handleError(error);
 
-    // Enrich with profile data
+    // Profile is now joined — just normalize the shape
     if (data && data.length > 0) {
-      const userIds = data.map((s: any) => s.user_id).filter(Boolean);
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('user_id', userIds);
-        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
-        return data.map((s: any) => ({
-          ...s,
-          profile: profileMap.get(s.user_id) || null,
-          user_id: s.user_id,
-          enrollment_id: s.enrollment_id,
-          department_id: s.department_id,
-          class_id: s.class_id,
-          batch_year: s.batch_year,
-          face_data: s.face_data,
-          face_registered: s.face_registered,
-          guardian_name: s.guardian_name,
-          guardian_phone: s.guardian_phone,
-          guardian_email: s.guardian_email,
-        }));
-      }
+      return data.map((s: any) => ({
+        ...s,
+        profile: s.profile || null,
+        user_id: s.user_id,
+        enrollment_id: s.enrollment_id,
+        department_id: s.department_id,
+        class_id: s.class_id,
+        batch_year: s.batch_year,
+        face_data: s.face_data,
+        face_registered: s.face_registered,
+        guardian_name: s.guardian_name,
+        guardian_phone: s.guardian_phone,
+        guardian_email: s.guardian_email,
+      }));
     }
     return data || [];
   },
@@ -501,21 +473,15 @@ export const studentService = {
   async getById(id: string): Promise<Student | null> {
     const { data, error } = await supabase
       .from('students')
-      .select(`*, department:departments(*), class:classes(*)`)
+      .select(`*, department:departments(*), class:classes(*), profile:profiles!user_id(*)`)
       .eq('id', id)
       .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     if (!data) return null;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', data.user_id)
-      .single();
-
     return {
       ...data,
-      profile,
+      profile: data.profile || null,
       user_id: data.user_id,
       enrollment_id: data.enrollment_id,
       department_id: data.department_id,
@@ -526,21 +492,15 @@ export const studentService = {
   async getByUserId(userId: string): Promise<Student | null> {
     const { data, error } = await supabase
       .from('students')
-      .select(`*, department:departments(*), class:classes(*)`)
+      .select(`*, department:departments(*), class:classes(*), profile:profiles!user_id(*)`)
       .eq('user_id', userId)
       .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     if (!data) return null;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
     return {
       ...data,
-      profile,
+      profile: data.profile || null,
       user_id: data.user_id,
       enrollment_id: data.enrollment_id,
       department_id: data.department_id,

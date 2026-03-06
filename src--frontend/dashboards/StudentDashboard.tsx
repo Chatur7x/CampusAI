@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -32,7 +32,6 @@ import {
   Brain,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { attendanceService } from '@/lib/api';
 
 // Student Pages — lazy loaded for faster initial bundle
 const StudentOverview = lazy(() => import('@/pages/student/Overview'));
@@ -75,27 +74,8 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [attendanceRecords, setAttendanceRecords] = useState<{ date: string; status: string; courseId?: string }[]>([]);
 
-  // Fetch attendance records for AI Dashboard
-  useEffect(() => {
-    (async () => {
-      try {
-        const sid = student?.id || user?.id || '';
-        if (!sid) return;
-        const records = await attendanceService.getForStudent(sid);
-        setAttendanceRecords(
-          records.map((r: any) => ({
-            date: r.date || r.createdAt?.slice(0, 10) || '',
-            status: (r.status || 'absent').toLowerCase(),
-            courseId: r.subjectId || r.subject_id || r.courseId || undefined,
-          }))
-        );
-      } catch (err) {
-        console.warn('Failed to fetch attendance for AI dashboard:', err);
-      }
-    })();
-  }, [student, user]);
+  // (AI Dashboard now self-fetches its data)
 
   const handleLogout = () => {
     logout();
@@ -320,7 +300,7 @@ export default function StudentDashboard() {
               <Route path="/calculator" element={<AttendanceCalculatorPage />} />
               <Route path="/face-register" element={<FaceRegistration />} />
               <Route path="/face-attendance" element={<FaceAttendance />} />
-              <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="student" studentId={student?.id || user?.id} studentName={`${user?.profile?.first_name || ''} ${user?.profile?.last_name || ''}`.trim() || 'Student'} />} />
+              <Route path="/ai-analytics" element={<AIDashboard role="student" studentId={student?.id || user?.id} studentName={`${user?.profile?.first_name || ''} ${user?.profile?.last_name || ''}`.trim() || 'Student'} />} />
               <Route path="/notices" element={<StudentNoticesPage />} />
               <Route path="/settings" element={<StudentSettingsPage />} />
             </Routes>

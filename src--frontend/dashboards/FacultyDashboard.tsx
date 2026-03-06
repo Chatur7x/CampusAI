@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -32,7 +32,6 @@ import {
   Brain,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 
 // Faculty Pages — lazy loaded for faster initial bundle
 const FacultyOverview = lazy(() => import('@/pages/faculty/Overview'));
@@ -77,31 +76,9 @@ export default function FacultyDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [attendanceRecords, setAttendanceRecords] = useState<{ date: string; status: string; courseId?: string }[]>([]);
 
   // Fetch recent attendance records for faculty's classes (for AI Dashboard)
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await supabase
-          .from('attendance')
-          .select('date, status, subjectId')
-          .order('date', { ascending: false })
-          .limit(200);
-        if (data) {
-          setAttendanceRecords(
-            data.map((r: any) => ({
-              date: r.date || '',
-              status: (r.status || 'absent').toLowerCase(),
-              courseId: r.subjectId || undefined,
-            }))
-          );
-        }
-      } catch (err) {
-        console.warn('Failed to fetch attendance for AI dashboard:', err);
-      }
-    })();
-  }, [faculty]);
+  // (AI Dashboard now self-fetches its data)
 
   const handleLogout = () => {
     logout();
@@ -329,7 +306,7 @@ export default function FacultyDashboard() {
               <Route path="/notices" element={<FacultyNoticesPage />} />
               <Route path="/settings" element={<FacultySettingsPage />} />
               <Route path="/register-student" element={<StudentRegistrationPage />} />
-              <Route path="/ai-analytics" element={<AIDashboard attendanceRecords={attendanceRecords} role="faculty" />} />
+              <Route path="/ai-analytics" element={<AIDashboard role="faculty" />} />
             </Routes>
           </Suspense>
         </div>
