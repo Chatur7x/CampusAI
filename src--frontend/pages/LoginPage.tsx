@@ -1,76 +1,50 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Navigate } from "react-router-dom";
 import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 
 /* ================================================================
-   CampusAI — 3D Animated Login
-   Clean, minimal, immersive
+   CampusAI — iOS Glassmorphism Login
+   Frosted glass, translucent cards, soft shadows, pill shapes
    ================================================================ */
 
-/* ── Floating 3D shapes (pure CSS, zero deps) ── */
-const shapes = [
-  { size: 60, x: 12, y: 18, delay: 0, dur: 18, color: "rgba(99,102,241,0.12)", type: "cube" },
-  { size: 40, x: 78, y: 25, delay: 2, dur: 22, color: "rgba(16,185,129,0.10)", type: "sphere" },
-  { size: 50, x: 25, y: 70, delay: 4, dur: 20, color: "rgba(139,92,246,0.10)", type: "cube" },
-  { size: 35, x: 85, y: 75, delay: 1, dur: 16, color: "rgba(59,130,246,0.12)", type: "sphere" },
-  { size: 45, x: 55, y: 10, delay: 3, dur: 24, color: "rgba(236,72,153,0.08)", type: "cube" },
-  { size: 30, x: 8, y: 85, delay: 5, dur: 19, color: "rgba(16,185,129,0.08)", type: "sphere" },
-];
+/* ── Role detection from email ── */
+type DetectedRole = { key: string; label: string; icon: string; color: string };
 
-function FloatingShapes() {
-  return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-      {shapes.map((s, i) => (
-        <div
-          key={i}
-          className="absolute"
-          style={{
-            width: s.size,
-            height: s.size,
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            animation: `float3d ${s.dur}s ease-in-out ${s.delay}s infinite`,
-          }}
-        >
-          <div
-            className="w-full h-full"
-            style={{
-              background: s.color,
-              borderRadius: s.type === "sphere" ? "50%" : "16%",
-              border: `1px solid ${s.color}`,
-              backdropFilter: "blur(2px)",
-              animation: `spin3d ${s.dur * 1.5}s linear ${s.delay}s infinite`,
-              transformStyle: "preserve-3d",
-            }}
-          />
-        </div>
-      ))}
-    </div>
-  );
+const ROLES: Record<string, DetectedRole> = {
+  admin:   { key: "admin",   label: "Admin",   icon: "🛡️", color: "#6366f1" },
+  faculty: { key: "faculty", label: "Faculty", icon: "👨‍🏫", color: "#10b981" },
+  student: { key: "student", label: "Student", icon: "🎓", color: "#3b82f6" },
+};
+
+function detectRole(email: string): DetectedRole | null {
+  const e = email.toLowerCase().trim();
+  if (!e) return null;
+  // Admin patterns
+  if (e.startsWith("admin") || e.includes("superadmin") || e.includes("principal")) return ROLES.admin;
+  // Faculty patterns — contains "faculty", starts with department keyword + @
+  if (e.includes("faculty") || /^[a-z]+\.[a-z]+@/.test(e) && (e.includes("prof") || e.includes("hod"))) return ROLES.faculty;
+  // Student patterns — roll number-like prefix (digits or alphanumeric enrollment IDs)
+  if (/^\d{2}[a-z]{2,5}\d/.test(e)) return ROLES.student;
+  // Faculty: name-like emails at edu domain (e.g. saikrishnait@anurag.edu.in)
+  if (/^[a-z]{4,}(it|cs|ece|eee|mech|civil|chem)@/.test(e)) return ROLES.faculty;
+  // Fallback: if has edu domain but no roll number pattern → faculty-like
+  if (e.includes("@") && e.includes(".edu") && !/^\d/.test(e)) return ROLES.faculty;
+  return null;
 }
 
-/* ── Animated orb behind card ── */
-function GlowOrbs() {
+/* ── Blurred background blobs ── */
+function GlassBlobs() {
   return (
-    <div className="pointer-events-none absolute -inset-20 overflow-hidden rounded-3xl" aria-hidden>
-      <div
-        className="absolute w-72 h-72 rounded-full opacity-30"
-        style={{
-          background: "radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)",
-          top: "-20%",
-          left: "-15%",
-          animation: "orbFloat 8s ease-in-out infinite",
-        }}
-      />
-      <div
-        className="absolute w-60 h-60 rounded-full opacity-25"
-        style={{
-          background: "radial-gradient(circle, rgba(16,185,129,0.4) 0%, transparent 70%)",
-          bottom: "-15%",
-          right: "-10%",
-          animation: "orbFloat 10s ease-in-out 2s infinite reverse",
-        }}
-      />
+    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+      {/* Large mesh gradient blobs */}
+      <div className="absolute w-[600px] h-[600px] rounded-full opacity-50 blur-[120px]"
+        style={{ background: "linear-gradient(135deg, #667eea, #764ba2)", top: "-15%", left: "-10%", animation: "blobDrift 20s ease-in-out infinite" }} />
+      <div className="absolute w-[500px] h-[500px] rounded-full opacity-40 blur-[100px]"
+        style={{ background: "linear-gradient(135deg, #f093fb, #f5576c)", bottom: "-10%", right: "-5%", animation: "blobDrift 25s ease-in-out 3s infinite reverse" }} />
+      <div className="absolute w-[400px] h-[400px] rounded-full opacity-35 blur-[80px]"
+        style={{ background: "linear-gradient(135deg, #4facfe, #00f2fe)", top: "40%", left: "50%", transform: "translate(-50%,-50%)", animation: "blobDrift 18s ease-in-out 1s infinite" }} />
+      <div className="absolute w-[300px] h-[300px] rounded-full opacity-30 blur-[90px]"
+        style={{ background: "linear-gradient(135deg, #43e97b, #38f9d7)", bottom: "20%", left: "15%", animation: "blobDrift 22s ease-in-out 5s infinite reverse" }} />
     </div>
   );
 }
@@ -85,32 +59,24 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const detectedRole = useMemo(() => detectRole(email), [email]);
 
-  /* ── 3D tilt on mouse move ── */
+  useEffect(() => { setMounted(true); }, []);
+
+  /* ── Subtle 3D tilt on mouse ── */
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
-
     const handleMove = (e: MouseEvent) => {
       const rect = card.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width - 0.5;
       const y = (e.clientY - rect.top) / rect.height - 0.5;
-      card.style.transform = `perspective(800px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg) scale3d(1.02,1.02,1.02)`;
+      card.style.transform = `perspective(1000px) rotateY(${x * 5}deg) rotateX(${-y * 5}deg)`;
     };
-
-    const handleLeave = () => {
-      card.style.transform = "perspective(800px) rotateY(0deg) rotateX(0deg) scale3d(1,1,1)";
-    };
-
+    const handleLeave = () => { card.style.transform = "perspective(1000px) rotateY(0deg) rotateX(0deg)"; };
     card.addEventListener("mousemove", handleMove);
     card.addEventListener("mouseleave", handleLeave);
-    return () => {
-      card.removeEventListener("mousemove", handleMove);
-      card.removeEventListener("mouseleave", handleLeave);
-    };
+    return () => { card.removeEventListener("mousemove", handleMove); card.removeEventListener("mouseleave", handleLeave); };
   }, []);
 
   /* Redirect if authenticated */
@@ -155,30 +121,27 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050510] flex items-center justify-center p-4 overflow-hidden">
-      {/* Inject keyframe animations */}
+    <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden relative"
+      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 30%, #24243e 60%, #0f0c29 100%)" }}>
+
+      {/* Animations */}
       <style>{`
-        @keyframes float3d {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          25% { transform: translateY(-20px) translateX(10px); }
-          50% { transform: translateY(-8px) translateX(-8px); }
-          75% { transform: translateY(-25px) translateX(5px); }
-        }
-        @keyframes spin3d {
-          0% { transform: rotateX(0deg) rotateY(0deg); }
-          100% { transform: rotateX(360deg) rotateY(360deg); }
-        }
-        @keyframes orbFloat {
+        @keyframes blobDrift {
           0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(30px, -20px) scale(1.1); }
+          33% { transform: translate(30px, -40px) scale(1.05); }
+          66% { transform: translate(-20px, 20px) scale(0.95); }
         }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(40px) scale(0.95); }
+        @keyframes cardIn {
+          from { opacity: 0; transform: translateY(30px) scale(0.96); filter: blur(10px); }
+          to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes roleBadgeIn {
+          from { opacity: 0; transform: translateY(-8px) scale(0.9); }
           to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes pulseRing {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.3); }
-          50% { box-shadow: 0 0 0 12px rgba(99,102,241,0); }
         }
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
@@ -187,57 +150,37 @@ export default function LoginPage() {
         }
       `}</style>
 
-      <FloatingShapes />
+      <GlassBlobs />
 
-      {/* Grid overlay */}
-      <div
-        className="pointer-events-none fixed inset-0 opacity-[0.03]"
-        aria-hidden
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-        }}
-      />
+      {/* Frosted noise overlay */}
+      <div className="pointer-events-none fixed inset-0 opacity-[0.015]" aria-hidden
+        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
 
-      {/* Card container */}
-      <div
-        className="relative w-full max-w-[400px]"
-        style={{
-          animation: mounted ? "slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards" : "none",
-          opacity: mounted ? 1 : 0,
-        }}
-      >
-        <GlowOrbs />
+      {/* Card */}
+      <div className="relative w-full max-w-[420px] z-10"
+        style={{ animation: mounted ? "cardIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards" : "none", opacity: mounted ? 1 : 0 }}>
 
-        <div
-          ref={cardRef}
-          className="relative rounded-3xl border border-white/[0.08] p-8 shadow-2xl transition-transform duration-200 ease-out"
+        <div ref={cardRef}
+          className="relative rounded-[28px] border border-white/[0.12] p-8 transition-transform duration-200 ease-out"
           style={{
-            background: "linear-gradient(135deg, rgba(15,15,35,0.9) 0%, rgba(10,10,25,0.95) 100%)",
-            backdropFilter: "blur(40px)",
+            background: "rgba(255, 255, 255, 0.06)",
+            backdropFilter: "blur(60px) saturate(180%)",
+            WebkitBackdropFilter: "blur(60px) saturate(180%)",
+            boxShadow: "0 8px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(255,255,255,0.05)",
             transformStyle: "preserve-3d",
-          }}
-        >
-          {/* Logo with pulse */}
-          <div className="flex justify-center mb-8">
-            <div
-              className="relative w-16 h-16 rounded-2xl flex items-center justify-center"
+          }}>
+
+          {/* Top glow line */}
+          <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+          {/* Logo */}
+          <div className="flex justify-center mb-7">
+            <div className="relative w-[60px] h-[60px] rounded-[18px] flex items-center justify-center"
               style={{
-                background: "linear-gradient(135deg, #6366f1, #10b981)",
-                backgroundSize: "200% 200%",
-                animation: "gradientShift 4s ease infinite, pulseRing 3s ease-in-out infinite",
-              }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+                background: "linear-gradient(135deg, rgba(99,102,241,0.8), rgba(16,185,129,0.8))",
+                boxShadow: "0 8px 32px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}>
+              <svg viewBox="0 0 24 24" className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
                 <path d="M6 12v5c0 2 4 3 6 3s6-1 6-3v-5" />
               </svg>
@@ -245,56 +188,89 @@ export default function LoginPage() {
           </div>
 
           {/* Title */}
-          <h1
-            className="text-center text-2xl font-bold mb-1 bg-clip-text text-transparent"
-            style={{
-              backgroundImage: "linear-gradient(135deg, #e0e7ff, #ffffff, #a5f3fc)",
-            }}
-          >
-            CampusAI
-          </h1>
-          <p className="text-center text-white/30 text-sm mb-8">Sign in to continue</p>
+          <h1 className="text-center text-[22px] font-semibold text-white/90 mb-0.5 tracking-tight">CampusAI</h1>
+          <p className="text-center text-white/35 text-[13px] mb-7">Sign in to your account</p>
+
+          {/* Auto-detected role badge */}
+          {detectedRole && (
+            <div className="flex justify-center mb-5" style={{ animation: "roleBadgeIn 0.3s ease-out forwards" }}>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-[12px] font-medium"
+                style={{
+                  background: `${detectedRole.color}15`,
+                  borderColor: `${detectedRole.color}30`,
+                  color: `${detectedRole.color}`,
+                  backdropFilter: "blur(20px)",
+                  boxShadow: `0 4px 20px ${detectedRole.color}10`,
+                }}>
+                <span className="text-sm">{detectedRole.icon}</span>
+                <span>Detected: <strong>{detectedRole.label}</strong></span>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: detectedRole.color }} />
+              </div>
+            </div>
+          )}
 
           {/* Form */}
-          <div className="space-y-4">
-            {/* Email */}
-            <div className="group">
+          <div className="space-y-3.5">
+            {/* Email input */}
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25">
+                <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="20" height="16" x="2" y="4" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+              </div>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setError(null); }}
                 onKeyDown={onKey}
                 autoFocus
-                className="w-full rounded-xl bg-white/[0.05] border border-white/[0.08] px-4 py-3 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-indigo-500/50 focus:bg-white/[0.07] transition-all duration-300"
-                placeholder="Email"
+                className="w-full rounded-2xl py-3.5 pl-12 pr-4 text-[14px] text-white placeholder:text-white/25 focus:outline-none transition-all duration-300"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.1)",
+                }}
+                onFocus={(e) => { e.target.style.borderColor = "rgba(99,102,241,0.4)"; e.target.style.background = "rgba(255,255,255,0.08)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.background = "rgba(255,255,255,0.05)"; }}
+                placeholder="Email address"
               />
             </div>
 
-            {/* Password */}
-            <div className="group relative">
+            {/* Password input */}
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25">
+                <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </div>
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setError(null); }}
                 onKeyDown={onKey}
-                className="w-full rounded-xl bg-white/[0.05] border border-white/[0.08] px-4 py-3 pr-11 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-indigo-500/50 focus:bg-white/[0.07] transition-all duration-300"
+                className="w-full rounded-2xl py-3.5 pl-12 pr-12 text-[14px] text-white placeholder:text-white/25 focus:outline-none transition-all duration-300"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.1)",
+                }}
+                onFocus={(e) => { e.target.style.borderColor = "rgba(99,102,241,0.4)"; e.target.style.background = "rgba(255,255,255,0.08)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.background = "rgba(255,255,255,0.05)"; }}
                 placeholder="Password"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-                tabIndex={-1}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
+              <button type="button" onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all duration-200"
+                tabIndex={-1} aria-label={showPassword ? "Hide password" : "Show password"}>
                 {showPassword ? (
-                  <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
-                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
                     <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
@@ -304,30 +280,25 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div className="flex items-center gap-2 text-xs text-rose-300 bg-rose-500/10 border border-rose-500/15 rounded-xl px-4 py-2.5">
-                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                    clipRule="evenodd"
-                  />
+              <div className="flex items-center gap-2.5 text-[12px] text-rose-300 rounded-2xl px-4 py-3"
+                style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.15)", backdropFilter: "blur(20px)" }}>
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
                 {error}
               </div>
             )}
 
-            {/* Sign In */}
-            <button
-              onClick={handleLogin}
-              disabled={loading}
-              className="relative w-full rounded-xl py-3 text-sm font-semibold text-white overflow-hidden transition-all duration-300 disabled:opacity-50 group"
+            {/* Sign In Button */}
+            <button onClick={handleLogin} disabled={loading}
+              className="relative w-full rounded-2xl py-3.5 text-[14px] font-semibold text-white overflow-hidden transition-all duration-300 disabled:opacity-50 group mt-1"
               style={{
                 background: "linear-gradient(135deg, #6366f1, #8b5cf6, #10b981)",
                 backgroundSize: "200% 200%",
                 animation: "gradientShift 4s ease infinite",
-              }}
-            >
-              <span className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-300" />
+                boxShadow: "0 8px 32px rgba(99,102,241,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
+              }}>
+              <span className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.08] transition-colors duration-300" />
               <span className="relative flex items-center justify-center gap-2">
                 {loading && (
                   <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -341,18 +312,21 @@ export default function LoginPage() {
 
             {/* Divider */}
             <div className="flex items-center gap-4 py-1">
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-              <span className="text-[11px] text-white/20 uppercase tracking-widest">or</span>
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+              <span className="text-[11px] text-white/20 uppercase tracking-widest font-medium">or</span>
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
             </div>
 
-            {/* OAuth */}
+            {/* OAuth — glassmorphism buttons */}
             <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => signInWithOAuth("google")}
-                disabled={loading}
-                className="rounded-xl border border-white/[0.06] bg-white/[0.03] py-2.5 text-sm text-white/70 hover:bg-white/[0.08] hover:border-white/[0.12] transition-all duration-300 flex items-center justify-center gap-2"
-              >
+              <button onClick={() => signInWithOAuth("google")} disabled={loading}
+                className="rounded-2xl py-2.5 text-[13px] text-white/70 hover:text-white/90 flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(20px)",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
+                }}>
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -361,11 +335,14 @@ export default function LoginPage() {
                 </svg>
                 Google
               </button>
-              <button
-                onClick={() => signInWithOAuth("github")}
-                disabled={loading}
-                className="rounded-xl border border-white/[0.06] bg-white/[0.03] py-2.5 text-sm text-white/70 hover:bg-white/[0.08] hover:border-white/[0.12] transition-all duration-300 flex items-center justify-center gap-2"
-              >
+              <button onClick={() => signInWithOAuth("github")} disabled={loading}
+                className="rounded-2xl py-2.5 text-[13px] text-white/70 hover:text-white/90 flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(20px)",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
+                }}>
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
                 </svg>
@@ -373,7 +350,14 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+
+          {/* Bottom glow line */}
+          <div className="absolute bottom-0 left-12 right-12 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         </div>
+
+        {/* Subtle reflection under card */}
+        <div className="mx-8 h-8 rounded-b-3xl opacity-20 blur-md"
+          style={{ background: "linear-gradient(to bottom, rgba(99,102,241,0.15), transparent)" }} />
       </div>
     </div>
   );
