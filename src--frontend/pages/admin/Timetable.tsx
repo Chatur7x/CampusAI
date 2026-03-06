@@ -23,7 +23,7 @@ import {
 import { Calendar, Plus, Trash2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TimetableEntry, Class, Faculty, Course, Profile } from '@/lib/database.types';
-import { timetableService, classService, facultyService, courseService } from '@/lib/api';
+import { timetableService, classService, facultyService, courseService, auditLogService } from '@/lib/api';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TIME_SLOTS = [
@@ -135,6 +135,7 @@ export default function TimetablePage() {
         room: form.roomNumber || null,
       });
       toast.success('Timetable entry added');
+      auditLogService.log('CREATE', 'timetable_entry', '', { newValues: form });
       setIsAddOpen(false);
       fetchTimetable();
     } catch (error) {
@@ -147,6 +148,7 @@ export default function TimetablePage() {
     try {
       await timetableService.delete(selectedEntry.id);
       toast.success('Entry deleted');
+      auditLogService.log('DELETE', 'timetable_entry', selectedEntry.id, {});
       setIsDeleteOpen(false);
       setSelectedEntry(null);
       fetchTimetable();

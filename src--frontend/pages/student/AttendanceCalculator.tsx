@@ -1,29 +1,106 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calculator, TrendingUp, AlertTriangle, CheckCircle2, Info, BookOpen } from 'lucide-react';
+import { Calculator, TrendingUp, AlertTriangle, CheckCircle2, Info, BookOpen, Loader2 } from 'lucide-react';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
 
-const mockSubjects = [
-  { id: 'cs301', name: 'Data Structures', total: 45, attended: 40 },
-  { id: 'cs302', name: 'Operating Systems', total: 42, attended: 35 },
-  { id: 'cs303', name: 'Database Systems', total: 40, attended: 28 },
-  { id: 'cs304', name: 'Computer Networks', total: 44, attended: 42 },
-  { id: 'ma301', name: 'Discrete Math', total: 38, attended: 35 },
-];
+interface SubjectStats {
+  id: string;
+  name: string;
+  total: number;
+  attended: number;
+}
 
 export default function AttendanceCalculatorPage() {
+  const { user } = useSupabaseAuth();
+  const [subjects, setSubjects] = useState<SubjectStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState<string>('custom');
   const [totalClasses, setTotalClasses] = useState(50);
   const [attendedClasses, setAttendedClasses] = useState(38);
   const [requiredPercentage, setRequiredPercentage] = useState(75);
 
+  // Fetch real attendance data grouped by subject
+  useEffect(() => {
+    (async () => {
+      if (!user?.student?.id && !user?.id) { setLoading(false); return; }
+      try {
+        const studentId = user?.student?.id;
+        if (!studentId) { setLoading(false); return; }
+
+        // Get all attendance records for this student
+        const { data: attendanceData } = await supabase
+          .from('attendance')
+          .select('subject_id, status')
+          .eq('student_id', studentId);
+
+        if (!attendanceData?.length) { setLoading(false); return; }
+
+        // Get subject names
+        const subjectIds = [...new Set(attendanceData.map(a => a.subject_id).filter(Boolean))];
+        let subjectMap: Record<string, string> = {};
+        if (subjectIds.length > 0) {
+          const { data: subjectData } = await supabase
+            .from('subjects')
+            .select('id, name, code')
+            .in('id', subjectIds);
+          if (subjectData) {
+            subjectMap = Object.fromEntries(subjectData.map(s => [s.id, `${s.name} (${s.code})`]));
+          }
+          // Fallback: try courses table
+          const missing = subjectIds.filter(id => !subjectMap[id]);
+          if (missing.length > 0) {
+            const { data: courseData } = await supabase
+              .from('courses')
+              .select('id, name, code')
+              .in('id', missing);
+            if (courseData) {
+              courseData.forEach(c => { subjectMap[c.id] = `${c.name} (${c.code})`; });
+            }
+          }
+        }
+
+        // Group by subject
+        const statsMap: Record<string, { total: number; attended: number }> = {};
+        for (const rec of attendanceData) {
+          const sid = rec.subject_id || 'unknown';
+          if (!statsMap[sid]) statsMap[sid] = { total: 0, attended: 0 };
+          statsMap[sid].total++;
+          if (rec.status === 'PRESENT' || rec.status === 'LATE') {
+            statsMap[sid].attended++;
+          }
+        }
+
+        const result: SubjectStats[] = Object.entries(statsMap).map(([id, stats]) => ({
+          id,
+          name: subjectMap[id] || `Subject ${id.substring(0, 8)}`,
+          total: stats.total,
+          attended: stats.attended,
+        }));
+
+        setSubjects(result);
+        // Auto-select first subject if available
+        if (result.length > 0) {
+          setSelectedSubject(result[0].id);
+          setTotalClasses(result[0].total);
+          setAttendedClasses(result[0].attended);
+        }
+      } catch (err) {
+        console.error('Failed to fetch attendance data:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [user]);
+
   const handleSubjectChange = (subjectId: string) => {
     setSelectedSubject(subjectId);
     if (subjectId !== 'custom') {
-      const subject = mockSubjects.find(s => s.id === subjectId);
+      const subject = subjects.find(s => s.id === subjectId);
       if (subject) {
         setTotalClasses(subject.total);
         setAttendedClasses(subject.attended);
@@ -69,6 +146,12 @@ export default function AttendanceCalculatorPage() {
         </div>
       </div>
 
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+          <span className="ml-3 text-slate-400">Loading your attendance data...</span>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-slate-950/70 border border-slate-800 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
           <CardHeader>
@@ -89,7 +172,7 @@ export default function AttendanceCalculatorPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-700 text-white">
                   <SelectItem value="custom">Custom Input (Manual)</SelectItem>
-                  {mockSubjects.map(sub => (
+                  {subjects.map(sub => (
                     <SelectItem key={sub.id} value={sub.id}>
                       {sub.name} ({sub.attended}/{sub.total})
                     </SelectItem>
@@ -204,6 +287,7 @@ export default function AttendanceCalculatorPage() {
           </CardContent>
         </Card>
       </div>
+      )}
     </div>
   );
 }

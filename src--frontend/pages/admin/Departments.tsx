@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Building2, Plus, Users, GraduationCap, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Department } from '@/lib/database.types';
-import { departmentService } from '@/lib/api';
+import { departmentService, auditLogService } from '@/lib/api';
 
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -55,6 +55,7 @@ export default function DepartmentsPage() {
     try {
       await departmentService.create(newDepartment);
       toast.success('Department created successfully');
+      auditLogService.log('CREATE', 'department', '', { newValues: newDepartment });
       setIsAddDialogOpen(false);
       fetchDepartments();
       setNewDepartment({ name: '', code: '', description: '' });
@@ -69,6 +70,7 @@ export default function DepartmentsPage() {
     try {
       await departmentService.update(selectedDept.id, editForm);
       toast.success('Department updated successfully');
+      auditLogService.log('UPDATE', 'department', selectedDept.id, { newValues: editForm });
       setIsEditDialogOpen(false);
       fetchDepartments();
     } catch (error) {
@@ -81,6 +83,7 @@ export default function DepartmentsPage() {
     try {
       await departmentService.delete(selectedDept.id);
       toast.success('Department deleted');
+      auditLogService.log('DELETE', 'department', selectedDept.id, {});
       setIsDeleteDialogOpen(false);
       setSelectedDept(null);
       fetchDepartments();

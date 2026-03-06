@@ -31,7 +31,7 @@ import {
 import { Search, Plus, Edit, Trash2, Users, Building2, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Class as DbClass, Department, Faculty, Profile } from '@/lib/database.types';
-import { classService, departmentService, facultyService } from '@/lib/api';
+import { classService, departmentService, facultyService, auditLogService } from '@/lib/api';
 
 export default function ClassesPage() {
   type ClassWithRelations = DbClass & { department?: Department | null; class_incharge?: (Faculty & { profile?: Profile | null }) | null };
@@ -104,6 +104,7 @@ export default function ClassesPage() {
         academic_year: form.academicYear,
       } as any);
       toast.success('Class created successfully');
+      auditLogService.log('CREATE', 'class', '', { newValues: form });
       setIsAddOpen(false);
       resetForm();
       fetchClasses();
@@ -126,6 +127,7 @@ export default function ClassesPage() {
         academic_year: form.academicYear,
       } as any);
       toast.success('Class updated successfully');
+      auditLogService.log('UPDATE', 'class', selectedClass.id, { newValues: form });
       setIsEditOpen(false);
       resetForm();
       fetchClasses();
@@ -139,6 +141,7 @@ export default function ClassesPage() {
     try {
       await classService.delete(selectedClass.id);
       toast.success('Class deleted successfully');
+      auditLogService.log('DELETE', 'class', selectedClass.id, {});
       setIsDeleteOpen(false);
       setSelectedClass(null);
       fetchClasses();

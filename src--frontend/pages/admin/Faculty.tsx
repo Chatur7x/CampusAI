@@ -34,7 +34,7 @@ import {
 import { Search, Plus, Edit, Trash2, User, Upload, Download, GraduationCap, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Faculty, Department, Profile } from '@/lib/database.types';
-import { facultyService, departmentService } from '@/lib/api';
+import { facultyService, departmentService, auditLogService } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 type FacultyWithRelations = Faculty & { profile?: Profile | null; department?: Department | null };
@@ -113,6 +113,7 @@ export default function FacultyPage() {
       if (!data?.success) throw new Error(data?.message || 'Failed to add faculty');
 
       toast.success('Faculty member added successfully');
+      auditLogService.log('CREATE', 'faculty', '', { newValues: { email: form.email, employeeId: form.employeeId } });
       setIsAddOpen(false);
       resetForm();
       fetchFaculty();
@@ -132,6 +133,7 @@ export default function FacultyPage() {
         specialization: form.specialization,
       });
       toast.success('Faculty updated successfully');
+      auditLogService.log('UPDATE', 'faculty', selectedFaculty.id, { newValues: form });
       setIsEditOpen(false);
       resetForm();
       fetchFaculty();
@@ -145,6 +147,7 @@ export default function FacultyPage() {
     try {
       await facultyService.delete(selectedFaculty.id);
       toast.success('Faculty member removed');
+      auditLogService.log('DELETE', 'faculty', selectedFaculty.id, {});
       setIsDeleteOpen(false);
       setSelectedFaculty(null);
       fetchFaculty();

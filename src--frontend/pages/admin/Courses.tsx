@@ -32,7 +32,7 @@ import {
 import { Search, Plus, Edit, Trash2, BookOpen, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Course, Department } from '@/lib/database.types';
-import { courseService, departmentService } from '@/lib/api';
+import { courseService, departmentService, auditLogService } from '@/lib/api';
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<(Course & { department?: Department | null })[]>([]);
@@ -89,6 +89,7 @@ export default function CoursesPage() {
         description: form.description,
       } as any);
       toast.success('Course created successfully');
+      auditLogService.log('CREATE', 'course', '', { newValues: form });
       setIsAddOpen(false);
       resetForm();
       fetchCourses();
@@ -110,6 +111,7 @@ export default function CoursesPage() {
         description: form.description,
       } as any);
       toast.success('Course updated successfully');
+      auditLogService.log('UPDATE', 'course', selectedCourse.id, { newValues: form });
       setIsEditOpen(false);
       resetForm();
       fetchCourses();
@@ -124,6 +126,7 @@ export default function CoursesPage() {
     try {
       await courseService.delete(selectedCourse.id);
       toast.success('Course deleted successfully');
+      auditLogService.log('DELETE', 'course', selectedCourse.id, {});
       setIsDeleteOpen(false);
       setSelectedCourse(null);
       fetchCourses();

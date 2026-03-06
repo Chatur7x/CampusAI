@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Bell, Check, Trash2, Clock, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,6 +8,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { notificationService } from '@/lib/api';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { useRealtime } from '@/lib/realtime';
 
 export interface Notification {
   id: string;
@@ -22,56 +25,79 @@ interface NotificationBellProps {
   accentColor?: string;
 }
 
-// Mock notifications - in a real app, this would come from an API/WebSocket
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    title: 'New Student Enrolled',
-    message: 'John Doe has been enrolled in Computer Science department.',
-    type: 'success',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5),
-    read: false,
-  },
-  {
-    id: '2',
-    title: 'Attendance Alert',
-    message: 'CS101 has below 75% average attendance this week.',
-    type: 'warning',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30),
-    read: false,
-  },
-  {
-    id: '3',
-    title: 'Timetable Updated',
-    message: 'Monday schedule has been modified for next week.',
-    type: 'info',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    read: true,
-  },
-  {
-    id: '4',
-    title: 'System Maintenance',
-    message: 'Scheduled maintenance on Sunday 2 AM - 4 AM.',
-    type: 'info',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    read: true,
-  },
-];
+function mapDbNotification(n: any): Notification {
+  const typeMap: Record<string, Notification['type']> = {
+    ATTENDANCE: 'success',
+    LEAVE: 'info',
+    NOTICE: 'info',
+    SECURITY: 'error',
+    SYSTEM: 'warning',
+    MESSAGE: 'info',
+  };
+  return {
+    id: n.id,
+    title: n.title || 'Notification',
+    message: n.message || '',
+    type: typeMap[n.type] || 'info',
+    timestamp: new Date(n.created_at),
+    read: n.is_read ?? false,
+  };
+}
 
 export function NotificationBell({ accentColor = 'emerald' }: NotificationBellProps) {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const { user } = useSupabaseAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const userId = user?.id;
+
+  // Fetch real notifications from Supabase
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) return;
+    setIsLoading(true);
+    try {
+      const data = await notificationService.getForUser(userId);
+      setNotifications(data.map(mapDbNotification));
+    } catch (err) {
+      console.warn('Failed to fetch notifications:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Real-time subscription — new notifications appear instantly
+  useRealtime(
+    { table: 'notifications', filter: userId ? `user_id=eq.${userId}` : undefined, enabled: !!userId },
+    useCallback((payload: any) => {
+      if (payload.eventType === 'INSERT' && payload.new) {
+        setNotifications(prev => [mapDbNotification(payload.new), ...prev]);
+      } else if (payload.eventType === 'UPDATE' && payload.new) {
+        setNotifications(prev => prev.map(n => n.id === payload.new.id ? mapDbNotification(payload.new) : n));
+      } else if (payload.eventType === 'DELETE' && payload.old) {
+        setNotifications(prev => prev.filter(n => n.id !== payload.old.id));
+      }
+    }, [])
+  );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    try { await notificationService.markAsRead(id); } catch { /* silent */ }
   };
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    if (userId) {
+      try { await notificationService.markAllAsRead(userId); } catch { /* silent */ }
+    }
   };
 
   const deleteNotification = (id: string) => {

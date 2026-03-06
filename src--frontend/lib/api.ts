@@ -596,7 +596,7 @@ export const studentService = {
   async registerFace(studentId: string, faceData: string): Promise<void> {
     const { error } = await supabase
       .from('students')
-      .update({ faceData, faceRegistered: true })
+      .update({ face_data: faceData, face_registered: true })
       .eq('id', studentId);
     if (error) handleError(error);
   },
@@ -869,11 +869,13 @@ export const attendanceService = {
       const { data, error } = await supabase
         .from('attendance')
         .insert({
-          studentId,
-          subjectId,
+          student_id: studentId,
+          subject_id: subjectId,
           date: new Date().toISOString().split('T')[0],
           status: attendance.status || 'PRESENT',
-          remarks: attendance.justification ?? attendance.remarks ?? null,
+          method: attendance.method || 'MANUAL',
+          verified_by: attendance.verified_by || attendance.faculty_id || null,
+          justification: attendance.justification ?? attendance.remarks ?? null,
         })
         .select()
         .single();
@@ -978,10 +980,11 @@ export const leaveService = {
 
   async create(leave: Partial<Leave>): Promise<Leave | null> {
     const insert: Record<string, any> = {
-      studentId: leave.student_id || (leave as any).student_id,
-      startDate: leave.start_date || (leave as any).start_date,
-      endDate: leave.end_date || (leave as any).end_date,
+      student_id: leave.student_id || (leave as any).student_id,
+      start_date: leave.start_date || (leave as any).start_date,
+      end_date: leave.end_date || (leave as any).end_date,
       reason: leave.reason,
+      type: leave.type || 'PERSONAL',
       status: 'PENDING',
     };
 
@@ -999,7 +1002,8 @@ export const leaveService = {
       .from('leave_requests')
       .update({
         status: 'APPROVED' as LeaveStatus,
-        approvedById: approverId,
+        approved_by: approverId,
+        approved_at: new Date().toISOString(),
       })
       .eq('id', leaveId)
       .select()
@@ -1008,12 +1012,14 @@ export const leaveService = {
     return data;
   },
 
-  async reject(leaveId: string, approverId: string, _reason: string): Promise<Leave | null> {
+  async reject(leaveId: string, approverId: string, reason: string): Promise<Leave | null> {
     const { data, error } = await supabase
       .from('leave_requests')
       .update({
         status: 'REJECTED' as LeaveStatus,
-        approvedById: approverId,
+        approved_by: approverId,
+        approved_at: new Date().toISOString(),
+        rejection_reason: reason,
       })
       .eq('id', leaveId)
       .select()
@@ -1177,7 +1183,7 @@ export const notificationService = {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
-    if (unreadOnly) query = query.neq('status', 'read');
+    if (unreadOnly) query = query.eq('is_read', false);
     const { data, error } = await query;
     if (error) handleError(error);
     return data || [];
@@ -1186,7 +1192,7 @@ export const notificationService = {
   async markAsRead(id: string): Promise<void> {
     const { error } = await supabase
       .from('notifications')
-      .update({ status: 'read' })
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('id', id);
     if (error) handleError(error);
   },
@@ -1194,9 +1200,9 @@ export const notificationService = {
   async markAllAsRead(userId: string): Promise<void> {
     const { error } = await supabase
       .from('notifications')
-      .update({ status: 'read' })
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('user_id', userId)
-      .neq('status', 'read');
+      .eq('is_read', false);
     if (error) handleError(error);
   },
 
@@ -1205,18 +1211,18 @@ export const notificationService = {
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .neq('status', 'read');
+      .eq('is_read', false);
     if (error) handleError(error);
     return count || 0;
   },
 
   async create(notification: Partial<Notification>): Promise<Notification | null> {
     const insert: Record<string, any> = {
-      userId: notification.user_id || (notification as any).user_id,
+      user_id: notification.user_id || (notification as any).user_id,
       type: notification.type,
       title: notification.title,
       message: notification.message,
-      status: 'unread',
+      is_read: false,
     };
 
     const { data, error } = await supabase
@@ -1474,5 +1480,75 @@ export const settingsService = {
       .single();
     if (error) handleError(error);
     return data;
+  },
+};
+
+// =============================================================
+// AUDIT LOG SERVICE
+// Logs every significant user action for security monitoring
+// =============================================================
+
+export const auditLogService = {
+  async log(action: string, entityType: string, entityId: string, opts?: {
+    oldValues?: Record<string, any>;
+    newValues?: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('audit_logs').insert({
+        user_id: user?.id || null,
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        old_value: opts?.oldValues || null,
+        new_value: opts?.newValues || null,
+      });
+    } catch {
+      // Audit logging should never break the app — silently fail
+      console.warn('Audit log failed:', action, entityType, entityId);
+    }
+  },
+
+  async getRecent(limit = 50): Promise<AuditLog[]> {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) handleError(error);
+    return data || [];
+  },
+};
+
+// =============================================================
+// BLOCKCHAIN VERIFICATION SERVICE
+// Verify attendance integrity via hash chain
+// =============================================================
+
+export const blockchainService = {
+  async getChain(studentId?: string, limit = 100): Promise<any[]> {
+    let query = supabase
+      .from('attendance')
+      .select('id, student_id, date, status, method, blockchain_hash, previous_hash, nonce, created_at')
+      .not('blockchain_hash', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (studentId) query = query.eq('student_id', studentId);
+    const { data, error } = await query;
+    if (error) handleError(error);
+    return data || [];
+  },
+
+  async verifyIntegrity(records: any[]): Promise<{ valid: boolean; brokenAt?: number }> {
+    // Walk chain backwards — each record's previous_hash should match the next record's blockchain_hash
+    const sorted = [...records].sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].previous_hash !== sorted[i - 1].blockchain_hash && sorted[i].previous_hash !== 'GENESIS') {
+        return { valid: false, brokenAt: i };
+      }
+    }
+    return { valid: true };
   },
 };

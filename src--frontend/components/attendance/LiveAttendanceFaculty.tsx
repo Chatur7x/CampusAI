@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { QrCode, Play, StopCircle, CheckCircle2, XCircle, ShieldAlert, Timer, Users, RefreshCw, RadioReceiver, ShieldEllipsis, Bluetooth, BluetoothConnected, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
 import { QRCodeSVG } from 'qrcode.react';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { studentService, attendanceService, auditLogService } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 type StudentRequest = {
   id: string;
+  studentId: string;
   name: string;
   rollNumber: string;
   status: 'pending' | 'approved' | 'rejected' | 'flagged' | 'override_req';
@@ -19,34 +23,125 @@ type StudentRequest = {
   isOfflineBLE?: boolean;
 };
 
-export default function LiveAttendanceFaculty() {
+interface LiveAttendanceFacultyProps {
+  classId?: string;
+  subjectId?: string;
+  timetableEntryId?: string;
+}
+
+export default function LiveAttendanceFaculty({ classId, subjectId, timetableEntryId }: LiveAttendanceFacultyProps) {
+  const { user } = useSupabaseAuth();
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
-  const [timeLeft, setTimeLeft] = useState(120); // 2 minutes
-  const [codeTimeLeft, setCodeTimeLeft] = useState(30); // Dynamic code rotation
+  const [timeLeft, setTimeLeft] = useState(120);
+  const [codeTimeLeft, setCodeTimeLeft] = useState(30);
   const [requests, setRequests] = useState<StudentRequest[]>([]);
   const [overrideOtpId, setOverrideOtpId] = useState<string | null>(null);
   const [otpValue, setOtpValue] = useState('');
   const [isPinging, setIsPinging] = useState(false);
   const [networkStatus, setNetworkStatus] = useState<'online'|'offline'>('online');
   const [bleScannerActive, setBleScannerActive] = useState(false);
+  const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  // Generate session logic
+  // Fetch enrolled students when component mounts
+  useEffect(() => {
+    if (!classId) return;
+    (async () => {
+      try {
+        const students = await studentService.getAll({ class_id: classId } as any);
+        setEnrolledStudents(students || []);
+      } catch (err) {
+        console.error('Failed to fetch students:', err);
+      }
+    })();
+  }, [classId]);
+
   const startSession = () => {
-    // Generate a random 6 digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setSessionCode(code);
     setSessionActive(true);
     setTimeLeft(120);
     setCodeTimeLeft(30);
     setRequests([]);
-    
-    // Simulate incoming requests
-    simulateIncomingStudents();
+
+    // Pre-populate students from the class roster as pending
+    const studentRequests: StudentRequest[] = enrolledStudents.map((s: any) => ({
+      id: s.id,
+      studentId: s.id,
+      name: s.profile ? `${s.profile.first_name} ${s.profile.last_name}` : `Student ${s.enrollment_id}`,
+      rollNumber: s.enrollment_id || s.id.substring(0, 8),
+      status: 'pending' as const,
+      confidenceScore: 0,
+      time: '',
+    }));
+    setRequests(studentRequests);
+
+    auditLogService.log('ATTENDANCE_SESSION_START', 'attendance_session', classId || '', {
+      newValues: { classId, subjectId, code },
+    });
   };
 
-  const endSession = () => {
+  const endSession = async () => {
     setSessionActive(false);
+    
+    // Save all approved attendance to database
+    const approved = requests.filter(r => r.status === 'approved');
+    if (approved.length === 0) return;
+
+    setSaving(true);
+    try {
+      const facultyId = user?.faculty?.id || user?.id || '';
+      const records = approved.map(r => ({
+        student_id: r.studentId,
+        subject_id: subjectId || null,
+        timetable_entry_id: timetableEntryId || null,
+        status: 'PRESENT' as const,
+        method: 'MANUAL' as const,
+        faculty_id: facultyId,
+        confidence_score: r.confidenceScore > 0 ? r.confidenceScore / 100 : null,
+        date: new Date().toISOString().split('T')[0],
+      }));
+
+      // Also mark absent for students that were NOT approved
+      const absentStudents = requests.filter(r => r.status !== 'approved');
+      const absentRecords = absentStudents.map(r => ({
+        student_id: r.studentId,
+        subject_id: subjectId || null,
+        timetable_entry_id: timetableEntryId || null,
+        status: 'ABSENT' as const,
+        method: 'MANUAL' as const,
+        faculty_id: facultyId,
+        date: new Date().toISOString().split('T')[0],
+      }));
+
+      const allRecords = [...records, ...absentRecords];
+      
+      // Insert in batches via direct Supabase insert
+      const { error } = await supabase
+        .from('attendance')
+        .upsert(allRecords.map(r => ({
+          student_id: r.student_id,
+          subject_id: r.subject_id,
+          date: r.date,
+          status: r.status,
+          method: r.method,
+          verified_by: r.faculty_id,
+          confidence_score: r.confidence_score,
+        })), { onConflict: 'student_id,date,subject_id' });
+
+      if (error) throw error;
+
+      toast.success(`Attendance saved: ${approved.length} present, ${absentStudents.length} absent`);
+      auditLogService.log('ATTENDANCE_SESSION_END', 'attendance_session', classId || '', {
+        newValues: { present: approved.length, absent: absentStudents.length },
+      });
+    } catch (err: any) {
+      console.error('Failed to save attendance:', err);
+      toast.error('Failed to save some attendance records');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Timer logic
@@ -55,12 +150,10 @@ export default function LiveAttendanceFaculty() {
     if (sessionActive && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
-        
-        // Rotate code logic
         setCodeTimeLeft((prev) => {
           if (prev <= 1) {
             setSessionCode(Math.floor(100000 + Math.random() * 900000).toString());
-            return 30; // reset
+            return 30;
           }
           return prev - 1;
         });
@@ -71,85 +164,62 @@ export default function LiveAttendanceFaculty() {
     return () => clearInterval(timer);
   }, [sessionActive, timeLeft]);
 
-  // Generates offline sync when triggered
-  const simulateBleDiscovery = () => {
-    if(!bleScannerActive) return;
-    const mockBleStudent = {
-        id: `ble-${Math.random()}`,
-        name: 'James Walker',
-        rollNumber: 'CS-08',
-        status: 'pending' as const,
-        confidenceScore: 92,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        isOfflineBLE: true
-    };
-    
-    setTimeout(() => {
-      setRequests(prev => [mockBleStudent, ...prev]);
-    }, 2000);
-  };
-
+  // Listen for real-time attendance verification from students
   useEffect(() => {
-    if (bleScannerActive) {
-      simulateBleDiscovery();
-      const interval = setInterval(simulateBleDiscovery, 8000);
-      return () => clearInterval(interval);
-    }
-    // simulateBleDiscovery is defined in component scope and is stable for this effect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bleScannerActive]);
+    if (!sessionActive || !classId) return;
+    const channel = supabase
+      .channel(`attendance-session-${classId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'attendance',
+        filter: `date=eq.${new Date().toISOString().split('T')[0]}`,
+      }, (payload: any) => {
+        if (payload.new) {
+          // A student submitted attendance — update their status
+          setRequests(prev => prev.map(r => {
+            if (r.studentId === payload.new.student_id) {
+              return {
+                ...r,
+                status: 'approved' as const,
+                confidenceScore: payload.new.confidence_score ? Math.round(payload.new.confidence_score * 100) : 95,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              };
+            }
+            return r;
+          }));
+        }
+      })
+      .subscribe();
 
-  // Monitor network connection 
+    return () => { supabase.removeChannel(channel); };
+  }, [sessionActive, classId]);
+
+  // Monitor network
   useEffect(() => {
     const handleOnline = () => setNetworkStatus('online');
     const handleOffline = () => {
       setNetworkStatus('offline');
-      if(sessionActive) {
-        setBleScannerActive(true); // Auto fallback to BLE when internet dies
-      }
+      if (sessionActive) setBleScannerActive(true);
     };
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // Mock internet dropping for testing the feature
-    // setTimeout(() => handleOffline(), 15000);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, [sessionActive]);
 
-  const simulateIncomingStudents = () => {
-    const mockStudents = [
-      { id: '1', name: 'Alex Thompson', roll: 'CS-01', risk: 'Low' },
-      { id: '2', name: 'Sarah Chen', roll: 'CS-02', risk: 'Low' },
-      { id: '3', name: 'Mike Johnson', roll: 'CS-03', risk: 'High' },
-      { id: '4', name: 'Emily Davis', roll: 'CS-04', risk: 'Medium' },
-      { id: '5', name: 'David Wilson', roll: 'CS-05', risk: 'Low' },
-    ];
-
-    mockStudents.forEach((student, index) => {
-      setTimeout(() => {
-        setRequests(prev => [...prev, {
-          id: student.id,
-          name: student.name,
-          rollNumber: student.roll,
-          status: student.risk === 'High' ? 'override_req' : 'pending',
-          confidenceScore: student.risk === 'High' ? 45 : Math.floor(85 + Math.random() * 14), // 85-99
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          dropoutRisk: student.risk as 'Low' | 'Medium' | 'High'
-        }]);
-      }, 2000 + (index * 1500) + (Math.random() * 1000));
-    });
-  };
-
-  const handleAction = (id: string, action: 'approved' | 'rejected' | 'pending') => {
-    setRequests(prev => 
-      prev.map(req => req.id === id ? { ...req, status: action } : req)
+  const handleAction = useCallback((id: string, action: 'approved' | 'rejected' | 'pending') => {
+    setRequests(prev =>
+      prev.map(req => req.id === id ? {
+        ...req,
+        status: action,
+        time: action === 'approved' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : req.time,
+        confidenceScore: action === 'approved' && req.confidenceScore === 0 ? 100 : req.confidenceScore,
+      } : req)
     );
-  };
+  }, []);
 
   const verifyOtpOverride = (id: string) => {
     if (otpValue.length === 4) {
@@ -165,8 +235,8 @@ export default function LiveAttendanceFaculty() {
   };
 
   const approveAll = () => {
-    setRequests(prev => 
-      prev.map(req => req.status === 'pending' && req.confidenceScore > 90 ? { ...req, status: 'approved' } : req)
+    setRequests(prev =>
+      prev.map(req => req.status === 'pending' ? { ...req, status: 'approved', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), confidenceScore: 100 } : req)
     );
   };
 
@@ -293,8 +363,9 @@ export default function LiveAttendanceFaculty() {
                   onClick={endSession}
                   variant="destructive" 
                   className="w-full font-semibold border border-red-500/30 hover:bg-red-500/20 hover:text-red-300 bg-red-500/10 text-red-400"
+                  disabled={saving}
                 >
-                  <StopCircle className="w-4 h-4 mr-2" /> Stop Session Now
+                  <StopCircle className="w-4 h-4 mr-2" /> {saving ? 'Saving Attendance...' : 'Stop Session & Save'}
                 </Button>
               ) : (
                 <Button 

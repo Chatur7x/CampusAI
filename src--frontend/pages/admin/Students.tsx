@@ -34,7 +34,7 @@ import {
 import { Search, Plus, Upload, Download, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Student, Department, Class, Profile } from '@/lib/database.types';
-import { studentService, departmentService, classService } from '@/lib/api';
+import { studentService, departmentService, classService, auditLogService } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 export default function StudentsPage() {
@@ -119,6 +119,7 @@ export default function StudentsPage() {
       if (!data?.success) throw new Error(data?.message || 'Failed to add student');
 
       toast.success('Student added successfully');
+      auditLogService.log('CREATE', 'student', '', { newValues: { email: newStudent.email, enrollmentId: newStudent.enrollmentId } });
       setIsAddDialogOpen(false);
       fetchStudents();
       setNewStudent({
@@ -160,6 +161,7 @@ export default function StudentsPage() {
         semester: editForm.semester,
       });
       toast.success('Student updated successfully');
+      auditLogService.log('UPDATE', 'student', selectedStudent.id, { newValues: editForm });
       setIsEditDialogOpen(false);
       fetchStudents();
     } catch (error) {
@@ -172,6 +174,7 @@ export default function StudentsPage() {
     try {
       await studentService.delete(selectedStudent.id);
       toast.success('Student removed successfully');
+      auditLogService.log('DELETE', 'student', selectedStudent.id, {});
       setIsDeleteDialogOpen(false);
       setSelectedStudent(null);
       fetchStudents();

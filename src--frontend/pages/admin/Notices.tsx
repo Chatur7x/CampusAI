@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Bell, Plus, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-import { noticeService } from '@/lib/api';
+import { noticeService, auditLogService } from '@/lib/api';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import type { Notice } from '@/lib/database.types';
 
@@ -75,6 +75,7 @@ export default function NoticesPage() {
       setIsAddDialogOpen(false);
       setNewNotice({ title: '', content: '', priority: 'MEDIUM' });
       toast.success('Notice posted successfully');
+      auditLogService.log('CREATE', 'notice', created?.id || '', { newValues: { title: newNotice.title } });
     } catch (err) {
       console.error(err);
       toast.error('Failed to post notice');
