@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -340,12 +338,12 @@ export default function FacultyPage() {
                       <div className="flex items-center gap-3">
                         <Avatar className="w-8 h-8"><AvatarFallback className="bg-violet-500/20 text-violet-400 text-xs">{getInitials(f)}</AvatarFallback></Avatar>
                         <div>
-                          <p className="text-sm font-medium text-white">{f.user?.profile?.firstName} {f.user?.profile?.lastName}</p>
-                          <p className="text-xs text-slate-400">{f.user?.email}</p>
+                          <p className="text-sm font-medium text-white">{f.profile?.first_name} {f.profile?.last_name}</p>
+                          <p className="text-xs text-slate-400">{f.profile?.email}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{f.employeeId}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{f.employee_id}</Badge></TableCell>
                     <TableCell className="text-slate-300">{f.designation}</TableCell>
                     <TableCell className="text-slate-300">{f.department?.name}</TableCell>
                     <TableCell className="text-slate-400 text-sm">{f.specialization || '—'}</TableCell>
@@ -378,7 +376,7 @@ export default function FacultyPage() {
           <DialogHeader>
             <DialogTitle className="text-white">Remove Faculty</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Are you sure you want to remove <span className="text-white font-medium">{selectedFaculty?.user?.profile?.firstName} {selectedFaculty?.user?.profile?.lastName}</span>?
+              Are you sure you want to remove <span className="text-white font-medium">{selectedFaculty?.profile?.first_name} {selectedFaculty?.profile?.last_name}</span>?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

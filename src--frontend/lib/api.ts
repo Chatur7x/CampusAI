@@ -1243,47 +1243,45 @@ export const notificationService = {
 
 export const timetableService = {
   async getForClass(classId: string): Promise<TimetableEntry[]> {
-    // Try timetable_entries first (snake_case migration table)
     const { data: snakeData, error: snakeErr } = await supabase
       .from('timetable_entries')
-      .select(`*`)
+      .select(`*, course:courses(id, name, code), class:classes(id, name, section), faculty_profile:profiles!faculty_id(first_name, last_name)`)
       .eq('class_id', classId)
       .eq('is_active', true)
       .order('day_of_week')
       .order('start_time');
 
-    if (!snakeErr && snakeData?.length) return snakeData;
+    if (!snakeErr && snakeData?.length) return snakeData as any;
 
-    // Fallback to camelCase timetable table
     const { data, error } = await supabase
       .from('timetable')
-      .select(`*`)
+      .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
       .eq('class_id', classId)
       .order('day_of_week')
       .order('start_time');
     if (error) handleError(error);
-    return data || [];
+    return (data || []) as any;
   },
 
   async getForFaculty(facultyId: string): Promise<TimetableEntry[]> {
     const { data: snakeData, error: snakeErr } = await supabase
       .from('timetable_entries')
-      .select(`*`)
+      .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
       .eq('faculty_id', facultyId)
       .eq('is_active', true)
       .order('day_of_week')
       .order('start_time');
 
-    if (!snakeErr && snakeData?.length) return snakeData;
+    if (!snakeErr && snakeData?.length) return snakeData as any;
 
     const { data, error } = await supabase
       .from('timetable')
-      .select(`*`)
+      .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
       .eq('faculty_id', facultyId)
       .order('day_of_week')
       .order('start_time');
     if (error) handleError(error);
-    return data || [];
+    return (data || []) as any;
   },
 
   async create(entry: Partial<TimetableEntry>): Promise<TimetableEntry | null> {

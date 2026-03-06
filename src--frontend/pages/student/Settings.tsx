@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { User, Bell, Lock, Camera, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
 
 export default function StudentSettingsPage() {
   const { user, updateProfile, updatePassword } = useSupabaseAuth();
@@ -36,9 +37,16 @@ export default function StudentSettingsPage() {
   };
 
   const handleChangePassword = async () => {
+    if (!currentPw) { toast.error('Please enter your current password'); return; }
     if (!newPw || newPw.length < 6) { toast.error('Password must be at least 6 characters'); return; }
     setChangingPw(true);
     try {
+      // Verify current password by re-authenticating
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: user?.profile?.email || user?.email || '',
+        password: currentPw,
+      });
+      if (signInErr) { toast.error('Current password is incorrect'); return; }
       const res = await updatePassword(newPw);
       if (res?.success === false) throw new Error(res.error);
       toast.success('Password updated successfully');

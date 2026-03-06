@@ -30,7 +30,7 @@ export default function FacultyAnalyticsPage() {
 
   useEffect(() => {
     if (!user) return;
-    const _facultyId = (user as any).faculty?.id || user.id;
+    const facultyId = (user as any).faculty?.id || user.id;
     const since = new Date();
     since.setDate(since.getDate() - Number(range));
     const sinceStr = since.toISOString().slice(0, 10);
@@ -38,19 +38,42 @@ export default function FacultyAnalyticsPage() {
     (async () => {
       setLoading(true);
       try {
-        // 1. Fetch attendance records — try camelCase first, then snake_case
-        let rows: any[] = [];
-        const { data: records } = await supabase
-          .from('attendance')
-          .select('date, status, subject_id')
-          .gte('date', sinceStr)
-          .order('date', { ascending: true });
+        // 1. Get the classes this faculty teaches
+        const { data: timetableEntries } = await supabase
+          .from('timetable_entries')
+          .select('class_id, subject_id')
+          .eq('faculty_id', facultyId);
 
-        rows = (records || []).map((r: any) => ({
-          date: r.date,
-          status: r.status,
-          subjectId: r.subject_id || null,
-        }));
+        const facultyClassIds = [...new Set((timetableEntries || []).map((t: any) => t.class_id).filter(Boolean))];
+        const facultySubjectIds = [...new Set((timetableEntries || []).map((t: any) => t.subject_id).filter(Boolean))];
+
+        // 2. Fetch attendance records scoped to faculty's subjects
+        let rows: any[] = [];
+        if (facultySubjectIds.length > 0) {
+          const { data: records } = await supabase
+            .from('attendance')
+            .select('date, status, subject_id')
+            .in('subject_id', facultySubjectIds)
+            .gte('date', sinceStr)
+            .order('date', { ascending: true });
+          rows = (records || []).map((r: any) => ({
+            date: r.date,
+            status: r.status,
+            subjectId: r.subject_id || null,
+          }));
+        } else {
+          // Fallback: if no timetable entries, fetch all (backward compat)
+          const { data: records } = await supabase
+            .from('attendance')
+            .select('date, status, subject_id')
+            .gte('date', sinceStr)
+            .order('date', { ascending: true });
+          rows = (records || []).map((r: any) => ({
+            date: r.date,
+            status: r.status,
+            subjectId: r.subject_id || null,
+          }));
+        }
 
         // 2. Daily aggregation
         const byDay = new Map<string, { present: number; absent: number; total: number }>();
@@ -102,10 +125,20 @@ export default function FacultyAnalyticsPage() {
         const avgPct = rows.length ? Math.round((totalPresent / rows.length) * 100 * 10) / 10 : 0;
         const uniqueDates = new Set(rows.map(r => r.date));
 
-        // Count distinct students
-        const { count: studentCount } = await supabase
-          .from('students')
-          .select('*', { count: 'exact', head: true });
+        // Count students in faculty's classes
+        let studentCount = 0;
+        if (facultyClassIds.length > 0) {
+          const { count } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .in('class_id', facultyClassIds);
+          studentCount = count || 0;
+        } else {
+          const { count } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true });
+          studentCount = count || 0;
+        }
 
         setStats({
           avgAttendance: avgPct,

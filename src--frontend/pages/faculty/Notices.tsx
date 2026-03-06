@@ -158,7 +158,7 @@ export default function FacultyNoticesPage() {
                     <p className="text-slate-400 text-sm mb-3">{notice.content}</p>
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       <Calendar className="w-3 h-3" />
-                      <span>Posted on {notice.createdAt?.slice(0, 10) || notice.created_at?.slice(0, 10) || 'Unknown'}</span>
+                      <span>Posted on {notice.created_at?.slice(0, 10) || 'Unknown'}</span>
                     </div>
                   </div>
                   <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">

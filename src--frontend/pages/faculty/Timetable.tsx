@@ -8,11 +8,6 @@ import { timetableService } from '@/lib/api';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function g(slot: any, ...keys: string[]): string {
-  for (const k of keys) { const v = slot[k]; if (v != null) return String(v); }
-  return '';
-}
-
 export default function FacultyTimetablePage() {
   const navigate = useNavigate();
   const { user } = useSupabaseAuth();
@@ -38,21 +33,23 @@ export default function FacultyTimetablePage() {
   // Group entries by day of week
   const grouped: Record<number, any[]> = {};
   for (const e of entries) {
-    const day = e.dayOfWeek ?? e.day_of_week ?? 0;
+    const day = e.day_of_week ?? 0;
     if (!grouped[day]) grouped[day] = [];
     grouped[day].push(e);
   }
   for (const d of Object.keys(grouped)) {
     grouped[+d].sort((a: any, b: any) =>
-      g(a, 'startTime', 'start_time').localeCompare(g(b, 'startTime', 'start_time')));
+      (a.start_time || '').localeCompare(b.start_time || ''));
   }
 
   const goToAttendance = (day: string, slot: any) => {
     navigate('/faculty/attendance', {
       state: {
-        className: g(slot, 'className', 'classId', 'class_id'),
-        subject: g(slot, 'subject', 'subjectName', 'subjectId', 'subject_id'),
-        slot: `${day} • ${g(slot, 'startTime', 'start_time')} - ${g(slot, 'endTime', 'end_time')}`,
+        classId: slot.class_id,
+        courseId: slot.course_id,
+        className: slot.class?.name || '',
+        subject: slot.course?.name || '',
+        slot: `${day} • ${slot.start_time || ''} - ${slot.end_time || ''}`,
       },
     });
   };
@@ -100,11 +97,11 @@ export default function FacultyTimetablePage() {
                 <CardContent>
                   <div className="space-y-3">
                     {slots.map((slot: any, i: number) => {
-                      const st = g(slot, 'startTime', 'start_time');
-                      const et = g(slot, 'endTime', 'end_time');
-                      const subj = g(slot, 'subject', 'subjectName', 'subjectId', 'subject_id');
-                      const cls = g(slot, 'className', 'classId', 'class_id');
-                      const room = g(slot, 'room', 'roomNumber', 'room_number');
+                      const st = slot.start_time || '';
+                      const et = slot.end_time || '';
+                      const subj = slot.course?.name || slot.course?.code || '';
+                      const cls = slot.class?.name || '';
+                      const room = slot.room || '';
                       return (
                         <div key={slot.id || i} className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10 space-y-3">
                           <div className="flex items-center gap-2">

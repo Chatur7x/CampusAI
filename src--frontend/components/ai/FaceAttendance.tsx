@@ -116,12 +116,12 @@ export default function FaceAttendance() {
       // Verify student has registered their face
       const { data: student, error } = await supabase
         .from('students')
-        .select('faceData, faceRegistered')
-        .eq('userId', user?.id)
+        .select('face_data, face_registered')
+        .eq('user_id', user?.id)
         .single();
 
       if (error) throw error;
-      if (!student?.faceRegistered || !student?.faceData) {
+      if (!student?.face_registered || !student?.face_data) {
         setErrorMsg('Face not registered. Please complete face registration first.');
         setStep('failed');
         return;
@@ -246,17 +246,17 @@ export default function FaceAttendance() {
       // 3. Record attendance in DB
       try {
         await supabase.from('attendance').insert({
-          studentId: user?.id,
-          sessionCode,
+          student_id: user?.id,
+          session_code: sessionCode,
           status: faceMatch && livenessPass ? 'present' : 'flagged',
-          verificationMethod: 'face_recognition_python',
-          faceConfidence: Math.round(similarity * 100),
-          livenessScore: Math.round(livenessScore * 100),
-          confidenceScore: Math.round(confScore * 100),
+          verification_method: 'face_recognition_python',
+          face_confidence: Math.round(similarity * 100),
+          liveness_score: Math.round(livenessScore * 100),
+          confidence_score: Math.round(confScore * 100),
           latitude: locationData?.latitude,
           longitude: locationData?.longitude,
-          fraudAlerts: fraudResult.flags.length > 0 ? JSON.stringify(fraudResult.flags) : null,
-          timestamp: new Date().toISOString(),
+          fraud_alerts: fraudResult.flags.length > 0 ? JSON.stringify(fraudResult.flags) : null,
+          created_at: new Date().toISOString(),
         });
       } catch {
         // DB insert may fail due to RLS — still show result

@@ -52,7 +52,7 @@ export default function StudentOverview() {
       try {
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-        const classId = (user.student as any)?.class_id || (user.student as any)?.classId;
+        const classId = (user.student as any)?.class_id;
         const todayDay = new Date().getDay(); // 0-6
 
         // Run independent queries in parallel

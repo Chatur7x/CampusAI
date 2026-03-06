@@ -14,7 +14,7 @@ import type { SecurityAlert } from '@/lib/database.types';
 export default function SecurityPage() {
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
   const [resolved, setResolved] = useState<SecurityAlert[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'devices' | 'history' | 'sessions' | 'mfa'>('overview');
 
@@ -52,7 +52,7 @@ export default function SecurityPage() {
     fetchDashboardStats();
   }, [fetchDashboardStats]);
 
-  const _counts = useMemo(() => {
+  const counts = useMemo(() => {
     const critical = alerts.filter((a) => (a.severity || '').toUpperCase() === 'CRITICAL').length;
     const warning = alerts.filter((a) => (a.severity || '').toUpperCase() === 'MEDIUM' || (a.severity || '').toUpperCase() === 'HIGH').length;
     const resolvedCount = resolved.length;
@@ -117,7 +117,7 @@ export default function SecurityPage() {
                   </div>
                   <div>
                     <p className="text-xs text-slate-400">Critical Events</p>
-                    <p className="text-2xl font-bold text-red-400">{dashboardStats?.criticalEvents ?? '…'}</p>
+                    <p className="text-2xl font-bold text-red-400">{loading ? '…' : dashboardStats?.criticalEvents ?? counts.critical}</p>
                   </div>
                 </div>
               </CardContent>
@@ -131,7 +131,7 @@ export default function SecurityPage() {
                   </div>
                   <div>
                     <p className="text-xs text-slate-400">Open Events</p>
-                    <p className="text-2xl font-bold text-amber-400">{dashboardStats?.openEvents ?? '…'}</p>
+                    <p className="text-2xl font-bold text-amber-400">{loading ? '…' : dashboardStats?.openEvents ?? counts.warning}</p>
                   </div>
                 </div>
               </CardContent>

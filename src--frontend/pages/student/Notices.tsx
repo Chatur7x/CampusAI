@@ -73,7 +73,7 @@ export default function StudentNoticesPage() {
                     <p className="text-slate-400 mb-3">{notice.content}</p>
                     <div className="flex items-center gap-2 text-sm text-slate-500">
                       <Calendar className="w-4 h-4" />
-                      <span>Posted on {notice.createdAt?.slice(0, 10) || notice.created_at?.slice(0, 10) || 'Unknown'}</span>
+                      <span>Posted on {notice.created_at?.slice(0, 10) || 'Unknown'}</span>
                     </div>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center ml-4">

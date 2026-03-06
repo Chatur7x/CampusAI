@@ -196,7 +196,7 @@ export function useRealtimeAttendance(options: {
           *,
           profile:profiles(*)
         ),
-        subject:subjects(*)
+        subject:courses(*)
       `)
       .order('created_at', { ascending: false });
 

@@ -104,7 +104,7 @@ export default function MyAttendancePage() {
     const total = attendanceHistory.length;
     const percentage = total ? Math.round((present / total) * 100) : 0;
     return { present, total, percentage };
-  }, []);
+  }, [attendanceHistory]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

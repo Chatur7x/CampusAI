@@ -6,11 +6,6 @@ import { timetableService } from '@/lib/api';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function g(slot: any, ...keys: string[]): string {
-  for (const k of keys) { const v = slot[k]; if (v != null) return String(v); }
-  return '';
-}
-
 export default function StudentTimetablePage() {
   const { user } = useSupabaseAuth();
   const [entries, setEntries] = useState<any[]>([]);
@@ -34,13 +29,13 @@ export default function StudentTimetablePage() {
 
   const grouped: Record<number, any[]> = {};
   for (const e of entries) {
-    const day = e.dayOfWeek ?? e.day_of_week ?? 0;
+    const day = e.day_of_week ?? 0;
     if (!grouped[day]) grouped[day] = [];
     grouped[day].push(e);
   }
   for (const d of Object.keys(grouped)) {
     grouped[+d].sort((a: any, b: any) =>
-      g(a, 'startTime', 'start_time').localeCompare(g(b, 'startTime', 'start_time')));
+      (a.start_time || '').localeCompare(b.start_time || ''));
   }
 
   if (loading) {
@@ -86,11 +81,11 @@ export default function StudentTimetablePage() {
                 <CardContent>
                   <div className="space-y-3">
                     {slots.map((slot: any, i: number) => {
-                      const st = g(slot, 'startTime', 'start_time');
-                      const et = g(slot, 'endTime', 'end_time');
-                      const subj = g(slot, 'subject', 'subjectName', 'subjectId', 'subject_id');
-                      const fac = g(slot, 'faculty', 'facultyName', 'facultyId', 'faculty_id');
-                      const room = g(slot, 'room', 'roomNumber', 'room_number');
+                      const st = slot.start_time || '';
+                      const et = slot.end_time || '';
+                      const subj = slot.course?.name || slot.course?.code || '';
+                      const fac = slot.faculty_profile ? `${slot.faculty_profile.first_name || ''} ${slot.faculty_profile.last_name || ''}`.trim() : '';
+                      const room = slot.room || '';
                       return (
                         <div key={slot.id || i} className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                           <div className="flex items-center gap-2 mb-2">

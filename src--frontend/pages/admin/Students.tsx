@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -390,21 +388,21 @@ export default function StudentsPage() {
                         <Avatar className="w-8 h-8">
                           <AvatarFallback className="bg-violet-500/20 text-violet-400 text-xs">
                             {getInitials(
-                              (student.user?.profile?.firstName || '') +
+                              (student.profile?.first_name || '') +
                                 ' ' +
-                                (student.user?.profile?.lastName || '')
+                                (student.profile?.last_name || '')
                             )}
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           <p className="text-sm font-medium text-white">
-                            {student.user?.profile?.firstName} {student.user?.profile?.lastName}
+                            {student.profile?.first_name} {student.profile?.last_name}
                           </p>
-                          <p className="text-xs text-slate-400">{student.user?.email}</p>
+                          <p className="text-xs text-slate-400">{student.profile?.email}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-slate-300">{student.enrollmentId}</TableCell>
+                    <TableCell className="text-slate-300">{student.enrollment_id}</TableCell>
                     <TableCell className="text-slate-300">{student.department?.name}</TableCell>
                     <TableCell className="text-slate-300">
                       {student.class?.name} - {student.class?.section}
@@ -412,14 +410,14 @@ export default function StudentsPage() {
                     <TableCell className="text-slate-300">{student.semester}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={student.faceRegistered ? 'default' : 'secondary'}
+                        variant={student.face_registered ? 'default' : 'secondary'}
                         className={
-                          student.faceRegistered
+                          student.face_registered
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : 'bg-slate-700 text-slate-400'
                         }
                       >
-                        {student.faceRegistered ? 'Yes' : 'No'}
+                        {student.face_registered ? 'Yes' : 'No'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -496,7 +494,7 @@ export default function StudentsPage() {
           <DialogHeader>
             <DialogTitle className="text-white">Remove Student</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Are you sure you want to remove <span className="text-white font-medium">{selectedStudent?.user?.profile?.firstName} {selectedStudent?.user?.profile?.lastName}</span>? This action cannot be undone.
+              Are you sure you want to remove <span className="text-white font-medium">{selectedStudent?.profile?.first_name} {selectedStudent?.profile?.last_name}</span>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
