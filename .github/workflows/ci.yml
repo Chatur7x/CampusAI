@@ -113,7 +113,7 @@ jobs:
           print(f'FastAPI app loaded: {len(app.routes)} routes')
           "
         env:
-          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_URL: https://akgjpqvpcugbmdenpxny.supabase.co
           SUPABASE_SERVICE_KEY: placeholder-key
           CAMPUS_LAT: "17.5"
           CAMPUS_LNG: "78.5"
