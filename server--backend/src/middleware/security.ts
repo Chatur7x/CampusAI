@@ -65,30 +65,55 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
 
 // ==================== API REQUEST LOGGING ====================
 
+// In-memory buffer for batch DB writes (flush every 30s or 50 entries)
+const LOG_BUFFER: Array<{
+  userId: string | null;
+  method: string;
+  path: string;
+  statusCode: number;
+  ipAddress: string | undefined;
+  userAgent: string | null;
+  responseMs: number;
+  flagged: boolean;
+}> = [];
+const LOG_FLUSH_INTERVAL = 30_000; // 30 seconds
+const LOG_FLUSH_SIZE = 50;
+
+function flushLogBuffer(): void {
+  if (LOG_BUFFER.length === 0) return;
+  const batch = LOG_BUFFER.splice(0, LOG_BUFFER.length);
+  prisma.apiRequestLog.createMany({ data: batch })
+    .catch(() => { /* silently ignore logging failures */ });
+}
+
+// Periodic flush
+setInterval(flushLogBuffer, LOG_FLUSH_INTERVAL);
+
 /**
- * Middleware: Log every API request for threat analysis
+ * Middleware: Log every API request for threat analysis (batched writes)
  */
 export function apiRequestLogger(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
 
-  // Intercept response finish to capture status code
   res.on('finish', () => {
     const responseMs = Date.now() - start;
     const authReq = req as AuthenticatedRequest;
 
-    // Fire and forget — don't block the response
-    prisma.apiRequestLog.create({
-      data: {
-        userId: authReq.user?.id || null,
-        method: req.method,
-        path: req.path,
-        statusCode: res.statusCode,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || null,
-        responseMs,
-        flagged: isSuspiciousRequest(req, res),
-      },
-    }).catch(() => { /* silently ignore logging failures */ });
+    LOG_BUFFER.push({
+      userId: authReq.user?.id || null,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'] || null,
+      responseMs,
+      flagged: isSuspiciousRequest(req, res),
+    });
+
+    // Flush if buffer is full
+    if (LOG_BUFFER.length >= LOG_FLUSH_SIZE) {
+      flushLogBuffer();
+    }
   });
 
   next();

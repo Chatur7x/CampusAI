@@ -42,14 +42,14 @@ export default function FacultyAnalyticsPage() {
         let rows: any[] = [];
         const { data: records } = await supabase
           .from('attendance')
-          .select('date, status, subjectId, subject_id')
+          .select('date, status, subject_id')
           .gte('date', sinceStr)
           .order('date', { ascending: true });
 
         rows = (records || []).map((r: any) => ({
           date: r.date,
           status: r.status,
-          subjectId: r.subjectId || r.subject_id || null,
+          subjectId: r.subject_id || null,
         }));
 
         // 2. Daily aggregation

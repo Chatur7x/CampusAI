@@ -10,12 +10,11 @@ import TrustedDevices from '@/components/security/TrustedDevices';
 import LoginHistoryComponent from '@/components/security/LoginHistory';
 import ActiveSessions from '@/components/security/ActiveSessions';
 import type { SecurityAlert } from '@/lib/database.types';
-import { toast } from 'sonner';
 
 export default function SecurityPage() {
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
   const [resolved, setResolved] = useState<SecurityAlert[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'devices' | 'history' | 'sessions' | 'mfa'>('overview');
 
@@ -53,7 +52,7 @@ export default function SecurityPage() {
     fetchDashboardStats();
   }, [fetchDashboardStats]);
 
-  const counts = useMemo(() => {
+  const _counts = useMemo(() => {
     const critical = alerts.filter((a) => (a.severity || '').toUpperCase() === 'CRITICAL').length;
     const warning = alerts.filter((a) => (a.severity || '').toUpperCase() === 'MEDIUM' || (a.severity || '').toUpperCase() === 'HIGH').length;
     const resolvedCount = resolved.length;

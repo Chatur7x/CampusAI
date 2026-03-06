@@ -1,4 +1,4 @@
-﻿/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================
 // CAMPUSAI - SUPABASE API SERVICES
 // Enterprise-grade data access layer — Matches actual Prisma camelCase DB
@@ -173,76 +173,61 @@ export const profileService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Get profile
     const { data: profile, error: pErr } = await supabase
       .from('profiles')
       .select('*')
-      .eq('userId', user.id)
+      .eq('user_id', user.id)
       .single();
     if (pErr && pErr.code !== 'PGRST116') handleError(pErr);
 
-    // Get role from users table
-    const { data: userRow } = await supabase
-      .from('users')
-      .select('email, role, isActive')
-      .eq('id', user.id)
-      .single();
-
-    return {
+    return profile ? {
       ...profile,
-      user_id: profile?.userId || user.id,
-      email: userRow?.email || user.email,
-      role: userRow?.role || 'STUDENT',
-      first_name: profile?.firstName,
-      last_name: profile?.lastName,
-      avatar_url: profile?.avatar,
-      is_active: userRow?.isActive ?? true,
-    };
+      user_id: profile.user_id || user.id,
+      email: profile.email || user.email,
+      role: profile.role || 'STUDENT',
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      avatar_url: profile.avatar_url,
+      is_active: profile.is_active ?? true,
+    } : null;
   },
 
   async getById(userId: string): Promise<any | null> {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .single();
     if (error && error.code !== 'PGRST116') handleError(error);
 
-    const { data: userRow } = await supabase
-      .from('users')
-      .select('email, role, isActive')
-      .eq('id', userId)
-      .single();
-
     return profile ? {
       ...profile,
-      user_id: profile.userId,
-      email: userRow?.email,
-      role: userRow?.role,
-      first_name: profile.firstName,
-      last_name: profile.lastName,
-      avatar_url: profile.avatar,
-      is_active: userRow?.isActive ?? true,
+      user_id: profile.user_id,
+      email: profile.email,
+      role: profile.role,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      avatar_url: profile.avatar_url,
+      is_active: profile.is_active ?? true,
     } : null;
   },
 
   async update(userId: string, updates: Partial<Profile>): Promise<any | null> {
     const dbUpdates: Record<string, any> = {};
-    if (updates.first_name !== undefined) dbUpdates.firstName = updates.first_name;
-    if (updates.last_name !== undefined) dbUpdates.lastName = updates.last_name;
-    if ((updates as any).firstName !== undefined) dbUpdates.firstName = (updates as any).firstName;
-    if ((updates as any).lastName !== undefined) dbUpdates.lastName = (updates as any).lastName;
+    if (updates.first_name !== undefined) dbUpdates.first_name = updates.first_name;
+    if (updates.last_name !== undefined) dbUpdates.last_name = updates.last_name;
+    if ((updates as any).first_name !== undefined) dbUpdates.first_name = (updates as any).first_name;
+    if ((updates as any).last_name !== undefined) dbUpdates.last_name = (updates as any).last_name;
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
-    if (updates.avatar_url !== undefined) dbUpdates.avatar = updates.avatar_url;
-    if ((updates as any).avatar !== undefined) dbUpdates.avatar = (updates as any).avatar;
+    if (updates.avatar_url !== undefined) dbUpdates.avatar_url = updates.avatar_url;
     if (updates.address !== undefined) dbUpdates.address = updates.address;
     if (updates.city !== undefined) dbUpdates.city = updates.city;
     if (updates.state !== undefined) dbUpdates.state = updates.state;
     if (updates.country !== undefined) dbUpdates.country = updates.country;
-    if (updates.postal_code !== undefined) dbUpdates.postalCode = updates.postal_code;
-    if ((updates as any).postalCode !== undefined) dbUpdates.postalCode = (updates as any).postalCode;
-    if (updates.date_of_birth !== undefined) dbUpdates.dateOfBirth = updates.date_of_birth;
-    if ((updates as any).dateOfBirth !== undefined) dbUpdates.dateOfBirth = (updates as any).dateOfBirth;
+    if (updates.postal_code !== undefined) dbUpdates.postal_code = updates.postal_code;
+    if ((updates as any).postal_code !== undefined) dbUpdates.postal_code = (updates as any).postal_code;
+    if (updates.date_of_birth !== undefined) dbUpdates.date_of_birth = updates.date_of_birth;
+    if ((updates as any).date_of_birth !== undefined) dbUpdates.date_of_birth = (updates as any).date_of_birth;
     if (updates.gender !== undefined) dbUpdates.gender = updates.gender;
     if (updates.theme !== undefined) dbUpdates.theme = updates.theme;
     if (updates.language !== undefined) dbUpdates.language = updates.language;
@@ -252,7 +237,7 @@ export const profileService = {
     const { data, error } = await supabase
       .from('profiles')
       .update(dbUpdates)
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .select()
       .single();
     if (error) handleError(error);
@@ -269,7 +254,7 @@ export const profileService = {
     const { data: { publicUrl } } = supabase.storage
       .from('avatars')
       .getPublicUrl(fileName);
-    await supabase.from('profiles').update({ avatar: publicUrl }).eq('userId', userId);
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('user_id', userId);
     return publicUrl;
   },
 };
@@ -305,7 +290,7 @@ export const departmentService = {
     if (department.name) insert.name = department.name;
     if (department.code) insert.code = department.code;
     if (department.description !== undefined) insert.description = department.description;
-    if (department.hod_id || (department as any).hodId) insert.hodId = department.hod_id || (department as any).hodId;
+    if (department.hod_id || (department as any).hod_id) insert.hod_id = department.hod_id || (department as any).hod_id;
 
     const { data, error } = await supabase
       .from('departments')
@@ -321,8 +306,8 @@ export const departmentService = {
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.code !== undefined) dbUpdates.code = updates.code;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
-    if (updates.hod_id !== undefined) dbUpdates.hodId = updates.hod_id;
-    if ((updates as any).hodId !== undefined) dbUpdates.hodId = (updates as any).hodId;
+    if (updates.hod_id !== undefined) dbUpdates.hod_id = updates.hod_id;
+    if ((updates as any).hod_id !== undefined) dbUpdates.hod_id = (updates as any).hod_id;
 
     const { data, error } = await supabase
       .from('departments')
@@ -355,26 +340,26 @@ export const facultyService = {
     let query = supabase
       .from('faculty')
       .select(`*, department:departments(*)`);
-    if (filters?.departmentId) query = query.eq('departmentId', filters.departmentId);
-    const { data, error } = await query.order('employeeId');
+    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+    const { data, error } = await query.order('employee_id');
     if (error) handleError(error);
 
     // Enrich with profile data
     if (data && data.length > 0) {
-      const userIds = data.map((f: any) => f.userId).filter(Boolean);
+      const userIds = data.map((f: any) => f.user_id).filter(Boolean);
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('*')
-          .in('userId', userIds);
-        const profileMap = new Map((profiles || []).map((p: any) => [p.userId, p]));
+          .in('user_id', userIds);
+        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
         return data.map((f: any) => ({
           ...f,
-          profile: profileMap.get(f.userId) || null,
-          user_id: f.userId,
-          employee_id: f.employeeId,
-          department_id: f.departmentId,
-          joining_date: f.joiningDate,
+          profile: profileMap.get(f.user_id) || null,
+          user_id: f.user_id,
+          employee_id: f.employee_id,
+          department_id: f.department_id,
+          joining_date: f.joining_date,
         }));
       }
     }
@@ -393,17 +378,17 @@ export const facultyService = {
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('userId', data.userId)
+      .eq('user_id', data.user_id)
       .single();
 
-    return { ...data, profile, user_id: data.userId, employee_id: data.employeeId, department_id: data.departmentId };
+    return { ...data, profile, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
   },
 
   async getByUserId(userId: string): Promise<Faculty | null> {
     const { data, error } = await supabase
       .from('faculty')
       .select(`*, department:departments(*)`)
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     if (!data) return null;
@@ -411,19 +396,19 @@ export const facultyService = {
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .single();
 
-    return { ...data, profile, user_id: data.userId, employee_id: data.employeeId, department_id: data.departmentId };
+    return { ...data, profile, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
   },
 
   async create(faculty: Partial<Faculty>): Promise<Faculty | null> {
     const insert: Record<string, any> = {};
-    insert.userId = faculty.user_id || (faculty as any).userId;
-    insert.employeeId = faculty.employee_id || (faculty as any).employeeId;
+    insert.user_id = faculty.user_id || (faculty as any).user_id;
+    insert.employee_id = faculty.employee_id || (faculty as any).employee_id;
     insert.designation = faculty.designation;
-    insert.departmentId = faculty.department_id || (faculty as any).departmentId;
-    insert.joiningDate = faculty.joining_date || (faculty as any).joiningDate;
+    insert.department_id = faculty.department_id || (faculty as any).department_id;
+    insert.joining_date = faculty.joining_date || (faculty as any).joining_date;
     if (faculty.specialization) insert.specialization = faculty.specialization;
     if (faculty.qualifications) insert.qualifications = faculty.qualifications;
 
@@ -439,14 +424,14 @@ export const facultyService = {
   async update(id: string, updates: Partial<Faculty>): Promise<Faculty | null> {
     const dbUpdates: Record<string, any> = {};
     if (updates.designation !== undefined) dbUpdates.designation = updates.designation;
-    if (updates.department_id !== undefined) dbUpdates.departmentId = updates.department_id;
-    if ((updates as any).departmentId !== undefined) dbUpdates.departmentId = (updates as any).departmentId;
-    if (updates.joining_date !== undefined) dbUpdates.joiningDate = updates.joining_date;
-    if ((updates as any).joiningDate !== undefined) dbUpdates.joiningDate = (updates as any).joiningDate;
+    if (updates.department_id !== undefined) dbUpdates.department_id = updates.department_id;
+    if ((updates as any).department_id !== undefined) dbUpdates.department_id = (updates as any).department_id;
+    if (updates.joining_date !== undefined) dbUpdates.joining_date = updates.joining_date;
+    if ((updates as any).joining_date !== undefined) dbUpdates.joining_date = (updates as any).joining_date;
     if (updates.specialization !== undefined) dbUpdates.specialization = updates.specialization;
     if (updates.qualifications !== undefined) dbUpdates.qualifications = updates.qualifications;
-    if (updates.employee_id !== undefined) dbUpdates.employeeId = updates.employee_id;
-    if ((updates as any).employeeId !== undefined) dbUpdates.employeeId = (updates as any).employeeId;
+    if (updates.employee_id !== undefined) dbUpdates.employee_id = updates.employee_id;
+    if ((updates as any).employee_id !== undefined) dbUpdates.employee_id = (updates as any).employee_id;
 
     const { data, error } = await supabase
       .from('faculty')
@@ -480,33 +465,33 @@ export const studentService = {
     let query = supabase
       .from('students')
       .select(`*, department:departments(*), class:classes(*)`);
-    if (filters?.classId) query = query.eq('classId', filters.classId);
-    if (filters?.departmentId) query = query.eq('departmentId', filters.departmentId);
-    const { data, error } = await query.order('enrollmentId');
+    if (filters?.class_id) query = query.eq('class_id', filters.class_id);
+    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+    const { data, error } = await query.order('enrollment_id');
     if (error) handleError(error);
 
     // Enrich with profile data
     if (data && data.length > 0) {
-      const userIds = data.map((s: any) => s.userId).filter(Boolean);
+      const userIds = data.map((s: any) => s.user_id).filter(Boolean);
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('*')
-          .in('userId', userIds);
-        const profileMap = new Map((profiles || []).map((p: any) => [p.userId, p]));
+          .in('user_id', userIds);
+        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
         return data.map((s: any) => ({
           ...s,
-          profile: profileMap.get(s.userId) || null,
-          user_id: s.userId,
-          enrollment_id: s.enrollmentId,
-          department_id: s.departmentId,
-          class_id: s.classId,
-          batch_year: s.batchYear,
-          face_data: s.faceData,
-          face_registered: s.faceRegistered,
-          guardian_name: s.guardianName,
-          guardian_phone: s.guardianPhone,
-          guardian_email: s.guardianEmail,
+          profile: profileMap.get(s.user_id) || null,
+          user_id: s.user_id,
+          enrollment_id: s.enrollment_id,
+          department_id: s.department_id,
+          class_id: s.class_id,
+          batch_year: s.batch_year,
+          face_data: s.face_data,
+          face_registered: s.face_registered,
+          guardian_name: s.guardian_name,
+          guardian_phone: s.guardian_phone,
+          guardian_email: s.guardian_email,
         }));
       }
     }
@@ -525,16 +510,16 @@ export const studentService = {
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('userId', data.userId)
+      .eq('user_id', data.user_id)
       .single();
 
     return {
       ...data,
       profile,
-      user_id: data.userId,
-      enrollment_id: data.enrollmentId,
-      department_id: data.departmentId,
-      class_id: data.classId,
+      user_id: data.user_id,
+      enrollment_id: data.enrollment_id,
+      department_id: data.department_id,
+      class_id: data.class_id,
     };
   },
 
@@ -542,7 +527,7 @@ export const studentService = {
     const { data, error } = await supabase
       .from('students')
       .select(`*, department:departments(*), class:classes(*)`)
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .single();
     if (error && error.code !== 'PGRST116') handleError(error);
     if (!data) return null;
@@ -550,30 +535,30 @@ export const studentService = {
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .single();
 
     return {
       ...data,
       profile,
-      user_id: data.userId,
-      enrollment_id: data.enrollmentId,
-      department_id: data.departmentId,
-      class_id: data.classId,
+      user_id: data.user_id,
+      enrollment_id: data.enrollment_id,
+      department_id: data.department_id,
+      class_id: data.class_id,
     };
   },
 
   async create(student: Partial<Student>): Promise<Student | null> {
     const insert: Record<string, any> = {};
-    insert.userId = student.user_id || (student as any).userId;
-    insert.enrollmentId = student.enrollment_id || (student as any).enrollmentId;
-    insert.departmentId = student.department_id || (student as any).departmentId;
-    insert.classId = student.class_id || (student as any).classId;
-    insert.batchYear = student.batch_year || (student as any).batchYear;
+    insert.user_id = student.user_id || (student as any).user_id;
+    insert.enrollment_id = student.enrollment_id || (student as any).enrollment_id;
+    insert.department_id = student.department_id || (student as any).department_id;
+    insert.class_id = student.class_id || (student as any).class_id;
+    insert.batch_year = student.batch_year || (student as any).batch_year;
     insert.semester = student.semester;
-    if (student.guardian_name || (student as any).guardianName) insert.guardianName = student.guardian_name || (student as any).guardianName;
-    if (student.guardian_phone || (student as any).guardianPhone) insert.guardianPhone = student.guardian_phone || (student as any).guardianPhone;
-    if (student.guardian_email || (student as any).guardianEmail) insert.guardianEmail = student.guardian_email || (student as any).guardianEmail;
+    if (student.guardian_name || (student as any).guardian_name) insert.guardian_name = student.guardian_name || (student as any).guardian_name;
+    if (student.guardian_phone || (student as any).guardian_phone) insert.guardian_phone = student.guardian_phone || (student as any).guardian_phone;
+    if (student.guardian_email || (student as any).guardian_email) insert.guardian_email = student.guardian_email || (student as any).guardian_email;
 
     const { data, error } = await supabase
       .from('students')
@@ -586,17 +571,17 @@ export const studentService = {
 
   async update(id: string, updates: Partial<Student>): Promise<Student | null> {
     const dbUpdates: Record<string, any> = {};
-    if (updates.enrollment_id !== undefined) dbUpdates.enrollmentId = updates.enrollment_id;
-    if ((updates as any).enrollmentId !== undefined) dbUpdates.enrollmentId = (updates as any).enrollmentId;
-    if (updates.department_id !== undefined) dbUpdates.departmentId = updates.department_id;
-    if ((updates as any).departmentId !== undefined) dbUpdates.departmentId = (updates as any).departmentId;
-    if (updates.class_id !== undefined) dbUpdates.classId = updates.class_id;
-    if ((updates as any).classId !== undefined) dbUpdates.classId = (updates as any).classId;
-    if (updates.batch_year !== undefined) dbUpdates.batchYear = updates.batch_year;
-    if ((updates as any).batchYear !== undefined) dbUpdates.batchYear = (updates as any).batchYear;
+    if (updates.enrollment_id !== undefined) dbUpdates.enrollment_id = updates.enrollment_id;
+    if ((updates as any).enrollment_id !== undefined) dbUpdates.enrollment_id = (updates as any).enrollment_id;
+    if (updates.department_id !== undefined) dbUpdates.department_id = updates.department_id;
+    if ((updates as any).department_id !== undefined) dbUpdates.department_id = (updates as any).department_id;
+    if (updates.class_id !== undefined) dbUpdates.class_id = updates.class_id;
+    if ((updates as any).class_id !== undefined) dbUpdates.class_id = (updates as any).class_id;
+    if (updates.batch_year !== undefined) dbUpdates.batch_year = updates.batch_year;
+    if ((updates as any).batch_year !== undefined) dbUpdates.batch_year = (updates as any).batch_year;
     if (updates.semester !== undefined) dbUpdates.semester = updates.semester;
-    if (updates.guardian_name !== undefined) dbUpdates.guardianName = updates.guardian_name;
-    if ((updates as any).guardianName !== undefined) dbUpdates.guardianName = (updates as any).guardianName;
+    if (updates.guardian_name !== undefined) dbUpdates.guardian_name = updates.guardian_name;
+    if ((updates as any).guardian_name !== undefined) dbUpdates.guardian_name = (updates as any).guardian_name;
 
     const { data, error } = await supabase
       .from('students')
@@ -629,14 +614,14 @@ export const classService = {
     let query = supabase
       .from('classes')
       .select(`*, department:departments(*)`);
-    if (filters?.departmentId) query = query.eq('departmentId', filters.departmentId);
+    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
     if (filters?.semester) query = query.eq('semester', filters.semester);
     const { data, error } = await query.order('name');
     if (error) handleError(error);
 
     // Enrich with incharge info
     if (data && data.length > 0) {
-      const inchargeIds = data.map((c: any) => c.inchargeId).filter(Boolean);
+      const inchargeIds = data.map((c: any) => c.incharge_id).filter(Boolean);
       if (inchargeIds.length > 0) {
         const { data: facultyList } = await supabase
           .from('faculty')
@@ -645,9 +630,9 @@ export const classService = {
         const facultyMap = new Map((facultyList || []).map((f: any) => [f.id, f]));
         return data.map((c: any) => ({
           ...c,
-          class_incharge: facultyMap.get(c.inchargeId) || null,
-          department_id: c.departmentId,
-          class_incharge_id: c.inchargeId,
+          class_incharge: facultyMap.get(c.incharge_id) || null,
+          department_id: c.department_id,
+          class_incharge_id: c.incharge_id,
         }));
       }
     }
@@ -667,12 +652,12 @@ export const classService = {
   async create(classData: Partial<Class>): Promise<Class | null> {
     const insert: Record<string, any> = {};
     if (classData.name) insert.name = classData.name;
-    insert.departmentId = classData.department_id || (classData as any).departmentId;
-    if (classData.class_incharge_id || (classData as any).inchargeId) {
-      insert.inchargeId = classData.class_incharge_id || (classData as any).inchargeId;
+    insert.department_id = classData.department_id || (classData as any).department_id;
+    if (classData.class_incharge_id || (classData as any).incharge_id) {
+      insert.incharge_id = classData.class_incharge_id || (classData as any).incharge_id;
     }
-    if ((classData as any).startYear !== undefined) insert.startYear = (classData as any).startYear;
-    if ((classData as any).endYear !== undefined) insert.endYear = (classData as any).endYear;
+    if ((classData as any).start_year !== undefined) insert.start_year = (classData as any).start_year;
+    if ((classData as any).end_year !== undefined) insert.end_year = (classData as any).end_year;
     if (classData.semester !== undefined) insert.semester = classData.semester;
 
     const { data, error } = await supabase
@@ -687,12 +672,12 @@ export const classService = {
   async update(id: string, updates: Partial<Class>): Promise<Class | null> {
     const dbUpdates: Record<string, any> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
-    if (updates.department_id !== undefined) dbUpdates.departmentId = updates.department_id;
-    if ((updates as any).departmentId !== undefined) dbUpdates.departmentId = (updates as any).departmentId;
-    if (updates.class_incharge_id !== undefined) dbUpdates.inchargeId = updates.class_incharge_id;
-    if ((updates as any).inchargeId !== undefined) dbUpdates.inchargeId = (updates as any).inchargeId;
-    if ((updates as any).startYear !== undefined) dbUpdates.startYear = (updates as any).startYear;
-    if ((updates as any).endYear !== undefined) dbUpdates.endYear = (updates as any).endYear;
+    if (updates.department_id !== undefined) dbUpdates.department_id = updates.department_id;
+    if ((updates as any).department_id !== undefined) dbUpdates.department_id = (updates as any).department_id;
+    if (updates.class_incharge_id !== undefined) dbUpdates.incharge_id = updates.class_incharge_id;
+    if ((updates as any).incharge_id !== undefined) dbUpdates.incharge_id = (updates as any).incharge_id;
+    if ((updates as any).start_year !== undefined) dbUpdates.start_year = (updates as any).start_year;
+    if ((updates as any).end_year !== undefined) dbUpdates.end_year = (updates as any).end_year;
     if (updates.semester !== undefined) dbUpdates.semester = updates.semester;
 
     const { data, error } = await supabase
@@ -725,7 +710,7 @@ export const courseService = {
     let query = supabase
       .from('courses')
       .select('*, department:departments(*)');
-    if (filters?.departmentId) query = query.eq('departmentId', filters.departmentId);
+    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
     const { data, error } = await query.order('code');
     if (error) handleError(error);
     return data || [];
@@ -747,7 +732,7 @@ export const courseService = {
     if (course.code) insert.code = course.code;
     if (course.description !== undefined) insert.description = course.description;
     if (course.credits !== undefined) insert.credits = course.credits;
-    insert.departmentId = course.department_id || (course as any).departmentId;
+    insert.department_id = course.department_id || (course as any).department_id;
 
     const { data, error } = await supabase
       .from('courses')
@@ -764,8 +749,8 @@ export const courseService = {
     if (updates.code !== undefined) dbUpdates.code = updates.code;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.credits !== undefined) dbUpdates.credits = updates.credits;
-    if (updates.department_id !== undefined) dbUpdates.departmentId = updates.department_id;
-    if ((updates as any).departmentId !== undefined) dbUpdates.departmentId = (updates as any).departmentId;
+    if (updates.department_id !== undefined) dbUpdates.department_id = updates.department_id;
+    if ((updates as any).department_id !== undefined) dbUpdates.department_id = (updates as any).department_id;
 
     const { data, error } = await supabase
       .from('courses')
@@ -802,8 +787,8 @@ export const attendanceService = {
         method: 'GET',
         query: {
           studentId,
-          startDate: filters?.startDate,
-          endDate: filters?.endDate,
+          startDate: filters?.start_date,
+          endDate: filters?.end_date,
           subjectId: filters?.courseId,
         },
       });
@@ -813,11 +798,11 @@ export const attendanceService = {
       let query = supabase
         .from('attendance')
         .select('*')
-        .eq('studentId', studentId)
+        .eq('student_id', studentId)
         .order('date', { ascending: false });
-      if (filters?.startDate) query = query.gte('date', filters.startDate);
-      if (filters?.endDate) query = query.lte('date', filters.endDate);
-      if (filters?.courseId) query = query.eq('subjectId', filters.courseId);
+      if (filters?.start_date) query = query.gte('date', filters.start_date);
+      if (filters?.end_date) query = query.lte('date', filters.end_date);
+      if (filters?.courseId) query = query.eq('subject_id', filters.courseId);
       const { data, error } = await query;
       if (error) handleError(error);
       return data || [];
@@ -841,15 +826,15 @@ export const attendanceService = {
       const { data: students } = await supabase
         .from('students')
         .select('id')
-        .eq('classId', classId);
+        .eq('class_id', classId);
       if (!students?.length) return [];
 
       let query = supabase
         .from('attendance')
         .select('*')
-        .in('studentId', students.map((s: any) => s.id))
+        .in('student_id', students.map((s: any) => s.id))
         .eq('date', date);
-      if (courseId) query = query.eq('subjectId', courseId);
+      if (courseId) query = query.eq('subject_id', courseId);
       const { data, error } = await query;
       if (error) handleError(error);
       return data || [];
@@ -857,14 +842,14 @@ export const attendanceService = {
   },
 
   async mark(attendance: Partial<Attendance> & Record<string, any>): Promise<Attendance | null> {
-    const studentId = attendance.student_id || attendance.studentId;
+    const studentId = attendance.student_id || attendance.student_id;
     if (!studentId) handleError({ message: 'student_id is required', code: 'VALIDATION_ERROR', status: 400 });
 
     const subjectId =
       attendance.course_id ||
       attendance.courseId ||
       attendance.subject_id ||
-      attendance.subjectId ||
+      attendance.subject_id ||
       null;
 
     try {
@@ -929,7 +914,7 @@ export const attendanceService = {
       const { data } = await supabase
         .from('attendance')
         .select('status')
-        .eq('studentId', studentId);
+        .eq('student_id', studentId);
       if (!data?.length) return { percentage: 0 };
       const present = data.filter((a: any) => a.status === 'PRESENT').length;
       return { percentage: Math.round((present / data.length) * 100 * 100) / 100 };
@@ -965,8 +950,8 @@ export const leaveService = {
     const { data, error } = await supabase
       .from('leave_requests')
       .select(`*`)
-      .eq('studentId', studentId)
-      .order('createdAt', { ascending: false });
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false });
     if (error) handleError(error);
     return data || [];
   },
@@ -976,26 +961,26 @@ export const leaveService = {
       .from('leave_requests')
       .select(`*`)
       .eq('status', 'PENDING')
-      .order('createdAt', { ascending: false });
+      .order('created_at', { ascending: false });
     const { data, error } = await query;
     if (error) handleError(error);
 
-    if (filters?.classId && data) {
+    if (filters?.class_id && data) {
       const { data: students } = await supabase
         .from('students')
         .select('id')
-        .eq('classId', filters.classId);
+        .eq('class_id', filters.class_id);
       const studentIds = new Set((students || []).map((s: any) => s.id));
-      return data.filter((l: any) => studentIds.has(l.studentId));
+      return data.filter((l: any) => studentIds.has(l.student_id));
     }
     return data || [];
   },
 
   async create(leave: Partial<Leave>): Promise<Leave | null> {
     const insert: Record<string, any> = {
-      studentId: leave.student_id || (leave as any).studentId,
-      startDate: leave.start_date || (leave as any).startDate,
-      endDate: leave.end_date || (leave as any).endDate,
+      studentId: leave.student_id || (leave as any).student_id,
+      startDate: leave.start_date || (leave as any).start_date,
+      endDate: leave.end_date || (leave as any).end_date,
       reason: leave.reason,
       status: 'PENDING',
     };
@@ -1076,7 +1061,7 @@ export const noticeService = {
       const { data, error } = await supabase
         .from('notices')
         .select('*')
-        .order('createdAt', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(50);
       if (error) handleError(error);
       return data || [];
@@ -1189,8 +1174,8 @@ export const notificationService = {
     let query = supabase
       .from('notifications')
       .select('*')
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .limit(50);
     if (unreadOnly) query = query.neq('status', 'read');
     const { data, error } = await query;
@@ -1210,7 +1195,7 @@ export const notificationService = {
     const { error } = await supabase
       .from('notifications')
       .update({ status: 'read' })
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .neq('status', 'read');
     if (error) handleError(error);
   },
@@ -1219,7 +1204,7 @@ export const notificationService = {
     const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .neq('status', 'read');
     if (error) handleError(error);
     return count || 0;
@@ -1227,7 +1212,7 @@ export const notificationService = {
 
   async create(notification: Partial<Notification>): Promise<Notification | null> {
     const insert: Record<string, any> = {
-      userId: notification.user_id || (notification as any).userId,
+      userId: notification.user_id || (notification as any).user_id,
       type: notification.type,
       title: notification.title,
       message: notification.message,
@@ -1267,9 +1252,9 @@ export const timetableService = {
     const { data, error } = await supabase
       .from('timetable')
       .select(`*`)
-      .eq('classId', classId)
-      .order('dayOfWeek')
-      .order('startTime');
+      .eq('class_id', classId)
+      .order('day_of_week')
+      .order('start_time');
     if (error) handleError(error);
     return data || [];
   },
@@ -1288,9 +1273,9 @@ export const timetableService = {
     const { data, error } = await supabase
       .from('timetable')
       .select(`*`)
-      .eq('facultyId', facultyId)
-      .order('dayOfWeek')
-      .order('startTime');
+      .eq('faculty_id', facultyId)
+      .order('day_of_week')
+      .order('start_time');
     if (error) handleError(error);
     return data || [];
   },
@@ -1397,9 +1382,9 @@ export const analyticsService = {
       let query = supabase
         .from('student_attendance_overview')
         .select('*');
-      if (filters?.classId) query = query.eq('classId', filters.classId);
-      if (filters?.departmentId) query = query.eq('departmentId', filters.departmentId);
-      const { data, error } = await query.order('attendancePercentage', { ascending: true });
+      if (filters?.class_id) query = query.eq('class_id', filters.class_id);
+      if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+      const { data, error } = await query.order('attendance_percentage', { ascending: true });
       if (error) throw error;
       return data || [];
     } catch {
@@ -1445,11 +1430,11 @@ export const securityService = {
     let query = supabase
       .from('audit_logs')
       .select('*')
-      .order('createdAt', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(100);
-    if (filters?.userId) query = query.eq('userId', filters.userId);
-    if (filters?.startDate) query = query.gte('createdAt', filters.startDate);
-    if (filters?.endDate) query = query.lte('createdAt', filters.endDate);
+    if (filters?.user_id) query = query.eq('user_id', filters.user_id);
+    if (filters?.start_date) query = query.gte('created_at', filters.start_date);
+    if (filters?.end_date) query = query.lte('created_at', filters.end_date);
     const { data, error } = await query;
     if (error) handleError(error);
     return data || [];

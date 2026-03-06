@@ -48,15 +48,15 @@ export default function MyAttendancePage() {
         // Fetch all attendance records for this student
         const { data: attData } = await supabase
           .from('attendance')
-          .select('date, status, subjectId')
-          .eq('studentId', studentId)
+          .select('date, status, subject_id')
+          .eq('student_id', studentId)
           .order('date', { ascending: false })
           .limit(100);
 
         const rows = attData || [];
 
         // Resolve subject names from courses table
-        const subjectIds = [...new Set(rows.map((r: any) => r.subjectId).filter(Boolean))];
+        const subjectIds = [...new Set(rows.map((r: any) => r.subject_id).filter(Boolean))];
         let subjectMap: Record<string, string> = {};
         if (subjectIds.length) {
           const { data: subs } = await supabase
@@ -69,8 +69,8 @@ export default function MyAttendancePage() {
         const history: AttRecord[] = rows.map((r: any) => ({
           date: r.date,
           status: r.status || 'PRESENT',
-          subject: subjectMap[r.subjectId] || 'Unknown Subject',
-          subjectId: r.subjectId,
+          subject: subjectMap[r.subject_id] || 'Unknown Subject',
+          subjectId: r.subject_id,
         }));
 
         if (!cancelled) setAttendanceHistory(history);

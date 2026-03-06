@@ -32,7 +32,7 @@ interface NoticeItem {
   title: string;
   content: string;
   priority: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export default function StudentOverview() {
@@ -50,46 +50,44 @@ export default function StudentOverview() {
     (async () => {
       setLoading(true);
       try {
-        // 1. Fetch attendance records (last 6 months)
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-        const { data: attData } = await supabase
-          .from('attendance')
-          .select('date, status, subjectId')
-          .eq('studentId', studentId)
-          .gte('date', sixMonthsAgo.toISOString().slice(0, 10))
-          .order('date', { ascending: true });
+        const classId = (user.student as any)?.class_id || (user.student as any)?.classId;
+        const todayDay = new Date().getDay(); // 0-6
 
-        // 2. Fetch today's timetable
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const today = days[new Date().getDay()];
-        const classId = (user.student as any)?.classId;
+        // Run independent queries in parallel
+        const [attResult, ttResult, noticeResult] = await Promise.all([
+          // 1. Attendance records (last 6 months)
+          supabase
+            .from('attendance')
+            .select('date, status, subject_id')
+            .eq('student_id', studentId)
+            .gte('date', sixMonthsAgo.toISOString().slice(0, 10))
+            .order('date', { ascending: true }),
+          // 2. Today's timetable (try timetable_entries with snake_case)
+          classId
+            ? supabase
+                .from('timetable_entries')
+                .select('subject_id, start_time, end_time')
+                .eq('class_id', classId)
+                .eq('day_of_week', todayDay)
+            : Promise.resolve({ data: null, error: null }),
+          // 3. Recent notices
+          supabase
+            .from('notices')
+            .select('id, title, content, priority, created_at')
+            .order('created_at', { ascending: false })
+            .limit(3),
+        ]);
 
-        let scheduleRows: any[] = [];
-        if (classId) {
-          // Try timetable first, fallback to timetable_entries
-          const { data: tt } = await supabase
-            .from('timetable')
-            .select('subjectId, startTime, endTime')
-            .eq('classId', classId)
-            .eq('dayOfWeek', today);
-          if (tt && tt.length) {
-            scheduleRows = tt;
-          } else {
-            const { data: te } = await supabase
-              .from('timetable_entries')
-              .select('subject_id, start_time, end_time')
-              .eq('class_id', classId)
-              .eq('day_of_week', today);
-            scheduleRows = (te || []).map((r: any) => ({
-              subjectId: r.subject_id,
-              startTime: r.start_time,
-              endTime: r.end_time,
-            }));
-          }
-        }
+        const attData = attResult.data;
+        const scheduleRows = (ttResult.data || []).map((r: any) => ({
+          subjectId: r.subject_id,
+          startTime: r.start_time,
+          endTime: r.end_time,
+        }));
 
-        // Resolve subject names
+        // Resolve subject names (depends on timetable result)
         const subjectIds = [...new Set(scheduleRows.map((r: any) => r.subjectId).filter(Boolean))];
         let subjectMap: Record<string, string> = {};
         if (subjectIds.length) {
@@ -106,12 +104,7 @@ export default function StudentOverview() {
           endTime: r.endTime || '',
         }));
 
-        // 3. Fetch recent notices
-        const { data: noticeData } = await supabase
-          .from('notices')
-          .select('id, title, content, priority, createdAt')
-          .order('createdAt', { ascending: false })
-          .limit(3);
+        const noticeData = noticeResult.data;
 
         if (!cancelled) {
           setRecords(attData || []);
