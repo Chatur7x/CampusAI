@@ -133,7 +133,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const timeout = new Promise<{ success: false; error: string }>((resolve) =>
-        setTimeout(() => resolve({ success: false, error: "Request timed out — check your connection." }), 12000)
+        setTimeout(() => resolve({ success: false, error: "Request timed out — check your connection." }), 8000)
       );
       const result = await Promise.race([signIn(email, password), timeout]);
       if (!result.success) setError(result.error || "Login failed");

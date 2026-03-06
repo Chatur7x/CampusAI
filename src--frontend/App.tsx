@@ -78,9 +78,6 @@ function AppRoutes() {
 
   return (
     <>
-      <Suspense fallback={null}>
-        <CommandPalette />
-      </Suspense>
       <Routes>
         <Route
           path="/login"
@@ -94,9 +91,9 @@ function AppRoutes() {
         />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/auth/reset-password" element={<Suspense fallback={<Loading />}><ResetPasswordPage /></Suspense>} />
-        <Route path="/admin/*" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/faculty/*" element={<ProtectedRoute><FacultyDashboard /></ProtectedRoute>} />
-        <Route path="/student/*" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
+        <Route path="/admin/*" element={<ProtectedRoute><><Suspense fallback={null}><CommandPalette /></Suspense><AdminDashboard /></></ProtectedRoute>} />
+        <Route path="/faculty/*" element={<ProtectedRoute><><Suspense fallback={null}><CommandPalette /></Suspense><FacultyDashboard /></></ProtectedRoute>} />
+        <Route path="/student/*" element={<ProtectedRoute><><Suspense fallback={null}><CommandPalette /></Suspense><StudentDashboard /></></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </>

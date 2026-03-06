@@ -21,6 +21,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       eventsPerSecond: 10,
     },
   },
+  // Disable automatic realtime connection — only connect when subscriptions are created.
+  // This avoids opening a WebSocket on the login page where it's not needed.
+  db: {
+    schema: 'public',
+  },
   global: {
     headers: {
       'x-app-name': 'CampusAI',

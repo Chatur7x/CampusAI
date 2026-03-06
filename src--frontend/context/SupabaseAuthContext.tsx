@@ -232,19 +232,32 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Safety timeout — if getSession() hangs (paused Supabase, slow network),
-    // resolve loading after 2 seconds so the login page appears quickly.
-    const loadingTimeout = setTimeout(() => {
-      if (mounted && isLoading) {
-        console.warn('Auth initialization timed out after 2s — showing login page');
-        setIsLoading(false);
-      }
-    }, 2000);
+    // FAST PATH: Check localStorage synchronously before any network call.
+    // If no Supabase session key exists, the user is definitely not logged in.
+    // Show the login page INSTANTLY instead of waiting for getSession() network round-trip.
+    const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    const hasLocalSession = !!storageKey && !!localStorage.getItem(storageKey);
 
-    // 1. Get initial session (fast — reads from localStorage)
+    if (!hasLocalSession) {
+      // No session in storage — show login page immediately (0ms delay)
+      setIsLoading(false);
+      // Still set up the auth listener below for future sign-ins
+    }
+
+    // Safety timeout — only relevant when there IS a local session that needs validation
+    const loadingTimeout = hasLocalSession
+      ? setTimeout(() => {
+          if (mounted && isLoading) {
+            console.warn('Auth initialization timed out after 1.5s');
+            setIsLoading(false);
+          }
+        }, 1500)
+      : null;
+
+    // Get session (reads localStorage + optionally validates with server)
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (!mounted) return;
-      clearTimeout(loadingTimeout);
+      if (loadingTimeout) clearTimeout(loadingTimeout);
       setSession(s);
       setSupabaseUser(s?.user ?? null);
 
@@ -263,7 +276,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     }).catch(() => {
       // Network failure — stop loading, let the login page show
       if (mounted) {
-        clearTimeout(loadingTimeout);
+        if (loadingTimeout) clearTimeout(loadingTimeout);
         setIsLoading(false);
       }
     });
@@ -296,7 +309,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
-      clearTimeout(loadingTimeout);
+      if (loadingTimeout) clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserData]);
