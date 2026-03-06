@@ -109,30 +109,26 @@ DROP POLICY IF EXISTS "Admins can view admin records" ON admins;
 DROP POLICY IF EXISTS "Super admins can manage admins" ON admins;
 
 
--- ==================== ENABLE RLS ON USERS TABLE ====================
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
--- ==================== USERS TABLE POLICIES ====================
--- Users can only read their own row (exclude sensitive fields via app-level select)
-CREATE POLICY "users_self_read" ON users
-  FOR SELECT USING (auth.uid() = id);
-
--- Admins can read all user rows
-CREATE POLICY "users_admin_read" ON users
-  FOR SELECT USING (is_admin(auth.uid()));
-
--- Admins can update users (role changes, active status, etc.)
-CREATE POLICY "users_admin_manage" ON users
-  FOR ALL USING (is_admin(auth.uid()));
+-- ==================== USERS/PROFILES RLS ====================
+-- Note: Migration 001 creates 'profiles', not 'users'.
+-- If 'users' table exists (from Prisma), enable RLS on it too.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users' AND table_schema = 'public') THEN
+    EXECUTE 'ALTER TABLE users ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'CREATE POLICY "users_self_read" ON users FOR SELECT USING (auth.uid() = id)';
+    EXECUTE 'CREATE POLICY "users_admin_read" ON users FOR SELECT USING (is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "users_admin_manage" ON users FOR ALL USING (is_admin(auth.uid()))';
+  END IF;
+END $$;
 
 
 -- ==================== PROFILES (userId column) ====================
 CREATE POLICY "profiles_self_read" ON profiles
-  FOR SELECT USING (auth.uid() = "userId");
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "profiles_self_update" ON profiles
-  FOR UPDATE USING (auth.uid() = "userId")
-  WITH CHECK (auth.uid() = "userId");
+  FOR UPDATE USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "profiles_admin_all" ON profiles
   FOR ALL USING (is_admin(auth.uid()));
@@ -142,19 +138,19 @@ CREATE POLICY "profiles_faculty_view_students" ON profiles
     is_faculty(auth.uid()) AND
     EXISTS (
       SELECT 1 FROM students s
-      JOIN classes c ON c.id = s."classId"
-      WHERE s."userId" = profiles."userId"
-      AND c."inchargeId" = get_faculty_id(auth.uid())
+      JOIN classes c ON c.id = s.class_id
+      WHERE s.user_id = profiles.user_id
+      AND c.incharge_id = get_faculty_id(auth.uid())
     )
   );
 
 
 -- ==================== SESSIONS (userId column) ====================
 CREATE POLICY "sessions_self_read" ON sessions
-  FOR SELECT USING (auth.uid() = "userId");
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "sessions_self_delete" ON sessions
-  FOR DELETE USING (auth.uid() = "userId");
+  FOR DELETE USING (auth.uid() = user_id);
 
 
 -- ==================== DEPARTMENTS (no is_active column) ====================
@@ -167,7 +163,7 @@ CREATE POLICY "departments_admin_all" ON departments
 
 -- ==================== FACULTY (userId, no is_active) ====================
 CREATE POLICY "faculty_self_read" ON faculty
-  FOR SELECT USING (auth.uid() = "userId");
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "faculty_anyone_read" ON faculty
   FOR SELECT USING (true);
@@ -189,7 +185,7 @@ CREATE POLICY "classes_anyone_read" ON classes
   FOR SELECT USING (true);
 
 CREATE POLICY "classes_faculty_assigned" ON classes
-  FOR SELECT USING ("inchargeId" = get_faculty_id(auth.uid()));
+  FOR SELECT USING (incharge_id = get_faculty_id(auth.uid()));
 
 CREATE POLICY "classes_admin_all" ON classes
   FOR ALL USING (is_admin(auth.uid()));
@@ -197,19 +193,19 @@ CREATE POLICY "classes_admin_all" ON classes
 
 -- ==================== STUDENTS (userId, classId) ====================
 CREATE POLICY "students_self_read" ON students
-  FOR SELECT USING (auth.uid() = "userId");
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "students_self_update" ON students
-  FOR UPDATE USING (auth.uid() = "userId")
-  WITH CHECK (auth.uid() = "userId");
+  FOR UPDATE USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "students_faculty_class" ON students
   FOR SELECT USING (
     is_faculty(auth.uid()) AND
     EXISTS (
       SELECT 1 FROM classes
-      WHERE id = students."classId"
-      AND "inchargeId" = get_faculty_id(auth.uid())
+      WHERE id = students.class_id
+      AND incharge_id = get_faculty_id(auth.uid())
     )
   );
 
@@ -233,28 +229,28 @@ CREATE POLICY "timetable_admin_all" ON timetable_entries
   FOR ALL USING (is_admin(auth.uid()));
 
 
--- ==================== TIMETABLE (camelCase Prisma table) ====================
-ALTER TABLE timetable ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "timetable_v2_anyone_read" ON timetable
-  FOR SELECT USING (true);
-
-CREATE POLICY "timetable_v2_admin_all" ON timetable
-  FOR ALL USING (is_admin(auth.uid()));
+-- ==================== TIMETABLE (camelCase Prisma table - optional) ====================
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'timetable' AND table_schema = 'public') THEN
+    EXECUTE 'ALTER TABLE timetable ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'CREATE POLICY "timetable_v2_anyone_read" ON timetable FOR SELECT USING (true)';
+    EXECUTE 'CREATE POLICY "timetable_v2_admin_all" ON timetable FOR ALL USING (is_admin(auth.uid()))';
+  END IF;
+END $$;
 
 
 -- ==================== ATTENDANCE (studentId) ====================
 CREATE POLICY "attendance_self_read" ON attendance
-  FOR SELECT USING ("studentId" = get_student_id(auth.uid()));
+  FOR SELECT USING (student_id = get_student_id(auth.uid()));
 
 CREATE POLICY "attendance_faculty_class" ON attendance
   FOR SELECT USING (
     is_faculty(auth.uid()) AND
     EXISTS (
       SELECT 1 FROM students s
-      JOIN classes c ON c.id = s."classId"
-      WHERE s.id = attendance."studentId"
-      AND c."inchargeId" = get_faculty_id(auth.uid())
+      JOIN classes c ON c.id = s.class_id
+      WHERE s.id = attendance.student_id
+      AND c.incharge_id = get_faculty_id(auth.uid())
     )
   );
 
@@ -263,9 +259,9 @@ CREATE POLICY "attendance_faculty_manage" ON attendance
     is_faculty(auth.uid()) AND
     EXISTS (
       SELECT 1 FROM students s
-      JOIN classes c ON c.id = s."classId"
-      WHERE s.id = attendance."studentId"
-      AND c."inchargeId" = get_faculty_id(auth.uid())
+      JOIN classes c ON c.id = s.class_id
+      WHERE s.id = attendance.student_id
+      AND c.incharge_id = get_faculty_id(auth.uid())
     )
   );
 
@@ -275,14 +271,14 @@ CREATE POLICY "attendance_admin_all" ON attendance
 
 -- ==================== LEAVE_REQUESTS (studentId, approvedById) ====================
 CREATE POLICY "leaves_self_read" ON leave_requests
-  FOR SELECT USING ("studentId" = get_student_id(auth.uid()));
+  FOR SELECT USING (student_id = get_student_id(auth.uid()));
 
 CREATE POLICY "leaves_self_create" ON leave_requests
-  FOR INSERT WITH CHECK ("studentId" = get_student_id(auth.uid()));
+  FOR INSERT WITH CHECK (student_id = get_student_id(auth.uid()));
 
 CREATE POLICY "leaves_self_cancel" ON leave_requests
   FOR UPDATE USING (
-    "studentId" = get_student_id(auth.uid()) AND
+    student_id = get_student_id(auth.uid()) AND
     status::TEXT = 'PENDING'
   );
 
@@ -291,9 +287,9 @@ CREATE POLICY "leaves_faculty_manage" ON leave_requests
     is_faculty(auth.uid()) AND
     EXISTS (
       SELECT 1 FROM students s
-      JOIN classes c ON c.id = s."classId"
-      WHERE s.id = leave_requests."studentId"
-      AND c."inchargeId" = get_faculty_id(auth.uid())
+      JOIN classes c ON c.id = s.class_id
+      WHERE s.id = leave_requests.student_id
+      AND c.incharge_id = get_faculty_id(auth.uid())
     )
   );
 
@@ -303,15 +299,15 @@ CREATE POLICY "leaves_admin_all" ON leave_requests
 
 -- ==================== GRADES (studentId, subjectId) ====================
 CREATE POLICY "grades_self_read" ON grades
-  FOR SELECT USING ("studentId" = get_student_id(auth.uid()));
+  FOR SELECT USING (student_id = get_student_id(auth.uid()));
 
 CREATE POLICY "grades_faculty_manage" ON grades
   FOR ALL USING (
     is_faculty(auth.uid()) AND
     EXISTS (
       SELECT 1 FROM subjects
-      WHERE id = grades."subjectId"
-      AND "facultyId" = get_faculty_id(auth.uid())
+      WHERE id = grades.subject_id
+      AND faculty_id = get_faculty_id(auth.uid())
     )
   );
 
@@ -322,7 +318,7 @@ CREATE POLICY "grades_admin_all" ON grades
 -- ==================== NOTICES (authorId, expiryDate, no target_roles/is_active) ====================
 CREATE POLICY "notices_anyone_read" ON notices
   FOR SELECT USING (
-    "expiryDate" IS NULL OR "expiryDate" > NOW()
+    expiry_date IS NULL OR expiry_date > NOW()
   );
 
 CREATE POLICY "notices_admin_faculty_manage" ON notices
@@ -336,10 +332,10 @@ CREATE POLICY "notice_reads_self" ON notice_reads
 
 -- ==================== NOTIFICATIONS (userId) ====================
 CREATE POLICY "notifications_self_read" ON notifications
-  FOR SELECT USING (auth.uid() = "userId");
+  FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "notifications_self_update" ON notifications
-  FOR UPDATE USING (auth.uid() = "userId");
+  FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "notifications_insert" ON notifications
   FOR INSERT WITH CHECK (true);
@@ -361,15 +357,18 @@ CREATE POLICY "conv_parts_self" ON conversation_participants
   FOR SELECT USING (user_id = auth.uid());
 
 
--- ==================== MESSAGES (senderId, receiverId — no conversation_id) ====================
--- Messages use direct sender/receiver model, not conversations
+-- ==================== MESSAGES (conversation-based model) ====================
 CREATE POLICY "messages_self_read" ON messages
   FOR SELECT USING (
-    auth.uid() = "senderId" OR auth.uid() = "receiverId"
+    EXISTS (
+      SELECT 1 FROM conversation_participants
+      WHERE conversation_id = messages.conversation_id
+      AND user_id = auth.uid()
+    )
   );
 
 CREATE POLICY "messages_self_send" ON messages
-  FOR INSERT WITH CHECK (auth.uid() = "senderId");
+  FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
 CREATE POLICY "messages_admin_read" ON messages
   FOR SELECT USING (is_admin(auth.uid()));
@@ -380,7 +379,7 @@ CREATE POLICY "audit_admin_read" ON audit_logs
   FOR SELECT USING (is_admin(auth.uid()));
 
 CREATE POLICY "audit_self_read" ON audit_logs
-  FOR SELECT USING (auth.uid() = "userId");
+  FOR SELECT USING (auth.uid() = user_id);
 
 
 -- ==================== SECURITY_ALERTS (snake_case, OK) ====================
@@ -409,21 +408,21 @@ CREATE POLICY "admins_admin_read" ON admins
 CREATE POLICY "admins_super_manage" ON admins
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM users
-      WHERE id = auth.uid()
+      SELECT 1 FROM profiles
+      WHERE user_id = auth.uid()
       AND role::TEXT = 'SUPER_ADMIN'
     )
   );
 
 
--- ==================== BLOCKCHAIN_RECORDS ====================
-ALTER TABLE blockchain_records ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "blockchain_admin_read" ON blockchain_records
-  FOR SELECT USING (is_admin(auth.uid()));
-
-CREATE POLICY "blockchain_anyone_insert" ON blockchain_records
-  FOR INSERT WITH CHECK (true);
+-- ==================== BLOCKCHAIN_RECORDS (optional) ====================
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'blockchain_records' AND table_schema = 'public') THEN
+    EXECUTE 'ALTER TABLE blockchain_records ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'CREATE POLICY "blockchain_admin_read" ON blockchain_records FOR SELECT USING (is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "blockchain_anyone_insert" ON blockchain_records FOR INSERT WITH CHECK (true)';
+  END IF;
+END $$;
 
 
 -- ==================== GRADES TABLE RLS ====================
@@ -435,3 +434,4 @@ CREATE POLICY "blockchain_anyone_insert" ON blockchain_records
 -- ============================================================
 -- Service role automatically bypasses RLS in Supabase
 -- No additional grants needed.
+

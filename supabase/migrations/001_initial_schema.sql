@@ -23,7 +23,7 @@ CREATE TYPE severity AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 
 -- Users table (extends Supabase auth.users)
 CREATE TABLE profiles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
   role user_role NOT NULL DEFAULT 'STUDENT',
@@ -51,7 +51,7 @@ CREATE TABLE profiles (
 
 -- Sessions tracking
 CREATE TABLE sessions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   token TEXT UNIQUE NOT NULL,
   device_info TEXT,
@@ -63,7 +63,7 @@ CREATE TABLE sessions (
 -- ==================== ROLE-BASED MODELS ====================
 
 CREATE TABLE admins (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   permissions TEXT[] DEFAULT '{}',
   department TEXT,
@@ -71,7 +71,7 @@ CREATE TABLE admins (
 );
 
 CREATE TABLE departments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT UNIQUE NOT NULL,
   code TEXT UNIQUE NOT NULL,
   description TEXT,
@@ -82,7 +82,7 @@ CREATE TABLE departments (
 );
 
 CREATE TABLE faculty (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   employee_id TEXT UNIQUE NOT NULL,
   designation TEXT NOT NULL,
@@ -99,7 +99,7 @@ CREATE TABLE faculty (
 ALTER TABLE departments ADD CONSTRAINT fk_hod FOREIGN KEY (hod_id) REFERENCES faculty(id);
 
 CREATE TABLE courses (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   code TEXT UNIQUE NOT NULL,
   credits INTEGER NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE courses (
 );
 
 CREATE TABLE classes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   section TEXT NOT NULL,
   department_id UUID NOT NULL REFERENCES departments(id),
@@ -128,7 +128,7 @@ CREATE TABLE classes (
 );
 
 CREATE TABLE students (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   enrollment_id TEXT UNIQUE NOT NULL,
   department_id UUID NOT NULL REFERENCES departments(id),
@@ -146,7 +146,7 @@ CREATE TABLE students (
 );
 
 CREATE TABLE subjects (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   code TEXT UNIQUE NOT NULL,
   credits INTEGER NOT NULL,
@@ -160,7 +160,7 @@ CREATE TABLE subjects (
 -- ==================== TIMETABLE ====================
 
 CREATE TABLE timetable_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
   subject_id UUID NOT NULL REFERENCES subjects(id),
   faculty_id UUID NOT NULL REFERENCES faculty(id),
@@ -176,7 +176,7 @@ CREATE TABLE timetable_entries (
 -- ==================== ATTENDANCE SYSTEM ====================
 
 CREATE TABLE attendance (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   subject_id UUID REFERENCES subjects(id),
   timetable_entry_id UUID REFERENCES timetable_entries(id),
@@ -207,7 +207,7 @@ CREATE INDEX idx_attendance_status ON attendance(status);
 -- ==================== LEAVE MANAGEMENT ====================
 
 CREATE TABLE leave_requests (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
@@ -226,7 +226,7 @@ CREATE TABLE leave_requests (
 -- ==================== GRADES ====================
 
 CREATE TABLE grades (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   subject_id UUID NOT NULL REFERENCES subjects(id),
   semester INTEGER NOT NULL,
@@ -245,7 +245,7 @@ CREATE TABLE grades (
 -- ==================== NOTICE BOARD ====================
 
 CREATE TABLE notices (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   priority priority DEFAULT 'MEDIUM',
@@ -263,7 +263,7 @@ CREATE TABLE notices (
 );
 
 CREATE TABLE notice_reads (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   notice_id UUID NOT NULL REFERENCES notices(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   read_at TIMESTAMPTZ DEFAULT NOW(),
@@ -273,7 +273,7 @@ CREATE TABLE notice_reads (
 -- ==================== NOTIFICATIONS ====================
 
 CREATE TABLE notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   message TEXT NOT NULL,
@@ -290,13 +290,13 @@ CREATE INDEX idx_notifications_user ON notifications(user_id, is_read);
 -- ==================== MESSAGING ====================
 
 CREATE TABLE conversations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE conversation_participants (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   last_read_at TIMESTAMPTZ,
@@ -306,7 +306,7 @@ CREATE TABLE conversation_participants (
 );
 
 CREATE TABLE messages (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   sender_id UUID NOT NULL REFERENCES auth.users(id),
   content TEXT NOT NULL,
@@ -321,7 +321,7 @@ CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at D
 -- ==================== AUDIT LOGS ====================
 
 CREATE TABLE audit_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id),
   action TEXT NOT NULL,
   entity_type TEXT NOT NULL,
@@ -340,7 +340,7 @@ CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
 -- ==================== SECURITY ALERTS ====================
 
 CREATE TABLE security_alerts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL, -- face_mismatch, suspicious_login, geo_anomaly
   severity severity NOT NULL,
   user_id UUID REFERENCES auth.users(id),
@@ -358,7 +358,7 @@ CREATE INDEX idx_security_alerts_unresolved ON security_alerts(resolved, created
 -- ==================== SYSTEM SETTINGS ====================
 
 CREATE TABLE system_settings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   key TEXT UNIQUE NOT NULL,
   value JSONB NOT NULL,
   description TEXT,

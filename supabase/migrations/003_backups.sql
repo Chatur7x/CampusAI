@@ -4,7 +4,7 @@
 
 -- Table: backups (matches legacy Prisma model)
 CREATE TABLE IF NOT EXISTS backups (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   filename TEXT NOT NULL,
   size BIGINT NOT NULL,
   type TEXT NOT NULL, -- automatic | manual

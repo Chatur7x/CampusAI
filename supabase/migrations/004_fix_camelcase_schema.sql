@@ -5,13 +5,13 @@
 -- ============================================================
 
 -- ==================== DROP OLD FUNCTIONS ====================
-DROP FUNCTION IF EXISTS get_user_role(UUID);
-DROP FUNCTION IF EXISTS is_admin(UUID);
-DROP FUNCTION IF EXISTS is_faculty(UUID);
-DROP FUNCTION IF EXISTS get_student_id(UUID);
-DROP FUNCTION IF EXISTS get_faculty_id(UUID);
-DROP FUNCTION IF EXISTS calculate_attendance_percentage(UUID, DATE, DATE);
-DROP FUNCTION IF EXISTS get_admin_dashboard_stats();
+DROP FUNCTION IF EXISTS get_user_role(UUID) CASCADE;
+DROP FUNCTION IF EXISTS is_admin(UUID) CASCADE;
+DROP FUNCTION IF EXISTS is_faculty(UUID) CASCADE;
+DROP FUNCTION IF EXISTS get_student_id(UUID) CASCADE;
+DROP FUNCTION IF EXISTS get_faculty_id(UUID) CASCADE;
+DROP FUNCTION IF EXISTS calculate_attendance_percentage(UUID, DATE, DATE) CASCADE;
+DROP FUNCTION IF EXISTS get_admin_dashboard_stats() CASCADE;
 
 -- Drop old views so we can recreate them
 DROP VIEW IF EXISTS daily_attendance_summary;
@@ -20,43 +20,43 @@ DROP VIEW IF EXISTS student_attendance_overview;
 
 -- ==================== RECREATE HELPER FUNCTIONS ====================
 
--- get_user_role: role is in "users" table, not "profiles" 
+-- get_user_role: role is in "profiles" table
 -- Return TEXT now (the column may be TEXT from Prisma, not user_role enum)
 CREATE FUNCTION get_user_role(user_uuid UUID)
 RETURNS TEXT AS $$
-  SELECT role::TEXT FROM users WHERE id = user_uuid;
+  SELECT role::TEXT FROM profiles WHERE user_id = user_uuid;
 $$ LANGUAGE SQL SECURITY DEFINER;
 
--- is_admin: check "users" table
+-- is_admin: check "profiles" table
 CREATE FUNCTION is_admin(user_uuid UUID)
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
-    SELECT 1 FROM users 
-    WHERE id = user_uuid 
+    SELECT 1 FROM profiles 
+    WHERE user_id = user_uuid 
     AND role::TEXT IN ('SUPER_ADMIN', 'ADMIN')
   );
 $$ LANGUAGE SQL SECURITY DEFINER;
 
--- is_faculty: check "users" table
+-- is_faculty: check "profiles" table
 CREATE FUNCTION is_faculty(user_uuid UUID)
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
-    SELECT 1 FROM users 
-    WHERE id = user_uuid 
+    SELECT 1 FROM profiles 
+    WHERE user_id = user_uuid 
     AND role::TEXT IN ('FACULTY', 'CLASS_INCHARGE')
   );
 $$ LANGUAGE SQL SECURITY DEFINER;
 
--- get_student_id: students."userId" is camelCase
+-- get_student_id: students.user_id is camelCase
 CREATE FUNCTION get_student_id(user_uuid UUID)
 RETURNS UUID AS $$
-  SELECT id FROM students WHERE "userId" = user_uuid;
+  SELECT id FROM students WHERE user_id = user_uuid;
 $$ LANGUAGE SQL SECURITY DEFINER;
 
--- get_faculty_id: faculty."userId" is camelCase
+-- get_faculty_id: faculty.user_id is camelCase
 CREATE FUNCTION get_faculty_id(user_uuid UUID)
 RETURNS UUID AS $$
-  SELECT id FROM faculty WHERE "userId" = user_uuid;
+  SELECT id FROM faculty WHERE user_id = user_uuid;
 $$ LANGUAGE SQL SECURITY DEFINER;
 
 -- ==================== FIX ATTENDANCE PERCENTAGE FUNCTION ====================
@@ -76,7 +76,7 @@ BEGIN
     COUNT(*) FILTER (WHERE status::TEXT = 'PRESENT')
   INTO total_classes, present_classes
   FROM attendance
-  WHERE "studentId" = p_student_id
+  WHERE student_id = p_student_id
     AND (p_start_date IS NULL OR date >= p_start_date)
     AND (p_end_date IS NULL OR date <= p_end_date);
   
@@ -109,7 +109,7 @@ BEGIN
     ),
     'pendingLeaves', (SELECT COUNT(*) FROM leave_requests WHERE status::TEXT = 'PENDING'),
     'recentAlerts', (SELECT COUNT(*) FROM security_alerts WHERE resolved = false),
-    'activeNotices', (SELECT COUNT(*) FROM notices WHERE ("expiryDate" IS NULL OR "expiryDate" > NOW()))
+    'activeNotices', (SELECT COUNT(*) FROM notices WHERE (expiry_date IS NULL OR expiry_date > NOW()))
   ) INTO result;
   
   RETURN result;
@@ -135,23 +135,23 @@ ORDER BY date DESC;
 -- Department-wise attendance (fix camelCase FKs)
 CREATE VIEW department_attendance_summary AS
 SELECT 
-  d.id as "departmentId",
+  d.id as department_id,
   d.name as "departmentName",
   COUNT(DISTINCT s.id) as "studentCount",
   COUNT(a.id) as "totalAttendanceRecords",
   ROUND(AVG(CASE WHEN a.status::TEXT = 'PRESENT' THEN 1 ELSE 0 END) * 100, 2) as "attendancePercentage"
 FROM departments d
-LEFT JOIN students s ON s."departmentId" = d.id
-LEFT JOIN attendance a ON a."studentId" = s.id
+LEFT JOIN students s ON s.department_id = d.id
+LEFT JOIN attendance a ON a.student_id = s.id
 GROUP BY d.id, d.name;
 
 -- Student attendance overview (fix camelCase columns)
 CREATE VIEW student_attendance_overview AS
 SELECT 
-  s.id as "studentId",
-  s."enrollmentId",
-  p."firstName",
-  p."lastName",
+  s.id as student_id,
+  s.enrollment_id,
+  p.first_name,
+  p.last_name,
   d.name as department,
   c.name as "className",
   COUNT(a.id) as "totalClasses",
@@ -159,8 +159,9 @@ SELECT
   COUNT(*) FILTER (WHERE a.status::TEXT = 'ABSENT') as absent,
   ROUND(COUNT(*) FILTER (WHERE a.status::TEXT = 'PRESENT')::DECIMAL / NULLIF(COUNT(*), 0) * 100, 2) as "attendancePercentage"
 FROM students s
-JOIN profiles p ON p."userId" = s."userId"
-JOIN departments d ON d.id = s."departmentId"
-JOIN classes c ON c.id = s."classId"
-LEFT JOIN attendance a ON a."studentId" = s.id
-GROUP BY s.id, s."enrollmentId", p."firstName", p."lastName", d.name, c.name;
+JOIN profiles p ON p.user_id = s.user_id
+JOIN departments d ON d.id = s.department_id
+JOIN classes c ON c.id = s.class_id
+LEFT JOIN attendance a ON a.student_id = s.id
+GROUP BY s.id, s.enrollment_id, p.first_name, p.last_name, d.name, c.name;
+
