@@ -16,7 +16,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const TABLES_TO_BACKUP = [
-  'users',
   'profiles',
   'students',
   'faculty',
@@ -26,7 +25,7 @@ const TABLES_TO_BACKUP = [
   'subjects',
   'attendance',
   'timetable_entries',
-  'leaves',
+  'leave_requests',
   'notices',
   'notifications',
   'audit_logs',
@@ -44,12 +43,35 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } }
     )
 
-    // Verify caller is authorized (service role or admin)
+    // Verify caller is authorized
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verify the caller is an admin (not just any authenticated user)
+    const jwt = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt)
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!profile || !['SUPER_ADMIN', 'ADMIN'].includes(profile.role)) {
+      return new Response(
+        JSON.stringify({ error: 'Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 

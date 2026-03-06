@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
 
         const now = new Date()
         const reminderTime = new Date(now.getTime() + minutesBefore * 60000)
-        const currentDay = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][now.getDay()]
+        const currentDay = now.getDay()
         const targetTime = reminderTime.toTimeString().substring(0, 5)
 
         const { data: upcomingClasses } = await supabase
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
         const { leaveId, status, remarks } = payload as { leaveId: string; status: string; remarks?: string }
 
         const { data: leave } = await supabase
-          .from('leaves')
+          .from('leave_requests')
           .select(`
             id,
             type,
@@ -415,15 +415,15 @@ async function notifyGuardians(supabase: ReturnType<typeof createClient>, studen
   // Get parent/guardian contact and notify (camelCase columns from Prisma)
   const { data: student } = await supabase
     .from('students')
-    .select('"guardianName", "guardianPhone", "guardianEmail"')
+    .select('guardian_name, guardian_phone, guardian_email')
     .eq('id', studentId)
     .single()
 
-  if (student?.guardianEmail) {
+  if (student?.guardian_email) {
     await sendEmail({
-      to: student.guardianEmail,
+      to: student.guardian_email,
       subject: 'Student Attendance Alert',
-      body: `Dear ${student.guardianName},\n\n${message}\n\nPlease ensure your ward maintains regular attendance.\n\nRegards,\nCampusAI Team`,
+      body: `Dear ${student.guardian_name},\n\n${message}\n\nPlease ensure your ward maintains regular attendance.\n\nRegards,\nCampusAI Team`,
     })
   }
 }

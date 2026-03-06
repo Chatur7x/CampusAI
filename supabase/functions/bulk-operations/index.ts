@@ -32,12 +32,14 @@ interface BulkResponse {
   message: string
 }
 
-// Generate secure random password
+// Generate cryptographically secure random password
 function generatePassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%'
+  const array = new Uint8Array(12)
+  crypto.getRandomValues(array)
   let password = ''
   for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length))
+    password += chars.charAt(array[i] % chars.length)
   }
   return password
 }
@@ -166,11 +168,11 @@ Deno.serve(async (req) => {
 
               // 1. In-app notification
               await supabase.from('notifications').insert({
-                userId: authUser.user.id,
-                type: 'WELCOME',
+                user_id: authUser.user.id,
+                type: 'SYSTEM',
                 title: 'Welcome to CampusAI',
                 message: welcomeMsg,
-                status: 'unread',
+                priority: 'MEDIUM',
               }).then(({ error }) => {
                 if (error) console.warn(`Notification insert failed for ${row.email}:`, error.message);
               });

@@ -123,14 +123,17 @@ Deno.serve(async (req) => {
 })
 
 async function getRole(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  // Try profiles table first (Supabase migration schema)
   const { data, error } = await supabase
-    .from('users')
+    .from('profiles')
     .select('role')
-    .returns<{ role: string }>()
-    .eq('id', userId)
+    .eq('user_id', userId)
     .single()
-  if (error) return null
-  return data?.role ?? null
+  if (!error && data?.role) return data.role
+
+  // Fallback: check user_metadata from auth
+  const { data: { user } } = await supabase.auth.admin.getUserById(userId)
+  return (user?.user_metadata?.role as string) ?? null
 }
 
 type TimetableEntry = {
