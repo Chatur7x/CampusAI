@@ -1,35 +1,60 @@
 # =============================================================
-# 1. Face Recognition — InsightFace / ArcFace  (ai-server/models/face_recognition_module.py)
+# 1. Identity Intelligence — Advanced Face Recognition
+#    (ai-server/models/face_recognition_module.py)
 # =============================================================
 """
-- Uses InsightFace with ArcFace (buffalo_l) to generate 512-D embeddings.
-- Cosine similarity for matching:  similarity = (A · B) / (||A|| × ||B||)
-- Multi-image enrollment: stores average embedding per student.
-- No TensorFlow dependency — pure ONNX Runtime.
+Subsystem 1: Identity Intelligence
+
+Models:
+  - ArcFace (InsightFace buffalo_l) — primary, state-of-the-art 512-D embeddings
+  - FaceNet / VGG-Face (DeepFace) — optional backup when InsightFace unavailable
+  - RetinaFace — integrated face detector inside InsightFace
+
+Matching Algorithm:
+  Cosine similarity: similarity = (A · B) / (||A|| × ||B||)
+
+Advanced Features:
+  ✔ Multi-image enrollment (averaged embeddings)
+  ✔ Adaptive similarity threshold
+  ✔ Aging adaptation (embedding update)
+  ✔ Ensemble scoring (ArcFace + DeepFace)
+  ✔ GPU inference acceleration (optional)
+  ✔ 1:1 verification + 1:N identification
 """
 from __future__ import annotations
 
-import base64, io, logging
-from typing import List
+import base64, io, logging, time
+from typing import List, Optional
 
 import numpy as np
 from PIL import Image
 
-from config import FACE_SIMILARITY_THRESHOLD
+from config import FACE_SIMILARITY_THRESHOLD, GPU_ENABLED
 
 logger = logging.getLogger("campusai.face")
 
-# Lazy load ──────────────────────────────────────────────────
+# ── Lazy model holders ───────────────────────────────────────
 _face_app = None
+_deepface_available = False
+
+try:
+    from deepface import DeepFace as _DeepFace
+    _deepface_available = True
+    logger.info("DeepFace available as backup face engine")
+except ImportError:
+    _DeepFace = None
+    logger.info("DeepFace not installed — using InsightFace only")
 
 
 def _get_face_app():
+    """Load InsightFace ArcFace (buffalo_l) with RetinaFace detector."""
     global _face_app
     if _face_app is None:
         from insightface.app import FaceAnalysis
-        _face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-        _face_app.prepare(ctx_id=-1, det_size=(640, 640))
-        logger.info("InsightFace buffalo_l loaded (ArcFace 512-D, ONNX)")
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if GPU_ENABLED else ["CPUExecutionProvider"]
+        _face_app = FaceAnalysis(name="buffalo_l", providers=providers)
+        _face_app.prepare(ctx_id=0 if GPU_ENABLED else -1, det_size=(640, 640))
+        logger.info(f"InsightFace buffalo_l loaded (ArcFace 512-D, GPU={GPU_ENABLED})")
     return _face_app
 
 
@@ -42,8 +67,7 @@ def _b64_to_np(b64: str) -> np.ndarray:
     raw = base64.b64decode(b64)
     img = Image.open(io.BytesIO(raw)).convert("RGB")
     arr = np.array(img)
-    # InsightFace expects BGR
-    return arr[:, :, ::-1].copy()
+    return arr[:, :, ::-1].copy()  # RGB → BGR for InsightFace
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -57,39 +81,105 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(dot / norm)
 
 
+def _adaptive_threshold(enrollment_count: int = 1, age_days: int = 0) -> float:
+    """
+    Adaptive similarity threshold:
+    - More enrollment images → stricter threshold
+    - Older enrollment → slightly relaxed (aging adaptation)
+    """
+    base = FACE_SIMILARITY_THRESHOLD
+    # Tighter threshold with more enrollment images
+    enrollment_bonus = min(enrollment_count * 0.01, 0.05)
+    # Slight relaxation for older enrollments (aging)
+    age_penalty = min(age_days / 3650, 0.05)  # Up to 5% over 10 years
+    return max(0.40, min(0.80, base + enrollment_bonus - age_penalty))
+
+
+# ── DeepFace Backup Engine ───────────────────────────────────
+
+def _deepface_embedding(image_b64: str) -> Optional[np.ndarray]:
+    """Generate embedding using DeepFace (FaceNet backbone) as backup."""
+    if not _deepface_available or _DeepFace is None:
+        return None
+    try:
+        if "," in image_b64:
+            image_b64 = image_b64.split(",", 1)[1]
+        raw = base64.b64decode(image_b64)
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+        arr = np.array(img)
+        results = _DeepFace.represent(arr, model_name="Facenet512", enforce_detection=False)
+        if results and len(results) > 0:
+            emb = np.array(results[0]["embedding"], dtype=np.float64)
+            emb = emb / np.linalg.norm(emb)  # L2 normalize
+            return emb
+    except Exception as e:
+        logger.debug(f"DeepFace backup failed: {e}")
+    return None
+
+
 # ── Public API ───────────────────────────────────────────────
 
 def generate_embedding(image_b64: str) -> dict:
     """
     Generate a 512-D face embedding from a base64-encoded image.
-    Returns {"embedding": [...], "face_detected": True/False}
+    Primary: InsightFace ArcFace | Backup: DeepFace FaceNet
     """
+    start = time.time()
     app = _get_face_app()
     img = _b64_to_np(image_b64)
     try:
         faces = app.get(img)
         if not faces:
+            # Try DeepFace backup
+            backup_emb = _deepface_embedding(image_b64)
+            if backup_emb is not None:
+                return {
+                    "embedding": backup_emb.tolist(),
+                    "face_detected": True,
+                    "engine": "deepface_facenet",
+                    "inference_ms": round((time.time() - start) * 1000, 1),
+                }
             return {"embedding": None, "face_detected": False}
-        # Take the largest face
+
+        # Take the largest face (RetinaFace detector)
         face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-        embedding = face.normed_embedding.tolist()  # Already L2-normalized 512-D
-        return {"embedding": embedding, "face_detected": True}
+        embedding = face.normed_embedding.tolist()
+        return {
+            "embedding": embedding,
+            "face_detected": True,
+            "engine": "insightface_arcface",
+            "face_score": round(float(face.det_score), 4),
+            "bbox": [int(x) for x in face.bbox],
+            "inference_ms": round((time.time() - start) * 1000, 1),
+        }
     except Exception as e:
         logger.warning(f"Face detection failed: {e}")
+        # Try DeepFace backup
+        backup_emb = _deepface_embedding(image_b64)
+        if backup_emb is not None:
+            return {
+                "embedding": backup_emb.tolist(),
+                "face_detected": True,
+                "engine": "deepface_facenet",
+                "inference_ms": round((time.time() - start) * 1000, 1),
+            }
         return {"embedding": None, "face_detected": False, "error": str(e)}
 
 
 def generate_multi_embedding(images_b64: List[str]) -> dict:
     """
-    Generate an averaged embedding from multiple images (multi-angle enrollment).
-    Returns {"embedding": [...], "count": N, "face_detected": True}
+    Multi-image enrollment: generate averaged embedding from multiple angles.
+    This improves accuracy by capturing face from different perspectives.
     """
     embeddings: list[np.ndarray] = []
     errors: list[str] = []
+    engines_used: set[str] = set()
+
     for idx, b64 in enumerate(images_b64):
         result = generate_embedding(b64)
         if result.get("face_detected") and result.get("embedding"):
             embeddings.append(np.array(result["embedding"]))
+            engines_used.add(result.get("engine", "unknown"))
         else:
             errors.append(f"Image {idx}: {result.get('error', 'no face')}")
 
@@ -102,14 +192,19 @@ def generate_multi_embedding(images_b64: List[str]) -> dict:
         "embedding": avg.tolist(),
         "count": len(embeddings),
         "face_detected": True,
+        "engines_used": list(engines_used),
         "errors": errors if errors else None,
     }
 
 
-def verify_face(probe_b64: str, stored_embedding: list[float]) -> dict:
+def verify_face(
+    probe_b64: str,
+    stored_embedding: list[float],
+    enrollment_count: int = 1,
+    enrollment_age_days: int = 0,
+) -> dict:
     """
-    Compare a probe image against a stored embedding.
-    Returns {"match": bool, "similarity": float, "threshold": float}
+    1:1 face verification with adaptive threshold and optional ensemble scoring.
     """
     result = generate_embedding(probe_b64)
     if not result.get("face_detected") or not result.get("embedding"):
@@ -117,19 +212,34 @@ def verify_face(probe_b64: str, stored_embedding: list[float]) -> dict:
 
     probe_emb = np.array(result["embedding"])
     stored_emb = np.array(stored_embedding)
-    sim = cosine_similarity(probe_emb, stored_emb)
+    threshold = _adaptive_threshold(enrollment_count, enrollment_age_days)
+
+    # Primary similarity (ArcFace)
+    primary_sim = cosine_similarity(probe_emb, stored_emb)
+
+    # Ensemble: if DeepFace available, get secondary score
+    ensemble_sim = primary_sim
+    if _deepface_available:
+        backup_emb = _deepface_embedding(probe_b64)
+        if backup_emb is not None and len(stored_emb) == len(backup_emb):
+            secondary_sim = cosine_similarity(backup_emb, stored_emb)
+            ensemble_sim = 0.7 * primary_sim + 0.3 * secondary_sim
+
     return {
-        "match": sim >= FACE_SIMILARITY_THRESHOLD,
-        "similarity": round(sim, 4),
-        "threshold": FACE_SIMILARITY_THRESHOLD,
+        "match": ensemble_sim >= threshold,
+        "similarity": round(ensemble_sim, 4),
+        "primary_similarity": round(primary_sim, 4),
+        "threshold": round(threshold, 4),
+        "engine": result.get("engine", "insightface_arcface"),
+        "ensemble": _deepface_available,
+        "inference_ms": result.get("inference_ms", 0),
     }
 
 
 def identify_face(probe_b64: str, candidates: list[dict]) -> dict:
     """
-    1-to-N face identification.
-    candidates = [{"student_id": "...", "embedding": [...]}]
-    Returns best match or None.
+    1:N face identification across multiple enrolled students.
+    Returns the best match above the adaptive threshold.
     """
     result = generate_embedding(probe_b64)
     if not result.get("face_detected") or not result.get("embedding"):
@@ -138,19 +248,49 @@ def identify_face(probe_b64: str, candidates: list[dict]) -> dict:
     probe_emb = np.array(result["embedding"])
     best_sim = -1.0
     best_id = None
+    scores: list[dict] = []
 
     for c in candidates:
         stored = np.array(c["embedding"])
         sim = cosine_similarity(probe_emb, stored)
+        scores.append({"student_id": c["student_id"], "similarity": round(sim, 4)})
         if sim > best_sim:
             best_sim = sim
             best_id = c["student_id"]
 
-    if best_sim >= FACE_SIMILARITY_THRESHOLD:
+    threshold = _adaptive_threshold()
+    # Sort by similarity descending
+    scores.sort(key=lambda x: x["similarity"], reverse=True)
+
+    if best_sim >= threshold:
         return {
             "identified": True,
             "student_id": best_id,
             "similarity": round(best_sim, 4),
-            "threshold": FACE_SIMILARITY_THRESHOLD,
+            "threshold": round(threshold, 4),
+            "top_matches": scores[:5],
+            "candidates_checked": len(candidates),
         }
-    return {"identified": False, "best_similarity": round(best_sim, 4)}
+    return {
+        "identified": False,
+        "best_similarity": round(best_sim, 4),
+        "threshold": round(threshold, 4),
+        "top_matches": scores[:3],
+    }
+
+
+def update_embedding_with_aging(
+    current_embedding: list[float],
+    new_embedding: list[float],
+    alpha: float = 0.1,
+) -> list[float]:
+    """
+    Aging adaptation: gradually update stored embedding with new observations.
+    new_stored = (1 - alpha) × current + alpha × new_observation
+    This handles natural face changes over time.
+    """
+    curr = np.array(current_embedding, dtype=np.float64)
+    new = np.array(new_embedding, dtype=np.float64)
+    updated = (1 - alpha) * curr + alpha * new
+    updated = updated / np.linalg.norm(updated)  # Re-normalize
+    return updated.tolist()

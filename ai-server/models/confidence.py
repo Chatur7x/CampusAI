@@ -1,22 +1,45 @@
 # =============================================================
-# 3. Smart Attendance Confidence Scoring  (ai-server/models/confidence.py)
+# 3. Confidence & Trust Scoring Engine
+#    (ai-server/models/confidence.py)
 # =============================================================
 """
-Weighted formula:
-  confidence = 0.6 × face_similarity + 0.2 × liveness_score + 0.2 × geo_accuracy
+Subsystem 3: Confidence & Trust Scoring
+
+Formula:
+  confidence =
+    0.50 × face_similarity
+  + 0.20 × liveness_score
+  + 0.15 × geo_accuracy
+  + 0.15 × device_trust
 
 Categories:
-  HIGH       ≥ 0.85
-  MEDIUM     ≥ 0.60
-  LOW        ≥ 0.40
-  REJECTED   < 0.40
+  HIGH       ≥ 0.80  → Valid attendance (auto-approved)
+  MEDIUM     ≥ 0.60  → Valid but flagged for random audit
+  LOW        ≥ 0.40  → Require manual verification
+  REJECTED   < 0.40  → Rejected
+
+Advanced Features:
+  ✔ Suspicious attendance flag
+  ✔ Admin alert system
+  ✔ Automatic re-verification trigger
+  ✔ Device trust scoring
 """
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
+
+from config import CONF_WEIGHT_FACE, CONF_WEIGHT_LIVENESS, CONF_WEIGHT_GEO, CONF_WEIGHT_DEVICE
 
 logger = logging.getLogger("campusai.confidence")
+
+WEIGHTS = {
+    "face": CONF_WEIGHT_FACE,
+    "liveness": CONF_WEIGHT_LIVENESS,
+    "geo": CONF_WEIGHT_GEO,
+    "device": CONF_WEIGHT_DEVICE,
+}
 
 
 @dataclass
@@ -25,36 +48,70 @@ class ConfidenceResult:
     category: str
     breakdown: dict
     auto_approved: bool
+    flags: list = field(default_factory=list)
+    requires_reverification: bool = False
+    admin_alert: bool = False
 
 
-WEIGHTS = {"face": 0.6, "liveness": 0.2, "geo": 0.2}
+def compute_device_trust(
+    device_fingerprint: Optional[str] = None,
+    known_devices: Optional[list[str]] = None,
+    ip_address: Optional[str] = None,
+    known_ips: Optional[list[str]] = None,
+) -> float:
+    """
+    Compute device trust score (0..1).
+    1.0 = known device + known IP
+    0.5 = unknown device or IP
+    0.0 = suspicious combination
+    """
+    score = 0.5  # Neutral default
+
+    if device_fingerprint and known_devices:
+        if device_fingerprint in known_devices:
+            score += 0.3
+        else:
+            score -= 0.2
+
+    if ip_address and known_ips:
+        if ip_address in known_ips:
+            score += 0.2
+        else:
+            score -= 0.1
+
+    return max(0.0, min(1.0, score))
 
 
 def compute_confidence(
     face_similarity: float,
     liveness_score: float,
     geo_accuracy: float,
+    device_trust: float = 0.5,
 ) -> ConfidenceResult:
     """
-    Compute a weighted confidence score for an attendance mark.
+    Compute a weighted 4-component confidence score.
 
     Args:
-        face_similarity: 0..1 cosine similarity between probe and enrolled embedding
-        liveness_score:  0..1 from liveness pipeline
-        geo_accuracy:    0..1 (1 = on campus, decays with distance)
+        face_similarity: 0..1 cosine similarity
+        liveness_score:  0..1 from anti-spoof pipeline
+        geo_accuracy:    0..1 (1 = on campus)
+        device_trust:    0..1 (1 = known device + IP)
     """
     face_similarity = max(0.0, min(1.0, face_similarity))
     liveness_score  = max(0.0, min(1.0, liveness_score))
     geo_accuracy    = max(0.0, min(1.0, geo_accuracy))
+    device_trust    = max(0.0, min(1.0, device_trust))
 
     score = (
         WEIGHTS["face"]     * face_similarity +
         WEIGHTS["liveness"] * liveness_score +
-        WEIGHTS["geo"]      * geo_accuracy
+        WEIGHTS["geo"]      * geo_accuracy +
+        WEIGHTS["device"]   * device_trust
     )
     score = round(score, 4)
 
-    if score >= 0.85:
+    # Category thresholds
+    if score >= 0.80:
         category = "HIGH"
     elif score >= 0.60:
         category = "MEDIUM"
@@ -63,6 +120,22 @@ def compute_confidence(
     else:
         category = "REJECTED"
 
+    # Suspicious flags
+    flags: list[str] = []
+    if face_similarity < 0.5:
+        flags.append("LOW_FACE_SIMILARITY")
+    if liveness_score < 0.4:
+        flags.append("LIVENESS_CONCERN")
+    if geo_accuracy < 0.3:
+        flags.append("OUTSIDE_CAMPUS")
+    if device_trust < 0.3:
+        flags.append("UNKNOWN_DEVICE")
+
+    # Auto re-verification for border-line cases
+    requires_reverification = category == "LOW" or len(flags) >= 2
+    # Admin alert for rejected or heavily flagged
+    admin_alert = category == "REJECTED" or len(flags) >= 3
+
     return ConfidenceResult(
         score=score,
         category=category,
@@ -70,7 +143,11 @@ def compute_confidence(
             "face_similarity": round(face_similarity, 4),
             "liveness_score": round(liveness_score, 4),
             "geo_accuracy": round(geo_accuracy, 4),
+            "device_trust": round(device_trust, 4),
             "weights": WEIGHTS,
         },
-        auto_approved=category in ("HIGH", "MEDIUM"),
+        auto_approved=category in ("HIGH", "MEDIUM") and len(flags) == 0,
+        flags=flags,
+        requires_reverification=requires_reverification,
+        admin_alert=admin_alert,
     )

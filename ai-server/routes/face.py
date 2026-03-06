@@ -11,10 +11,12 @@ from pydantic import BaseModel
 
 from models.face_recognition_module import (
     generate_embedding, generate_multi_embedding, verify_face, identify_face,
+    update_embedding_with_aging,
 )
 from models.liveness import analyse_liveness, analyse_liveness_sequence
-from models.confidence import compute_confidence
+from models.confidence import compute_confidence, compute_device_trust
 from models.geo_validation import validate_location, detect_gps_spoof
+from models.audit_logger import log_ai_decision
 from utils.db import (
     fetch_student, fetch_student_by_user, update_face_data,
     fetch_all_students_with_faces,
@@ -39,6 +41,9 @@ class VerifyRequest(BaseModel):
     longitude: Optional[float] = None
     accuracy_m: Optional[float] = None
     device_fingerprint: Optional[str] = None
+    known_devices: Optional[List[str]] = None
+    ip_address: Optional[str] = None
+    known_ips: Optional[List[str]] = None
 
 
 class IdentifyRequest(BaseModel):
@@ -51,6 +56,12 @@ class IdentifyRequest(BaseModel):
 
 class LivenessRequest(BaseModel):
     frames: List[str]
+
+
+class AgingUpdateRequest(BaseModel):
+    stored_embedding: List[float]
+    new_embedding: List[float]
+    alpha: float = 0.1
 
 
 # ── Endpoints ─────────────────────────────────────────────────
@@ -69,6 +80,14 @@ async def register_face(req: RegisterRequest):
     embedding_json = json.dumps(result["embedding"])
     update_face_data(student["id"], embedding_json)
 
+    # Audit log
+    log_ai_decision(
+        decision_type="FACE_REGISTER",
+        student_id=student["id"],
+        user_id=req.user_id,
+        result={"success": True, "images_processed": result["count"]},
+    )
+
     return {
         "success": True,
         "student_id": student["id"],
@@ -79,7 +98,7 @@ async def register_face(req: RegisterRequest):
 
 @router.post("/verify")
 async def verify_face_endpoint(req: VerifyRequest):
-    """1:1 face verification + liveness + geo → confidence score."""
+    """1:1 face verification + liveness + geo → 4-component confidence score."""
     student = fetch_student_by_user(req.user_id)
     if not student:
         raise HTTPException(404, "Student not found")
@@ -103,11 +122,33 @@ async def verify_face_endpoint(req: VerifyRequest):
     if req.latitude is not None and req.longitude is not None:
         geo_result = validate_location(req.latitude, req.longitude, req.accuracy_m or 0)
 
-    # 4. Confidence
+    # 4. Confidence (4-component: face + liveness + geo + device trust)
+    device_trust = compute_device_trust(
+        device_fingerprint=req.device_fingerprint,
+        known_devices=req.known_devices,
+        ip_address=req.ip_address,
+        known_ips=req.known_ips,
+    )
     conf = compute_confidence(
         face_similarity=match_result.get("similarity", 0),
         liveness_score=liveness_result.get("liveness_score", liveness_result.get("avg_liveness_score", 0)),
         geo_accuracy=geo_result.get("geo_accuracy", 0),
+        device_trust=device_trust,
+    )
+
+    # Audit log
+    log_ai_decision(
+        decision_type="FACE_VERIFY",
+        student_id=student.get("id"),
+        user_id=req.user_id,
+        similarity_score=match_result.get("similarity"),
+        liveness_result=liveness_result,
+        confidence_score=conf.score,
+        fraud_flags=conf.flags,
+        device_fingerprint=req.device_fingerprint,
+        ip_address=req.ip_address,
+        location={"lat": req.latitude, "lng": req.longitude} if req.latitude else None,
+        approved=conf.auto_approved,
     )
 
     return {
@@ -119,6 +160,9 @@ async def verify_face_endpoint(req: VerifyRequest):
             "category": conf.category,
             "auto_approved": conf.auto_approved,
             "breakdown": conf.breakdown,
+            "flags": conf.flags,
+            "requires_reverification": conf.requires_reverification,
+            "admin_alert": conf.admin_alert,
         },
     }
 
@@ -144,6 +188,14 @@ async def identify_face_endpoint(req: IdentifyRequest):
 
     result = identify_face(req.image, candidates)
 
+    # Audit log
+    log_ai_decision(
+        decision_type="FACE_IDENTIFY",
+        result=result,
+        similarity_score=result.get("similarity"),
+        location={"lat": req.latitude, "lng": req.longitude} if req.latitude else None,
+    )
+
     # Optional liveness
     if req.liveness_frames:
         liveness = analyse_liveness_sequence(req.liveness_frames)
@@ -168,3 +220,9 @@ async def liveness_check(req: LivenessRequest):
 async def get_embedding(image: str):
     """Generate face embedding (utility endpoint)."""
     return generate_embedding(image)
+
+
+@router.post("/aging-update")
+async def aging_update(req: AgingUpdateRequest):
+    """Update stored embedding with aging adaptation."""
+    return update_embedding_with_aging(req.stored_embedding, req.new_embedding, req.alpha)

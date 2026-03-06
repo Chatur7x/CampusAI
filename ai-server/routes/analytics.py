@@ -9,13 +9,31 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from models.performance_analysis import pearson_correlation, predict_grade, batch_correlation
+from models.performance_analysis import (
+    pearson_correlation, predict_grade, batch_correlation,
+    spearman_correlation, detect_performance_risk,
+)
 from models.behavior_profiling import train_profiles, classify_student, batch_classify
-from models.risk_prediction import train_isolation_forest, train_logistic_regression, predict_risk
-from models.fraud_detection import train_fraud_model, detect_fraud
+from models.risk_prediction import (
+    train_isolation_forest, train_logistic_regression, predict_risk,
+    train_random_forest, train_gradient_boosting, predict_risk_ensemble,
+    explain_risk, train_all_risk_models,
+)
+from models.trend_prediction import (
+    predict_trend, prophet_trend, moving_average_trend,
+    compare_methods, suggest_intervention,
+)
+from models.fraud_detection import (
+    train_fraud_model, detect_fraud, get_fraud_dashboard,
+    track_device, check_multi_student_device, check_attendance_spike,
+)
 from models.monitoring import (
     get_model_health, get_all_models_health, check_drift,
     check_data_drift, log_prediction, log_accuracy,
+)
+from models.audit_logger import (
+    get_recent_logs, get_audit_stats, get_student_audit_trail,
+    search_audit_logs, generate_compliance_report,
 )
 from utils.db import fetch_attendance_records
 
@@ -79,12 +97,55 @@ class LogAccuracyRequest(BaseModel):
     accuracy: float
 
 
+class RiskExplainRequest(BaseModel):
+    attendance_pct: float = 75
+    consecutive_absences: int = 0
+    late_count: int = 0
+    monthly_trend: float = 0
+
+
+class TrendCompareRequest(BaseModel):
+    weekly_rates: List[float]
+    forecast_weeks: int = 4
+
+
+class InterventionRequest(BaseModel):
+    weekly_rates: List[float]
+
+
+class PerformanceRiskRequest(BaseModel):
+    attendance_pct: float
+    grade: float
+    prev_grade: Optional[float] = None
+    absence_streak: int = 0
+
+
+class TrainRiskModelsRequest(BaseModel):
+    records: List[dict]
+
+
+class DeviceTrackRequest(BaseModel):
+    device_fingerprint: str
+    student_id: str
+
+
+class AttendanceSpikeRequest(BaseModel):
+    student_id: str
+    window_seconds: float = 3600
+
+
 # ── Performance Analysis ─────────────────────────────────────
 
 @router.post("/correlation")
 async def get_correlation(req: CorrelationRequest):
     """Pearson correlation between attendance and grades."""
     return pearson_correlation(req.attendances, req.grades)
+
+
+@router.post("/correlation/spearman")
+async def get_spearman(req: CorrelationRequest):
+    """Spearman rank correlation between attendance and grades."""
+    return spearman_correlation(req.attendances, req.grades)
 
 
 @router.post("/predict-grade")
@@ -95,8 +156,91 @@ async def get_grade_prediction(req: GradePredictionRequest):
 
 @router.post("/batch-correlation")
 async def get_batch_correlation(req: BatchCorrelationRequest):
-    """Correlation for multiple subjects."""
+    """Correlation for multiple subjects (Pearson + Spearman)."""
     return batch_correlation(req.subjects)
+
+
+@router.post("/performance-risk")
+async def get_performance_risk(req: PerformanceRiskRequest):
+    """Detect academic performance risk for a student."""
+    return detect_performance_risk(
+        req.attendance_pct, req.grade, req.prev_grade, req.absence_streak,
+    )
+
+
+# ── Risk Prediction (Ensemble) ───────────────────────────────
+
+@router.post("/risk/ensemble")
+async def get_risk_ensemble(req: RiskExplainRequest):
+    """Predict risk using ensemble (RF + GBM + IForest + LogReg)."""
+    record = req.model_dump()
+    return predict_risk_ensemble(record)
+
+
+@router.post("/risk/explain")
+async def get_risk_explanation(req: RiskExplainRequest):
+    """SHAP-based explanation for risk prediction."""
+    record = req.model_dump()
+    return explain_risk(record)
+
+
+@router.post("/risk/train-all")
+async def train_all_risk(req: TrainRiskModelsRequest):
+    """Train all risk models (IForest + LogReg + RF + GBM)."""
+    return train_all_risk_models(req.records)
+
+
+# ── Trend Forecasting ────────────────────────────────────────
+
+@router.post("/trend/prophet")
+async def get_prophet_trend(req: TrendCompareRequest):
+    """Attendance trend via Facebook Prophet."""
+    return prophet_trend(req.weekly_rates, req.forecast_weeks)
+
+
+@router.post("/trend/moving-average")
+async def get_ma_trend(req: TrendCompareRequest):
+    """Attendance trend via Exponential Moving Average."""
+    return moving_average_trend(req.weekly_rates, req.forecast_weeks)
+
+
+@router.post("/trend/compare")
+async def compare_trend_methods(req: TrendCompareRequest):
+    """Compare all forecasting methods (Prophet + ARIMA + MA + Linear)."""
+    return compare_methods(req.weekly_rates, req.forecast_weeks)
+
+
+@router.post("/trend/intervention")
+async def get_intervention(req: InterventionRequest):
+    """Suggest interventions based on attendance forecast."""
+    return suggest_intervention(req.weekly_rates)
+
+
+# ── Fraud Dashboard ──────────────────────────────────────────
+
+@router.get("/fraud/dashboard")
+async def fraud_dashboard():
+    """Admin fraud overview dashboard."""
+    return get_fraud_dashboard()
+
+
+@router.post("/fraud/track-device")
+async def fraud_track_device(req: DeviceTrackRequest):
+    """Track device ↔ student mapping."""
+    track_device(req.student_id, req.device_fingerprint)
+    return {"tracked": True}
+
+
+@router.post("/fraud/multi-student-device")
+async def fraud_multi_student(req: DeviceTrackRequest):
+    """Check if device is used by multiple students."""
+    return check_multi_student_device(req.device_fingerprint)
+
+
+@router.post("/fraud/attendance-spike")
+async def fraud_attendance_spike(req: AttendanceSpikeRequest):
+    """Check for suspicious attendance frequency spikes."""
+    return check_attendance_spike(req.student_id, req.window_seconds)
 
 
 # ── Behaviour Profiling ──────────────────────────────────────
@@ -158,6 +302,43 @@ async def log_acc(req: LogAccuracyRequest):
     """Log accuracy metric."""
     log_accuracy(req.model_name, req.accuracy)
     return {"logged": True}
+
+
+# ── Audit & Compliance ───────────────────────────────────────
+
+@router.get("/audit/recent")
+async def audit_recent(limit: int = 50, decision_type: Optional[str] = None):
+    """Get recent AI decision audit logs."""
+    return get_recent_logs(limit, decision_type)
+
+
+@router.get("/audit/stats")
+async def audit_stats():
+    """Aggregate audit statistics."""
+    return get_audit_stats()
+
+
+@router.get("/audit/student/{student_id}")
+async def audit_student(student_id: str, limit: int = 20):
+    """Audit trail for a specific student."""
+    return get_student_audit_trail(student_id, limit)
+
+
+@router.get("/audit/compliance-report")
+async def compliance_report():
+    """Generate compliance report from audit data."""
+    return generate_compliance_report()
+
+
+@router.post("/audit/search")
+async def audit_search(
+    start_time: Optional[float] = None,
+    end_time: Optional[float] = None,
+    fraud_only: bool = False,
+    rejected_only: bool = False,
+):
+    """Search audit logs with filters."""
+    return search_audit_logs(start_time, end_time, fraud_only, rejected_only)
 
 
 # ── Model Training Pipeline ──────────────────────────────────
