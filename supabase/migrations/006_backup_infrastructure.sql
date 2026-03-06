@@ -3,8 +3,25 @@
 -- Creates storage bucket + cron-friendly backup logging
 -- ============================================================
 
+-- Ensure uuid extension is available
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+
+-- Create backups table if it doesn't exist (003 may have failed)
+CREATE TABLE IF NOT EXISTS backups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  filename TEXT NOT NULL,
+  size BIGINT NOT NULL,
+  type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  metadata JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_backups_status_created ON backups(status, created_at DESC);
+
 -- Ensure backups table has RLS (idempotent)
-ALTER TABLE IF EXISTS backups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
 
 -- Add retention_days column for auto-cleanup
 ALTER TABLE backups ADD COLUMN IF NOT EXISTS retention_days INTEGER DEFAULT 30;
@@ -21,9 +38,12 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- RLS: Only service role can access backup bucket
-CREATE POLICY "Service role can manage backups" ON storage.objects
-  FOR ALL USING (bucket_id = 'db-backups')
-  WITH CHECK (bucket_id = 'db-backups');
+DO $$ BEGIN
+  CREATE POLICY "Service role can manage backups" ON storage.objects
+    FOR ALL USING (bucket_id = 'db-backups')
+    WITH CHECK (bucket_id = 'db-backups');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Function: log a backup event
 CREATE OR REPLACE FUNCTION log_backup(
