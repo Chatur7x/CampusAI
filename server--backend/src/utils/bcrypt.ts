@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
-const SALT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12');
+const MIN_ROUNDS = 10;
+const SALT_ROUNDS = Math.max(MIN_ROUNDS, parseInt(process.env.BCRYPT_ROUNDS || '12'));
 
 export const hashPassword = async (password: string): Promise<string> => {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -13,7 +15,7 @@ export const comparePassword = async (password: string, hashedPassword: string):
 export const generateBackupCodes = (): string[] => {
   const codes: string[] = [];
   for (let i = 0; i < 10; i++) {
-    codes.push(Math.random().toString(36).substring(2, 10).toUpperCase());
+    codes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
   }
   return codes;
 };

@@ -7,6 +7,9 @@ import csvParser from 'csv-parser';
 import xlsx from 'xlsx';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+
+const generateSecurePassword = (): string => crypto.randomBytes(12).toString('base64url');
 
 // ==================== CSV UPLOAD ====================
 export const uploadStudentsCSV = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -86,7 +89,7 @@ export const uploadStudentsCSV = async (req: AuthenticatedRequest, res: Response
           const user = await tx.user.create({
             data: {
               email: row.email,
-              password: await hashPassword(row.password || 'Student@123'),
+              password: await hashPassword(row.password || generateSecurePassword()),
               role: 'STUDENT',
             },
           });
@@ -206,7 +209,7 @@ export const uploadFacultyCSV = async (req: AuthenticatedRequest, res: Response)
           const user = await tx.user.create({
             data: {
               email: row.email,
-              password: await hashPassword(row.password || 'Faculty@123'),
+              password: await hashPassword(row.password || generateSecurePassword()),
               role: 'FACULTY',
             },
           });

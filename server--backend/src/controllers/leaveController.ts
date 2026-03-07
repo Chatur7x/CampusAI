@@ -24,6 +24,32 @@ export const createLeaveRequest = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      res.status(400).json({ success: false, message: 'Invalid date format' });
+      return;
+    }
+    if (end < start) {
+      res.status(400).json({ success: false, message: 'End date must be on or after start date' });
+      return;
+    }
+
+    // Check for overlapping leave requests
+    const overlap = await prisma.leaveRequest.findFirst({
+      where: {
+        studentId: student.id,
+        status: { in: ['PENDING', 'APPROVED'] },
+        startDate: { lte: end },
+        endDate: { gte: start },
+      },
+    });
+    if (overlap) {
+      res.status(409).json({ success: false, message: 'Overlapping leave request already exists' });
+      return;
+    }
+
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         studentId: student.id,

@@ -32,7 +32,13 @@ export const env = {
     .filter(Boolean),
   faceConfidenceThreshold: parseFloat(process.env.FACE_CONFIDENCE_THRESHOLD || '0.6'),
   blockchainDifficulty: parseInt(process.env.BLOCKCHAIN_DIFFICULTY || '4', 10),
-  blockchainSalt: process.env.BLOCKCHAIN_SALT || 'change-me',
+  blockchainSalt: (() => {
+    const salt = process.env.BLOCKCHAIN_SALT || 'change-me';
+    if (salt === 'change-me') {
+      console.warn('⚠️  BLOCKCHAIN_SALT is using the insecure default. Set a unique value in .env');
+    }
+    return salt;
+  })(),
   faceVerificationEndpoint: process.env.FACE_VERIFICATION_ENDPOINT,
   faceVerificationApiKey: process.env.FACE_VERIFICATION_API_KEY,
   smtp: {

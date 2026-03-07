@@ -126,3 +126,16 @@ export const attendanceValidation = validate([
   { field: 'status', required: true, type: 'string' },
   { field: 'method', required: true, type: 'string' },
 ]);
+
+export const leaveValidation = validate([
+  { field: 'startDate', required: true, type: 'date' },
+  { field: 'endDate', required: true, type: 'date' },
+  { field: 'reason', required: true, type: 'string', minLength: 5, maxLength: 500 },
+  { field: 'type', required: true, type: 'string' },
+]);
+
+export const noticeValidation = validate([
+  { field: 'title', required: true, type: 'string', minLength: 3, maxLength: 200 },
+  { field: 'content', required: true, type: 'string', minLength: 10 },
+  { field: 'priority', type: 'string' },
+]);

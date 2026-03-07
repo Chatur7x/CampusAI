@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate, requireRole } from '../middleware/auth';
 import { authRateLimiter, apiRateLimiter } from '../middleware/rateLimiter';
 import { upload } from '../middleware/upload';
-import { loginValidation, registerValidation } from '../middleware/validation';
+import { loginValidation, registerValidation, attendanceValidation, leaveValidation, noticeValidation } from '../middleware/validation';
 
 // Controllers
 import * as authController from '../controllers/authController';
@@ -32,8 +32,8 @@ router.get('/auth/me', authenticate, authController.getMe);
 router.get('/auth/role', authRateLimiter, authController.getRoleByEmail);
 
 // ==================== ATTENDANCE ROUTES ====================
-router.post('/attendance/face', authenticate, attendanceController.markAttendanceWithFace);
-router.post('/attendance/manual', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), attendanceController.markAttendanceManual);
+router.post('/attendance/face', authenticate, attendanceValidation, attendanceController.markAttendanceWithFace);
+router.post('/attendance/manual', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), attendanceValidation, attendanceController.markAttendanceManual);
 router.post('/attendance/bulk', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), attendanceController.markBulkAttendance);
 router.get('/attendance/student/:studentId', authenticate, attendanceController.getStudentAttendance);
 router.get('/attendance/class/:classId', authenticate, attendanceController.getClassAttendance);
@@ -41,15 +41,15 @@ router.get('/attendance/analytics/:studentId', authenticate, attendanceControlle
 router.post('/attendance/register-face', authenticate, attendanceController.registerFace);
 
 // ==================== NOTICE ROUTES ====================
-router.post('/notices', authenticate, requireRole('ADMIN', 'SUPER_ADMIN', 'FACULTY'), noticeController.createNotice);
+router.post('/notices', authenticate, requireRole('ADMIN', 'SUPER_ADMIN', 'FACULTY'), noticeValidation, noticeController.createNotice);
 router.get('/notices', authenticate, noticeController.getNotices);
 router.get('/notices/:id', authenticate, noticeController.getNoticeById);
-router.put('/notices/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), noticeController.updateNotice);
+router.put('/notices/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), noticeValidation, noticeController.updateNotice);
 router.delete('/notices/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), noticeController.deleteNotice);
 router.get('/notices/stats', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), noticeController.getNoticeStats);
 
 // ==================== LEAVE ROUTES ====================
-router.post('/leaves', authenticate, requireRole('STUDENT'), leaveController.createLeaveRequest);
+router.post('/leaves', authenticate, requireRole('STUDENT'), leaveValidation, leaveController.createLeaveRequest);
 router.get('/leaves/my', authenticate, requireRole('STUDENT'), leaveController.getMyLeaveRequests);
 router.put('/leaves/:id/cancel', authenticate, requireRole('STUDENT'), leaveController.cancelLeaveRequest);
 router.get('/leaves/pending', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), leaveController.getPendingLeaveRequests);
