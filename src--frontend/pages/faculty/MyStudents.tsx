@@ -35,16 +35,22 @@ export default function MyStudentsPage() {
         const timetable = (await timetableService.getForFaculty(user.faculty.id)) as FacultyTimetableEntry[];
         const classIds = Array.from(new Set(timetable.map((t) => t.class_id))).filter(Boolean) as string[];
 
-        const roster: StudentWithRisk[] = [];
-        for (const classId of classIds) {
-          const students = await studentService.getAll({ classId });
-          for (const student of students) {
-            const stats = await attendanceService.getStatistics(student.id);
-            const pct = Math.round((stats.percentage as number) || 0);
-            const risk: StudentWithRisk['risk'] = pct < 60 ? 'HIGH' : pct < 75 ? 'MEDIUM' : 'LOW';
-            roster.push({ student, percentage: pct, risk });
-          }
-        }
+        // Fetch all classes in parallel (instead of sequential loop)
+        const classStudents = await Promise.all(
+          classIds.map((classId) => studentService.getAll({ classId }))
+        );
+        const allStudents = classStudents.flat();
+
+        // Fetch all statistics in parallel (instead of nested sequential loop)
+        const statsResults = await Promise.all(
+          allStudents.map((student) => attendanceService.getStatistics(student.id))
+        );
+
+        const roster: StudentWithRisk[] = allStudents.map((student, i) => {
+          const pct = Math.round((statsResults[i].percentage as number) || 0);
+          const risk: StudentWithRisk['risk'] = pct < 60 ? 'HIGH' : pct < 75 ? 'MEDIUM' : 'LOW';
+          return { student, percentage: pct, risk };
+        });
         setItems(roster);
       } catch (err) {
         console.error(err);

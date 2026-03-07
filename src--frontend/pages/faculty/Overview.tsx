@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { timetableService, studentService, attendanceService, leaveService } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import type { TimetableEntry } from '@/lib/database.types';
 
@@ -58,23 +59,42 @@ export default function FacultyOverview() {
         let pendingLeaves = 0;
         const perf: ClassPerformance[] = [];
 
-        await Promise.all(
-          classIds.map(async (classId) => {
-            const [students, todayAttendance, pending] = await Promise.all([
-              studentService.getAll({ classId }),
-              attendanceService.getForClass(classId, todayIso),
-              leaveService.getPending({ classId }),
-            ]);
-            totalStudents += students.length;
-            pendingLeaves += pending?.length || 0;
+        // Batch: fetch students count, pending leaves, attendance, and weekly summary all in parallel
+        const [classDataResults, summaryResult] = await Promise.all([
+          Promise.all(
+            classIds.map(async (classId) => {
+              const [students, todayAttendance] = await Promise.all([
+                studentService.getAll({ classId }),
+                attendanceService.getForClass(classId, todayIso),
+              ]);
+              return { classId, students, todayAttendance };
+            })
+          ),
+          attendanceService.getDailySummary(),
+        ]);
 
-            const present = todayAttendance.filter((r) => r.status === 'PRESENT').length;
-            const total = todayAttendance.length || students.length;
-            const percentage = total ? Math.round((present / total) * 100) : 0;
-            const className = timetable.find((t) => t.class_id === classId)?.class?.name || 'Class';
-            perf.push({ className, percentage });
-          })
+        // Fetch pending leaves in a single query (instead of per-class)
+        const { data: allPendingLeaves } = await supabase
+          .from('leave_requests')
+          .select('student_id')
+          .eq('status', 'PENDING');
+
+        // Get all student IDs for faculty's classes to filter leaves
+        const allStudentIds = new Set(
+          classDataResults.flatMap((r) => r.students.map((s) => s.id))
         );
+        pendingLeaves = (allPendingLeaves || []).filter(
+          (l: { student_id: string }) => allStudentIds.has(l.student_id)
+        ).length;
+
+        for (const { classId, students, todayAttendance } of classDataResults) {
+          totalStudents += students.length;
+          const present = todayAttendance.filter((r) => r.status === 'PRESENT').length;
+          const total = todayAttendance.length || students.length;
+          const percentage = total ? Math.round((present / total) * 100) : 0;
+          const className = timetable.find((t) => t.class_id === classId)?.class?.name || 'Class';
+          perf.push({ className, percentage });
+        }
 
         setStats({
           myClasses: classIds.length,
@@ -84,8 +104,7 @@ export default function FacultyOverview() {
         });
         setClassPerformance(perf);
 
-        const summary = await attendanceService.getDailySummary();
-        const lastSeven = (summary || []).slice(0, 7).reverse();
+        const lastSeven = (summaryResult || []).slice(0, 7).reverse();
         setWeeklyData(
           lastSeven.map((day) => {
             const date = new Date(day.date as string);

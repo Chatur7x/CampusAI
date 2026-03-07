@@ -2,7 +2,7 @@
 // AIDashboard — Python AI Backend Version
 // Fetches analytics from FastAPI server
 // =============================================================
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -80,7 +80,7 @@ export default function AIDashboard({
           const sid = user?.student?.id || user?.id || '';
           if (!sid) return;
           const records = await attendanceService.getForStudent(sid);
-          setSelfFetchedRecords(records.map((r: any) => ({
+          setSelfFetchedRecords(records.map((r) => ({
             date: r.date || '',
             status: (r.status || 'absent').toLowerCase(),
             courseId: r.subject_id || r.course_id || undefined,
@@ -93,7 +93,7 @@ export default function AIDashboard({
             .order('date', { ascending: false })
             .limit(limit);
           if (data) {
-            setSelfFetchedRecords(data.map((r: any) => ({
+            setSelfFetchedRecords(data.map((r: { date?: string; status?: string; course_id?: string }) => ({
               date: r.date || '',
               status: (r.status || 'absent').toLowerCase(),
               courseId: r.course_id || undefined,
@@ -144,7 +144,7 @@ export default function AIDashboard({
   }, [attendanceRecords]);
 
   // ── Fetch AI analytics from Python server ──
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -199,17 +199,18 @@ export default function AIDashboard({
       }
 
       await Promise.allSettled(promises);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch AI analytics');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch AI analytics');
     } finally {
       setLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attendanceRecords, role]);
 
   useEffect(() => {
     if (attendanceRecords.length > 0) fetchAnalytics();
     else setLoading(false);
-  }, [attendanceRecords.length]);
+  }, [attendanceRecords.length, fetchAnalytics]);
 
   // ── Render ──
   if (loading) {

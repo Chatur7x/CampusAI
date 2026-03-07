@@ -130,8 +130,8 @@ export default function FaceAttendance() {
       // Move to location check
       setStep('location');
       setStatusMsg('Checking location...');
-    } catch (err: any) {
-      setErrorMsg(`Initialization failed: ${err.message}`);
+    } catch (err) {
+      setErrorMsg(`Initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setStep('failed');
     }
   };
@@ -266,9 +266,9 @@ export default function FaceAttendance() {
       setStep(faceMatch && livenessPass ? 'success' : 'failed');
       if (!faceMatch) setErrorMsg('Face did not match the registered face.');
       else if (!livenessPass) setErrorMsg('Liveness check failed — suspected spoof.');
-    } catch (err: any) {
+    } catch (err) {
       stopCamera();
-      setErrorMsg(`Verification error: ${err.message}`);
+      setErrorMsg(`Verification error: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setStep('failed');
     }
   };

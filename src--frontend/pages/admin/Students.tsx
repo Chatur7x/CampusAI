@@ -196,7 +196,7 @@ export default function StudentsPage() {
   };
 
   const filteredStudents = students.filter((student) => {
-    const enrollmentId = (student as any).enrollment_id || '';
+    const enrollmentId = student.enrollment_id || '';
     const first = student.profile?.first_name || '';
     const last = student.profile?.last_name || '';
     const email = student.profile?.email || '';

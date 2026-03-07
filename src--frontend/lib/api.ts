@@ -269,10 +269,17 @@ export const departmentService = {
   async getAll(): Promise<Department[]> {
     const { data, error } = await supabase
       .from('departments')
-      .select('*')
+      .select('*, students:students(count), faculty:faculty(count)')
       .order('name');
     if (error) handleError(error);
-    return data || [];
+    // Transform aggregated counts into _count shape for UI
+    return (data || []).map((d: any) => ({
+      ...d,
+      _count: {
+        students: d.students?.[0]?.count ?? 0,
+        faculty: d.faculty?.[0]?.count ?? 0,
+      },
+    }));
   },
 
   async getById(id: string): Promise<Department | null> {
@@ -560,6 +567,14 @@ export const studentService = {
       .eq('id', studentId);
     if (error) handleError(error);
   },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', id);
+    if (error) handleError(error);
+  },
 };
 
 // =============================================================
@@ -574,7 +589,7 @@ export const classService = {
     let query = supabase
       .from('classes')
       .select(`*, department:departments(*)`);
-    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     if (filters?.semester) query = query.eq('semester', filters.semester);
     const { data, error } = await query.order('name');
     if (error) handleError(error);
@@ -670,7 +685,7 @@ export const courseService = {
     let query = supabase
       .from('courses')
       .select('*, department:departments(*)');
-    if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+    if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('code');
     if (error) handleError(error);
     return data || [];
@@ -747,8 +762,8 @@ export const attendanceService = {
         method: 'GET',
         query: {
           studentId,
-          startDate: filters?.start_date,
-          endDate: filters?.end_date,
+          startDate: filters?.startDate,
+          endDate: filters?.endDate,
           subjectId: filters?.courseId,
         },
       });
@@ -760,8 +775,8 @@ export const attendanceService = {
         .select('*')
         .eq('student_id', studentId)
         .order('date', { ascending: false });
-      if (filters?.start_date) query = query.gte('date', filters.start_date);
-      if (filters?.end_date) query = query.lte('date', filters.end_date);
+      if (filters?.startDate) query = query.gte('date', filters.startDate);
+      if (filters?.endDate) query = query.lte('date', filters.endDate);
       if (filters?.courseId) query = query.eq('subject_id', filters.courseId);
       const { data, error } = await query;
       if (error) handleError(error);
@@ -927,11 +942,11 @@ export const leaveService = {
     const { data, error } = await query;
     if (error) handleError(error);
 
-    if (filters?.class_id && data) {
+    if (filters?.classId && data) {
       const { data: students } = await supabase
         .from('students')
         .select('id')
-        .eq('class_id', filters.class_id);
+        .eq('class_id', filters.classId);
       const studentIds = new Set((students || []).map((s: any) => s.id));
       return data.filter((l: any) => studentIds.has(l.student_id));
     }
@@ -940,9 +955,9 @@ export const leaveService = {
 
   async create(leave: Partial<Leave>): Promise<Leave | null> {
     const insert: Record<string, any> = {
-      student_id: leave.student_id || (leave as any).student_id,
-      start_date: leave.start_date || (leave as any).start_date,
-      end_date: leave.end_date || (leave as any).end_date,
+      student_id: leave.student_id || (leave as any).studentId,
+      start_date: leave.start_date || (leave as any).startDate,
+      end_date: leave.end_date || (leave as any).endDate,
       reason: leave.reason,
       type: leave.type || 'PERSONAL',
       status: 'PENDING',
@@ -1346,8 +1361,8 @@ export const analyticsService = {
       let query = supabase
         .from('student_attendance_overview')
         .select('*');
-      if (filters?.class_id) query = query.eq('class_id', filters.class_id);
-      if (filters?.department_id) query = query.eq('department_id', filters.department_id);
+      if (filters?.classId) query = query.eq('class_id', filters.classId);
+      if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
       const { data, error } = await query.order('attendance_percentage', { ascending: true });
       if (error) throw error;
       return data || [];
@@ -1396,9 +1411,9 @@ export const securityService = {
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100);
-    if (filters?.user_id) query = query.eq('user_id', filters.user_id);
-    if (filters?.start_date) query = query.gte('created_at', filters.start_date);
-    if (filters?.end_date) query = query.lte('created_at', filters.end_date);
+    if (filters?.userId) query = query.eq('user_id', filters.userId);
+    if (filters?.startDate) query = query.gte('created_at', filters.startDate);
+    if (filters?.endDate) query = query.lte('created_at', filters.endDate);
     const { data, error } = await query;
     if (error) handleError(error);
     return data || [];

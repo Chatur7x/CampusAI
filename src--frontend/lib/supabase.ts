@@ -7,7 +7,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase env vars missing: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required');
 }
 
-// Create Supabase client (production only)
+// Create Supabase client with latency-optimized settings
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -21,8 +21,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       eventsPerSecond: 10,
     },
   },
-  // Disable automatic realtime connection — only connect when subscriptions are created.
-  // This avoids opening a WebSocket on the login page where it's not needed.
   db: {
     schema: 'public',
   },
@@ -30,6 +28,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     headers: {
       'x-app-name': 'CampusAI',
       'x-app-version': '1.0.0',
+    },
+    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+      return fetch(url, {
+        ...options,
+        // Keep connections alive to avoid TCP handshake overhead on every request
+        keepalive: true,
+      });
     },
   },
 });

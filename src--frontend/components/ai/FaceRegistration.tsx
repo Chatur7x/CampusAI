@@ -94,8 +94,8 @@ export default function FaceRegistration() {
       setStep('capture');
       setStatusMsg(PHOTO_ANGLES[0]);
       startVisibilityCheck();
-    } catch (err: any) {
-      setErrorMsg(`Camera error: ${err.message}`);
+    } catch (err) {
+      setErrorMsg(`Camera error: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setStep('error');
     }
   };
@@ -165,8 +165,8 @@ export default function FaceRegistration() {
 
       stopCamera();
       setStep('success');
-    } catch (err: any) {
-      setErrorMsg(`Registration failed: ${err.message}`);
+    } catch (err) {
+      setErrorMsg(`Registration failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setStep('error');
     }
   };
