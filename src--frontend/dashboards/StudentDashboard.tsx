@@ -48,9 +48,10 @@ const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
 // Loading spinner for lazy-loaded pages
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
-    <div className="relative">
-      <div className="h-12 w-12 rounded-full border-2 border-slate-800" />
-      <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-transparent border-t-emerald-500 animate-spin" />
+    <div className="relative group">
+      <div className="absolute inset-[-15px] bg-emerald-500/20 blur-[30px] rounded-full animate-pulse" />
+      <div className="relative h-14 w-14 rounded-full border-2 border-slate-800" />
+      <div className="absolute inset-0 h-14 w-14 rounded-full border-2 border-transparent border-t-emerald-500 animate-spin" />
     </div>
   </div>
 );
@@ -105,15 +106,9 @@ export default function StudentDashboard() {
       `}</style>
 
       {/* Animated gradient blobs — emerald/teal theme */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute w-[600px] h-[600px] rounded-full opacity-40 blur-[120px]"
-          style={{ background: "linear-gradient(135deg, #10b981, #059669)", top: "-15%", left: "-10%", animation: "blobDrift 20s ease-in-out infinite" }} />
-        <div className="absolute w-[500px] h-[500px] rounded-full opacity-35 blur-[100px]"
-          style={{ background: "linear-gradient(135deg, #14b8a6, #2dd4bf)", bottom: "-10%", right: "-5%", animation: "blobDrift 25s ease-in-out 3s infinite reverse" }} />
-        <div className="absolute w-[400px] h-[400px] rounded-full opacity-30 blur-[80px]"
-          style={{ background: "linear-gradient(135deg, #34d399, #6ee7b7)", top: "40%", left: "50%", transform: "translate(-50%,-50%)", animation: "blobDrift 18s ease-in-out 1s infinite" }} />
-        <div className="absolute w-[300px] h-[300px] rounded-full opacity-25 blur-[90px]"
-          style={{ background: "linear-gradient(135deg, #0d9488, #5eead4)", bottom: "20%", left: "15%", animation: "blobDrift 22s ease-in-out 5s infinite reverse" }} />
+      <div className="pointer-events-none fixed inset-0 overflow-hidden royal-grid opacity-30" aria-hidden>
+        <div className="royal-gradient absolute w-[800px] h-[800px] -top-[20%] -left-[10%] opacity-40 mix-blend-screen" />
+        <div className="royal-gradient absolute w-[600px] h-[600px] -bottom-[10%] -right-[5%] opacity-30 mix-blend-screen" style={{ animationDelay: '-4s' }} />
       </div>
 
       {/* Frosted noise overlay */}
@@ -121,14 +116,7 @@ export default function StudentDashboard() {
         style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
 
       {/* Desktop Sidebar — frosted glass */}
-      <aside className="hidden lg:flex w-68 flex-col relative z-10 border-r"
-        style={{
-          background: "rgba(255, 255, 255, 0.06)",
-          backdropFilter: "blur(60px) saturate(180%)",
-          WebkitBackdropFilter: "blur(60px) saturate(180%)",
-          borderColor: "rgba(255, 255, 255, 0.12)",
-          boxShadow: "0 8px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)",
-        }}>
+      <aside className="hidden lg:flex w-68 flex-col relative z-20 border-r glass neo-3d">
         {/* Logo */}
         <div className="p-6 border-b border-white/[0.08]">
           <Link to="/student" className="flex items-center gap-3">

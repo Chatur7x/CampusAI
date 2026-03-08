@@ -46,12 +46,15 @@ export default function BlockchainPage() {
           .limit(25),
         supabase.functions.invoke('analytics', {
           body: { reportType: 'blockchain_audit' },
-        }),
+        }).catch((e) => ({ data: null, error: e })), // Handle fetch errors gracefully
       ]);
 
       if (recordsRes.error) throw recordsRes.error;
       const auditError = (auditRes as any).error;
-      if (auditError) throw auditError;
+      
+      // We don't throw auditError so the page can still load the blockchain explorer
+      // even if the edge function is not deployed or fails.
+      if (auditError) console.warn('Audit edge function error:', auditError);
 
       const records = (recordsRes.data || []) as AttendanceRow[];
       const count = recordsRes.count || records.length;
@@ -76,7 +79,7 @@ export default function BlockchainPage() {
         updatedAt: r.created_at,
       }));
 
-      const auditSummary = (auditRes?.data as { summary?: { invalidChains?: number } } | undefined)?.summary;
+      const auditSummary = (auditRes?.data as { data?: { summary?: { invalidChains?: number } } } | undefined)?.data?.summary;
       const tamperedFromAudit = auditSummary?.invalidChains || 0;
 
       const hasBrokenLink = chain.some((b, idx) => idx > 0 && b.previousHash !== chain[idx - 1].hash);

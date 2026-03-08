@@ -112,6 +112,7 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
         status: 'ABSENT' as const,
         method: 'MANUAL' as const,
         faculty_id: facultyId,
+        confidence_score: null,
         date: new Date().toISOString().split('T')[0],
       }));
 

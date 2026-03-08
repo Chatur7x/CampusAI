@@ -1,6 +1,13 @@
+import 'dotenv/config';
+
 // Quick seed script – creates faculty + student users with all required rows
-const SUPABASE_URL = 'https://akgjpqvpcugbmdenpxny.supabase.co';
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrZ2pwcXZwY3VnYm1kZW5weG55Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mjc4NDg4MSwiZXhwIjoyMDg4MzYwODgxfQ.qoH258RmgaqAsMX1UHhOrcToz3PhPHr42I-uz_paQuc';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SERVICE_KEY) {
+  console.error('❌ Missing required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
 
 const headers = {
   apikey: SERVICE_KEY,
@@ -32,9 +39,105 @@ async function selectOne(table, col, val) {
 }
 
 async function main() {
-  const FACULTY_UID = '3d70b8b0-81d8-4c9d-ae5e-046dd803ae62';
-  const STUDENT_UID = '1717c4d3-ca65-47cc-81bf-9e1e189ab3ef';
-  const DEPT_ID = '0bb89b7b-77cb-4613-9595-ec96a6b9c80a'; // already created
+  // --- Setup for Cyber Security Department and Class ---
+  const CYBER_DEPT_NAME = 'CSE-CYBER SECURITY';
+  const CYBER_DEPT_CODE = 'CSE-CS';
+  const CYBER_CLASS_NAME = 'CYBER SECURITY';
+  const CYBER_CLASS_SECTION = 'A';
+  const CYBER_ACADEMIC_YEAR = '2024-2025';
+  const CYBER_COURSE_CODE = 'BTCS';
+  const SAIKRISHNA_EMAIL = 'saikrishnait@anurag.edu.in';
+  const SAIKRISHNA_UID = '3d70b8b0-81d8-4c9d-ae5e-046dd803ae62';
+  const SAIKRISHNA_EMP_ID = 'FAC-CS-001';
+  const STUDENTS = [
+    {
+      email: '24eg109a28@anurag.edu.in',
+      uid: '1717c4d3-ca65-47cc-81bf-9e1e189ab3ef',
+      enrollmentId: '24EG109A28',
+      name: { first: 'Kolluri Chaturvedhi', last: 'Narsimha' },
+    },
+    {
+      email: '24eg109a50@anurag.edu.in',
+      uid: 'b2e7c4d3-ca65-47cc-81bf-9e1e189ab3ef',
+      enrollmentId: '24EG109A50',
+      name: { first: 'Ledalla Sree', last: 'Divya' },
+    },
+  ];
+
+  // 1. Ensure department exists
+  let cyberDept = await selectOne('departments', 'code', CYBER_DEPT_CODE);
+  if (!cyberDept) {
+    const dept = await rest('POST', 'departments', {
+      name: CYBER_DEPT_NAME,
+      code: CYBER_DEPT_CODE,
+      description: 'Cyber Security Engineering',
+    });
+    if (dept) cyberDept = dept[0];
+  }
+  const DEPT_ID = cyberDept.id;
+
+  // 2. Ensure course exists
+  let cyberCourse = await selectOne('courses', 'code', CYBER_COURSE_CODE);
+  if (!cyberCourse) {
+    const course = await rest('POST', 'courses', {
+      name: 'B.Tech Cyber Security',
+      code: CYBER_COURSE_CODE,
+      credits: 180,
+      department_id: DEPT_ID,
+      description: 'Bachelor of Technology in Cyber Security',
+    });
+    if (course) cyberCourse = course[0];
+  }
+  const COURSE_ID = cyberCourse.id;
+
+  // 3. Ensure Saikrishna faculty exists
+  let saikrishna = await selectOne('faculty', 'userId', SAIKRISHNA_UID);
+  if (!saikrishna) {
+    const faculty = await rest('POST', 'faculty', {
+      userId: SAIKRISHNA_UID,
+      employeeId: SAIKRISHNA_EMP_ID,
+      designation: 'Assistant Professor',
+      departmentId: DEPT_ID,
+      joiningDate: '2022-06-01T00:00:00.000Z',
+      specialization: 'Cyber Security',
+      qualifications: ['M.Tech', 'B.Tech'],
+    });
+    if (faculty) saikrishna = faculty[0];
+  }
+  const FACULTY_ID = saikrishna.id;
+
+  // 4. Ensure class exists and assign Saikrishna as incharge
+  let cyberClass = await selectOne('classes', 'name', CYBER_CLASS_NAME);
+  if (!cyberClass) {
+    const cls = await rest('POST', 'classes', {
+      name: CYBER_CLASS_NAME,
+      section: CYBER_CLASS_SECTION,
+      departmentId: DEPT_ID,
+      courseId: COURSE_ID,
+      inchargeId: FACULTY_ID,
+      roomNumber: 'CS-101',
+      capacity: 60,
+      academicYear: CYBER_ACADEMIC_YEAR,
+    });
+    if (cls) cyberClass = cls[0];
+  }
+  const CLASS_ID = cyberClass.id;
+
+  // 5. Add both students to the class
+  for (const s of STUDENTS) {
+    let student = await selectOne('students', 'userId', s.uid);
+    if (!student) {
+      await rest('POST', 'students', {
+        userId: s.uid,
+        enrollmentId: s.enrollmentId,
+        departmentId: DEPT_ID,
+        classId: CLASS_ID,
+        batchYear: 2024,
+        semester: 1,
+        faceRegistered: false,
+      });
+    }
+  }
 
   // ── 0. Discover actual column names for tricky tables ──
   console.log('\n── Discovering schema ──');
@@ -68,7 +171,7 @@ async function main() {
       name: 'B.Tech IT',
       code: 'BTIT',
       credits: 180,
-      departmentId: DEPT_ID,
+      department_id: DEPT_ID,
       description: 'Bachelor of Technology in IT',
     });
     if (course) courseId = course[0].id;

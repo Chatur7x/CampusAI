@@ -49,15 +49,15 @@ const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
     <div className="relative">
-      <div className="absolute inset-0 blur-xl opacity-30">
-        <div className="w-24 h-24 bg-gradient-to-br from-violet-500 to-purple-500 rounded-full animate-pulse" />
+      <div className="absolute inset-0 blur-xl opacity-40">
+        <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-emerald-400 rounded-full animate-pulse" style={{ animationDuration: '2s' }} />
       </div>
-      <div className="relative bg-slate-900/60 backdrop-blur-sm border border-violet-500/20 rounded-2xl p-6 shadow-xl">
+      <div className="relative bg-slate-900/60 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-6 shadow-2xl shadow-blue-500/20">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 text-violet-400 animate-spin" />
+          <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
           <div className="space-y-1 text-center">
-            <p className="text-base font-semibold text-white">Loading...</p>
-            <p className="text-xs text-slate-400">Please wait</p>
+            <p className="text-base font-semibold text-white tracking-wide">Loading...</p>
+            <p className="text-xs text-blue-200/60">Optimizing experience</p>
           </div>
         </div>
       </div>
@@ -89,19 +89,19 @@ const SidebarLink = memo(({ item, isActive, onClick }: { item: typeof sidebarIte
     <Link
       to={item.path}
       onClick={onClick}
-      className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+      className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ease-in-out ${
         isActive
-          ? 'bg-gradient-to-r from-violet-500/15 to-purple-500/15 text-violet-300 shadow-lg shadow-violet-500/10 scale-[1.02]'
+          ? 'bg-gradient-to-r from-blue-600/20 to-emerald-500/20 text-blue-300 shadow-lg shadow-blue-500/10 scale-[1.02]'
           : 'text-slate-400 hover:text-white hover:bg-slate-800/60 hover:scale-[1.01]'
       }`}
     >
       {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-violet-500 to-purple-500 rounded-r-full" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-blue-500 to-emerald-400 rounded-r-full shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
       )}
-      <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-violet-400' : ''}`} />
-      <span className="font-medium">{item.label}</span>
+      <Icon className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-blue-400' : ''}`} />
+      <span className="font-medium tracking-wide">{item.label}</span>
       {isActive && (
-        <div className="ml-auto w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+        <div className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
       )}
     </Link>
   );
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen text-slate-50 flex relative overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 30%, #24243e 60%, #0f0c29 100%)" }}>
+      style={{ background: "linear-gradient(135deg, #020617 0%, #0a192f 40%, #064e3b 80%, #022c22 100%)" }}>
 
       {/* Glassmorphism animations */}
       <style>{`
@@ -140,16 +140,10 @@ export default function AdminDashboard() {
         }
       `}</style>
 
-      {/* Animated gradient blobs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute w-[600px] h-[600px] rounded-full opacity-40 blur-[120px]"
-          style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)", top: "-15%", left: "-10%", animation: "blobDrift 20s ease-in-out infinite" }} />
-        <div className="absolute w-[500px] h-[500px] rounded-full opacity-35 blur-[100px]"
-          style={{ background: "linear-gradient(135deg, #6366f1, #818cf8)", bottom: "-10%", right: "-5%", animation: "blobDrift 25s ease-in-out 3s infinite reverse" }} />
-        <div className="absolute w-[400px] h-[400px] rounded-full opacity-30 blur-[80px]"
-          style={{ background: "linear-gradient(135deg, #8b5cf6, #c084fc)", top: "40%", left: "50%", transform: "translate(-50%,-50%)", animation: "blobDrift 18s ease-in-out 1s infinite" }} />
-        <div className="absolute w-[300px] h-[300px] rounded-full opacity-25 blur-[90px]"
-          style={{ background: "linear-gradient(135deg, #a78bfa, #e879f9)", bottom: "20%", left: "15%", animation: "blobDrift 22s ease-in-out 5s infinite reverse" }} />
+      {/* Animated gradient blobs for Royal Blue/Green */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden royal-grid opacity-30" aria-hidden>
+        <div className="absolute w-[800px] h-[800px] -top-[20%] -left-[10%] rounded-full bg-blue-600/20 blur-[120px] animate-pulse" style={{ animationDuration: '8s' }} />
+        <div className="absolute w-[600px] h-[600px] -bottom-[10%] -right-[5%] rounded-full bg-emerald-600/20 blur-[120px] animate-pulse" style={{ animationDelay: '-4s', animationDuration: '10s' }} />
       </div>
 
       {/* Frosted noise overlay */}
@@ -157,26 +151,19 @@ export default function AdminDashboard() {
         style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
       
       {/* Desktop Sidebar — frosted glass */}
-      <aside className="hidden lg:flex w-68 flex-col relative z-10 border-r"
-        style={{
-          background: "rgba(255, 255, 255, 0.06)",
-          backdropFilter: "blur(60px) saturate(180%)",
-          WebkitBackdropFilter: "blur(60px) saturate(180%)",
-          borderColor: "rgba(255, 255, 255, 0.12)",
-          boxShadow: "0 8px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)",
-        }}>
+      <aside className="hidden lg:flex w-68 flex-col relative z-20 border-r glass neo-3d shadow-2xl shadow-blue-900/10">
         {/* Premium Logo */}
         <div className="p-6 border-b border-white/[0.08]">
           <Link to="/admin" className="flex items-center gap-3 group">
             <div className="relative">
-              <div className="absolute inset-0 bg-violet-500 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity" />
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 via-purple-600 to-violet-700 flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-110 transition-transform duration-300">
+              <div className="absolute inset-0 bg-blue-500 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-300" />
+              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-emerald-500 to-teal-500 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)] group-hover:scale-110 transition-transform duration-300">
                 <LayoutDashboard className="w-5 h-5 text-white" />
               </div>
             </div>
             <div>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-white to-violet-200 bg-clip-text text-transparent">CampusAI</h1>
-              <p className="text-xs text-violet-400 font-medium">Admin Portal</p>
+              <h1 className="text-lg font-bold bg-gradient-to-r from-blue-200 via-white to-emerald-200 bg-clip-text text-transparent">CampusAI</h1>
+              <p className="text-xs text-blue-400 font-semibold tracking-wider">ADMIN PORTAL</p>
             </div>
           </Link>
         </div>
@@ -204,11 +191,11 @@ export default function AdminDashboard() {
 
         {/* Premium User footer */}
         <div className="p-4 border-t border-white/[0.08]">
-          <div className="flex items-center gap-3 p-3 rounded-xl border mb-3" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}>
+          <div className="flex items-center gap-3 p-3 rounded-xl border mb-3 transition-colors hover:bg-white/[0.02]" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.08)' }}>
             <div className="relative">
-              <div className="absolute inset-0 bg-violet-500 rounded-full blur-md opacity-40" />
-              <Avatar className="relative border-2 border-violet-500/30">
-                <AvatarFallback className="bg-gradient-to-br from-violet-500/30 to-purple-500/30 text-violet-200 font-semibold">
+              <div className="absolute inset-0 bg-blue-500 rounded-full blur-md opacity-40" />
+              <Avatar className="relative border-2 border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
+                <AvatarFallback className="bg-gradient-to-br from-blue-500/30 to-emerald-500/30 text-blue-200 font-semibold">
                   {getInitials(user?.profile?.first_name ? `${user.profile.first_name} ${user.profile.last_name ?? ''}` : user?.email || 'U')}
                 </AvatarFallback>
               </Avatar>
@@ -244,12 +231,12 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between p-4">
           <Link to="/admin" className="flex items-center gap-2 group">
             <div className="relative">
-              <div className="absolute inset-0 bg-violet-500 rounded-lg blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
-              <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 via-purple-600 to-violet-700 flex items-center justify-center shadow-lg">
+              <div className="absolute inset-0 bg-blue-500 rounded-lg blur-md opacity-50 group-hover:opacity-75 transition-opacity duration-300" />
+              <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
                 <LayoutDashboard className="w-4 h-4 text-white" />
               </div>
             </div>
-            <span className="font-bold bg-gradient-to-r from-white to-violet-200 bg-clip-text text-transparent">CampusAI</span>
+            <span className="font-bold bg-gradient-to-r from-blue-200 via-white to-emerald-200 bg-clip-text text-transparent">CampusAI</span>
           </Link>
 
           <div className="flex items-center gap-2">
@@ -266,14 +253,14 @@ export default function AdminDashboard() {
                 <div className="p-6 border-b border-white/[0.08]">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="absolute inset-0 bg-violet-500 rounded-xl blur-lg opacity-50" />
-                      <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 via-purple-600 to-violet-700 flex items-center justify-center shadow-lg">
+                      <div className="absolute inset-0 bg-blue-500 rounded-xl blur-lg opacity-50" />
+                      <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
                         <LayoutDashboard className="w-5 h-5 text-white" />
                       </div>
                     </div>
                     <div>
-                      <h1 className="text-lg font-bold bg-gradient-to-r from-white to-violet-200 bg-clip-text text-transparent">CampusAI</h1>
-                      <p className="text-xs text-violet-400 font-medium">Admin Portal</p>
+                      <h1 className="text-lg font-bold bg-gradient-to-r from-blue-200 via-white to-emerald-200 bg-clip-text text-transparent">CampusAI</h1>
+                      <p className="text-xs text-blue-400 font-semibold tracking-wider">ADMIN PORTAL</p>
                     </div>
                   </div>
                 </div>
@@ -290,11 +277,11 @@ export default function AdminDashboard() {
                   </nav>
                 </ScrollArea>
                 <div className="p-4 border-t border-white/[0.08]">
-                  <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}>
+                  <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border transition-colors hover:bg-white/[0.02]" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.08)' }}>
                     <div className="relative">
-                      <div className="absolute inset-0 bg-violet-500 rounded-full blur-md opacity-40" />
-                      <Avatar className="relative w-8 h-8 border-2 border-violet-500/30">
-                        <AvatarFallback className="bg-gradient-to-br from-violet-500/30 to-purple-500/30 text-violet-200 text-sm font-semibold">
+                      <div className="absolute inset-0 bg-blue-500 rounded-full blur-md opacity-40" />
+                      <Avatar className="relative w-8 h-8 border-2 border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
+                        <AvatarFallback className="bg-gradient-to-br from-blue-500/30 to-emerald-500/30 text-blue-200 text-sm font-semibold">
                           {getInitials(user?.profile?.first_name ? `${user.profile.first_name} ${user.profile.last_name ?? ''}` : user?.email || 'U')}
                         </AvatarFallback>
                       </Avatar>

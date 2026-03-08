@@ -100,18 +100,18 @@ const DashboardSkeleton = memo(function DashboardSkeleton() {
   return (
   <div className="space-y-6">
     {/* Header Skeleton */}
-    <div className="rounded-3xl border border-slate-800/50 bg-slate-900/60 p-6 h-32">
-      <div className="h-8 w-48 bg-slate-800/70 rounded-lg" />
-      <div className="h-4 w-72 bg-slate-800/50 rounded mt-3" />
+    <div className="rounded-3xl border border-blue-500/20 bg-slate-950/40 backdrop-blur-xl p-6 h-32 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
+      <div className="h-8 w-48 bg-slate-800/70 rounded-lg animate-pulse" />
+      <div className="h-4 w-72 bg-slate-800/50 rounded mt-3 animate-pulse" />
     </div>
     
     {/* Stats Grid Skeleton */}
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="bg-slate-950/70 border border-slate-800/50 rounded-3xl p-6">
-          <div className="h-4 w-24 bg-slate-800/70 rounded mb-3" />
-          <div className="h-8 w-16 bg-slate-800/70 rounded mb-3" />
-          <div className="h-3 w-32 bg-slate-800/50 rounded" />
+        <div key={i} className="bg-slate-950/40 backdrop-blur-xl border border-blue-500/10 rounded-3xl p-6 shadow-xl">
+          <div className="h-4 w-24 bg-slate-800/70 rounded mb-3 animate-pulse" />
+          <div className="h-8 w-16 bg-slate-800/70 rounded mb-3 animate-pulse" />
+          <div className="h-3 w-32 bg-slate-800/50 rounded animate-pulse" />
         </div>
       ))}
     </div>
@@ -124,13 +124,13 @@ function StatCardComponent({ stat }: StatCardProps): JSX.Element {
   const Icon: ComponentType<SVGProps<SVGSVGElement>> = stat.icon;
   return (
     <Card 
-      className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-[1.02] group"
+      className="bg-slate-900/40 backdrop-blur-xl border border-blue-500/15 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgba(59,130,246,0.15)] transition-all duration-300 hover:scale-[1.02] group"
     >
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-slate-400 font-medium">{stat.title}</p>
-            <p className="text-3xl font-bold text-white mt-1 tabular-nums">{stat.value}</p>
+            <p className="text-sm text-blue-100/60 font-medium tracking-wide">{stat.title}</p>
+            <p className="text-3xl font-extrabold text-white mt-1 tabular-nums drop-shadow-md">{stat.value}</p>
             <div className="flex items-center gap-1 mt-2">
               {stat.trendUp ? (
                 <ArrowUpRight className="w-4 h-4 text-emerald-400" />
@@ -285,8 +285,8 @@ export default function AdminOverview() {
       title: 'Total Faculty',
       value: stats?.totalFaculty || 0,
       icon: Users,
-      color: 'text-cyan-400',
-      bgColor: 'bg-cyan-500/10',
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-500/10',
       trend: '--',
       trendUp: true,
     },
@@ -294,8 +294,8 @@ export default function AdminOverview() {
       title: 'Departments',
       value: stats?.totalDepartments || 0,
       icon: Building2,
-      color: 'text-violet-400',
-      bgColor: 'bg-violet-500/10',
+      color: 'text-teal-400',
+      bgColor: 'bg-teal-500/10',
       trend: '--',
       trendUp: true,
     },
@@ -325,17 +325,17 @@ export default function AdminOverview() {
   return (
     <div className="space-y-6">
       {/* Optimized Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-r from-slate-900 via-slate-900/60 to-violet-900/30 p-8 shadow-2xl">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.1),transparent_40%)]" />
-        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/5 blur-3xl" />
+      <div className="relative overflow-hidden rounded-3xl border border-blue-500/20 bg-gradient-to-r from-[rgba(2,6,23,0.8)] via-[rgba(15,23,42,0.8)] to-[rgba(6,78,59,0.3)] p-8 shadow-[0_0_40px_rgba(59,130,246,0.15)] flex-1 backdrop-blur-xl">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.15),transparent_50%)]" />
+        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-[80px]" />
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-emerald-200 to-violet-200 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-300 via-white to-emerald-300 bg-clip-text text-transparent drop-shadow-lg">
               Admin Portal
             </h1>
-            <p className="text-slate-300 text-lg">Live campus control: students, faculty, security.</p>
+            <p className="text-blue-100/70 text-lg tracking-wide font-medium">Live campus control: students, faculty, security.</p>
           </div>
-          <Badge variant="outline" className="bg-violet-500/10 text-violet-200 border-violet-500/30 px-4 py-2 text-sm w-fit">
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-300 border-emerald-500/30 px-4 py-2 text-sm w-fit shadow-[0_0_15px_rgba(16,185,129,0.2)]">
             <Link2 className="w-4 h-4 mr-2" />
             Blockchain Verified
           </Badge>
@@ -350,9 +350,9 @@ export default function AdminOverview() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-2xl overflow-hidden">
-        <CardHeader className="border-b border-slate-800/50">
-          <CardTitle className="text-white text-xl font-semibold">Quick Actions</CardTitle>
+      <Card className="bg-slate-900/40 backdrop-blur-xl border border-blue-500/15 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden">
+        <CardHeader className="border-b border-blue-500/10">
+          <CardTitle className="text-blue-100 text-xl font-semibold tracking-wide">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -362,14 +362,14 @@ export default function AdminOverview() {
                 <Button
                   key={index}
                   variant="outline"
-                  className="h-auto py-6 flex flex-col items-center gap-3 border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/60 hover:border-slate-600 transition-all duration-200 hover:scale-105 group"
+                  className="h-auto py-6 flex flex-col items-center gap-3 border-blue-500/20 bg-slate-900/40 hover:bg-slate-800/80 hover:border-blue-400/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] transition-all duration-300 hover:scale-105 group"
                   asChild
                 >
                   <a href={action.href}>
-                    <div className="w-12 h-12 rounded-xl bg-slate-800/50 flex items-center justify-center group-hover:bg-slate-700/50 transition-colors">
+                    <div className="w-12 h-12 rounded-xl bg-slate-800/50 flex items-center justify-center group-hover:bg-blue-900/30 transition-colors">
                       <Icon className={`w-6 h-6 ${action.color} group-hover:scale-110 transition-transform`} />
                     </div>
-                    <span className="text-sm text-slate-300 font-medium">{action.label}</span>
+                    <span className="text-sm text-blue-100/80 font-medium">{action.label}</span>
                   </a>
                 </Button>
               );
@@ -381,10 +381,10 @@ export default function AdminOverview() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Attendance Trend */}
-        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-2xl overflow-hidden">
-          <CardHeader className="border-b border-slate-800/50">
-            <CardTitle className="text-white text-lg font-semibold flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-violet-400" />
+        <Card className="bg-slate-900/40 backdrop-blur-xl border border-blue-500/15 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden">
+          <CardHeader className="border-b border-blue-500/10">
+            <CardTitle className="text-blue-100 text-lg font-semibold flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
               Monthly Attendance Trend
             </CardTitle>
           </CardHeader>
@@ -397,19 +397,20 @@ export default function AdminOverview() {
                   <YAxis stroke="#94a3b8" fontSize={12} domain={[0, 100]} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#0f172a',
-                      border: '1px solid #334155',
+                      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
                       borderRadius: '12px',
+                      backdropFilter: 'blur(8px)',
                     }}
                     labelStyle={{ color: '#fff', fontWeight: 600 }}
                   />
                   <Line
                     type="monotone"
                     dataKey="percentage"
-                    stroke="#8b5cf6"
+                    stroke="#10b981"
                     strokeWidth={3}
-                    dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, fill: '#a78bfa' }}
+                    dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, fill: '#34d399', strokeWidth: 2 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -418,10 +419,10 @@ export default function AdminOverview() {
         </Card>
 
         {/* Department-wise Attendance */}
-        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-2xl overflow-hidden">
-          <CardHeader className="border-b border-slate-800/50">
-            <CardTitle className="text-white text-lg font-semibold flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-cyan-400" />
+        <Card className="bg-slate-900/40 backdrop-blur-xl border border-blue-500/15 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden">
+          <CardHeader className="border-b border-blue-500/10">
+            <CardTitle className="text-blue-100 text-lg font-semibold flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-400" />
               Department-wise Attendance
             </CardTitle>
           </CardHeader>
@@ -434,13 +435,14 @@ export default function AdminOverview() {
                   <YAxis stroke="#94a3b8" fontSize={12} domain={[0, 100]} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#0f172a',
-                      border: '1px solid #334155',
+                      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
                       borderRadius: '12px',
+                      backdropFilter: 'blur(8px)',
                     }}
                     labelStyle={{ color: '#fff', fontWeight: 600 }}
                   />
-                  <Bar dataKey="attendancePercentage" fill="#06b6d4" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="attendancePercentage" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -506,15 +508,15 @@ export default function AdminOverview() {
         </Card>
 
         {/* Blockchain Integrity */}
-        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-2xl overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-800/50">
+        <Card className="bg-slate-900/40 backdrop-blur-xl border border-blue-500/15 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-blue-500/10">
             <CardTitle className="text-white flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <Link2 className="w-5 h-5 text-emerald-400" />
+                <Link2 className="w-5 h-5 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
               </div>
-              <span className="text-lg font-semibold">Blockchain Integrity</span>
+              <span className="text-lg font-semibold text-blue-100">Blockchain Integrity</span>
             </CardTitle>
-            <Badge className={`${chainSummary.invalidChains > 0 ? 'bg-red-500/20 text-red-200 border-red-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'} px-3 py-1`}>
+            <Badge className={`${chainSummary.invalidChains > 0 ? 'bg-red-500/20 text-red-200 border-red-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'} px-3 py-1 shadow-[0_0_10px_rgba(16,185,129,0.2)]`}>
               {chainSummary.integrityScore.toFixed(1)}% Integrity
             </Badge>
           </CardHeader>

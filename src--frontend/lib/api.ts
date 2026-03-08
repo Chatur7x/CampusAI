@@ -84,6 +84,33 @@ async function callEdgeFunction<T>(
 }
 
 // =============================================================
+// IN-MEMORY CACHE UTILITY
+// =============================================================
+const apiCache = new Map<string, { data: any; expiry: number }>();
+
+function getCached<T>(key: string): T | null {
+  const cached = apiCache.get(key);
+  if (cached && Date.now() < cached.expiry) {
+    return cached.data as T;
+  }
+  return null;
+}
+
+function setCache<T>(key: string, data: T, ttlSeconds: number = 60): void {
+  apiCache.set(key, { data, expiry: Date.now() + ttlSeconds * 1000 });
+}
+
+export function clearApiCache(prefix?: string) {
+  if (!prefix) {
+    apiCache.clear();
+  } else {
+    for (const key of apiCache.keys()) {
+      if (key.startsWith(prefix)) apiCache.delete(key);
+    }
+  }
+}
+
+// =============================================================
 // AUTHENTICATION SERVICE
 // =============================================================
 
@@ -267,19 +294,27 @@ export const profileService = {
 
 export const departmentService = {
   async getAll(): Promise<Department[]> {
+    const cacheKey = 'departments:all';
+    const cached = getCached<Department[]>(cacheKey);
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from('departments')
-      .select('*, students:students(count), faculty:faculty(count)')
+      .select('*, students(count), faculty:faculty!faculty_department_id_fkey(count)')
       .order('name');
     if (error) handleError(error);
-    // Transform aggregated counts into _count shape for UI
-    return (data || []).map((d: any) => ({
-      ...d,
+    
+    // Map Supabase count response to Prisma-like _count property
+    const result = (data || []).map((dept: any) => ({
+      ...dept,
       _count: {
-        students: d.students?.[0]?.count ?? 0,
-        faculty: d.faculty?.[0]?.count ?? 0,
-      },
+        students: dept.students?.[0]?.count || 0,
+        faculty: dept.faculty?.[0]?.count || 0
+      }
     }));
+    
+    setCache(cacheKey, result);
+    return result;
   },
 
   async getById(id: string): Promise<Department | null> {
@@ -332,6 +367,7 @@ export const departmentService = {
       .delete()
       .eq('id', id);
     if (error) handleError(error);
+    clearApiCache('departments');
   },
 };
 
@@ -344,49 +380,64 @@ export const departmentService = {
 
 export const facultyService = {
   async getAll(filters?: { departmentId?: string }): Promise<Faculty[]> {
+    const cacheKey = `faculty:all:${filters?.departmentId || 'all'}`;
+    const cached = getCached<Faculty[]>(cacheKey);
+    if (cached) return cached;
+
     let query = supabase
-      .from('faculty')
-      .select(`*, department:departments(*), profile:profiles!user_id(*)`);
+      .from('faculty_with_profiles')
+      .select('*');
     if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('employee_id');
-    if (error) handleError(error);
-
-    // Profile is now joined — just normalize
-    if (data && data.length > 0) {
-      return data.map((f: any) => ({
-        ...f,
-        profile: f.profile || null,
-        user_id: f.user_id,
-        employee_id: f.employee_id,
-        department_id: f.department_id,
-        joining_date: f.joining_date,
-      }));
+    if (error) {
+      console.warn('faculty_with_profiles view missing, falling back to direct table');
+      let fallbackQuery = supabase
+        .from('faculty')
+        .select(`*, department:departments(*), profile:profiles(*)`);
+      if (filters?.departmentId) fallbackQuery = fallbackQuery.eq('department_id', filters.departmentId);
+      const { data: fallbackData, error: fError } = await fallbackQuery.order('employee_id');
+      if (fError) handleError(fError);
+      setCache(cacheKey, fallbackData || []);
+      return fallbackData || [];
     }
+    setCache(cacheKey, data || []);
     return data || [];
   },
 
   async getById(id: string): Promise<Faculty | null> {
     const { data, error } = await supabase
-      .from('faculty')
-      .select(`*, department:departments(*), profile:profiles!user_id(*)`)
+      .from('faculty_with_profiles')
+      .select('*')
       .eq('id', id)
       .single();
-    if (error && error.code !== 'PGRST116') handleError(error);
-    if (!data) return null;
-
-    return { ...data, profile: data.profile || null, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
+    if (error) {
+      const { data: fallback, error: fError } = await supabase
+        .from('faculty')
+        .select(`*, department:departments(*), profile:profiles(*)`)
+        .eq('id', id)
+        .single();
+      if (fError && fError.code !== 'PGRST116') handleError(fError);
+      return fallback;
+    }
+    return data;
   },
 
   async getByUserId(userId: string): Promise<Faculty | null> {
     const { data, error } = await supabase
-      .from('faculty')
-      .select(`*, department:departments(*), profile:profiles!user_id(*)`)
+      .from('faculty_with_profiles')
+      .select('*')
       .eq('user_id', userId)
       .single();
-    if (error && error.code !== 'PGRST116') handleError(error);
-    if (!data) return null;
-
-    return { ...data, profile: data.profile || null, user_id: data.user_id, employee_id: data.employee_id, department_id: data.department_id };
+    if (error) {
+      const { data: fallback, error: fError } = await supabase
+        .from('faculty')
+        .select(`*, department:departments(*), profile:profiles(*)`)
+        .eq('user_id', userId)
+        .single();
+      if (fError && fError.code !== 'PGRST116') handleError(fError);
+      return fallback;
+    }
+    return data;
   },
 
   async create(faculty: Partial<Faculty>): Promise<Faculty | null> {
@@ -436,6 +487,7 @@ export const facultyService = {
       .delete()
       .eq('id', id);
     if (error) handleError(error);
+    clearApiCache('faculty');
   },
 };
 
@@ -449,70 +501,66 @@ export const facultyService = {
 
 export const studentService = {
   async getAll(filters?: { classId?: string; departmentId?: string }): Promise<Student[]> {
+    const cacheKey = `students:all:${filters?.classId || 'all'}:${filters?.departmentId || 'all'}`;
+    const cached = getCached<Student[]>(cacheKey);
+    if (cached) return cached;
+
     let query = supabase
-      .from('students')
-      .select(`*, department:departments(*), class:classes(*), profile:profiles!user_id(*)`);
+      .from('students_with_profiles')
+      .select('*');
     if (filters?.classId) query = query.eq('class_id', filters.classId);
     if (filters?.departmentId) query = query.eq('department_id', filters.departmentId);
     const { data, error } = await query.order('enrollment_id');
-    if (error) handleError(error);
-
-    // Profile is now joined — just normalize the shape
-    if (data && data.length > 0) {
-      return data.map((s: any) => ({
-        ...s,
-        profile: s.profile || null,
-        user_id: s.user_id,
-        enrollment_id: s.enrollment_id,
-        department_id: s.department_id,
-        class_id: s.class_id,
-        batch_year: s.batch_year,
-        face_data: s.face_data,
-        face_registered: s.face_registered,
-        guardian_name: s.guardian_name,
-        guardian_phone: s.guardian_phone,
-        guardian_email: s.guardian_email,
-      }));
+    if (error) {
+      console.warn('students_with_profiles view missing, falling back to direct table');
+      let fallbackQuery = supabase
+        .from('students')
+        .select(`*, department:departments(*), class:classes(*), profile:profiles(*)`);
+      if (filters?.classId) fallbackQuery = fallbackQuery.eq('class_id', filters.classId);
+      if (filters?.departmentId) fallbackQuery = fallbackQuery.eq('department_id', filters.departmentId);
+      const { data: fallbackData, error: fError } = await fallbackQuery.order('enrollment_id');
+      if (fError) handleError(fError);
+      setCache(cacheKey, fallbackData || []);
+      return fallbackData || [];
     }
+    setCache(cacheKey, data || []);
     return data || [];
   },
 
   async getById(id: string): Promise<Student | null> {
     const { data, error } = await supabase
-      .from('students')
-      .select(`*, department:departments(*), class:classes(*), profile:profiles!user_id(*)`)
+      .from('students_with_profiles')
+      .select('*')
       .eq('id', id)
       .single();
-    if (error && error.code !== 'PGRST116') handleError(error);
-    if (!data) return null;
-
-    return {
-      ...data,
-      profile: data.profile || null,
-      user_id: data.user_id,
-      enrollment_id: data.enrollment_id,
-      department_id: data.department_id,
-      class_id: data.class_id,
-    };
+    if (error) {
+      const { data: fallback, error: fError } = await supabase
+        .from('students')
+        .select(`*, department:departments(*), class:classes(*), profile:profiles(*)`)
+        .eq('id', id)
+        .single();
+      if (fError && fError.code !== 'PGRST116') handleError(fError);
+      return fallback;
+    }
+    return data;
   },
 
   async getByUserId(userId: string): Promise<Student | null> {
     const { data, error } = await supabase
-      .from('students')
-      .select(`*, department:departments(*), class:classes(*), profile:profiles!user_id(*)`)
+      .from('students_with_profiles')
+      .select('*')
       .eq('user_id', userId)
       .single();
-    if (error && error.code !== 'PGRST116') handleError(error);
-    if (!data) return null;
-
-    return {
-      ...data,
-      profile: data.profile || null,
-      user_id: data.user_id,
-      enrollment_id: data.enrollment_id,
-      department_id: data.department_id,
-      class_id: data.class_id,
-    };
+    if (error) {
+      const { data: fallback, error: fError } = await supabase
+        .from('students')
+        .select(`*, department:departments(*), class:classes(*), profile:profiles(*)`)
+        .eq('user_id', userId)
+        .single();
+      if (fError && fError.code !== 'PGRST116') handleError(fError);
+      return fallback;
+    }
+    return data;
   },
 
   async create(student: Partial<Student>): Promise<Student | null> {
@@ -557,6 +605,7 @@ export const studentService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('students');
     return data;
   },
 
@@ -574,6 +623,7 @@ export const studentService = {
       .delete()
       .eq('id', id);
     if (error) handleError(error);
+    clearApiCache('students');
   },
 };
 
@@ -586,6 +636,10 @@ export const studentService = {
 
 export const classService = {
   async getAll(filters?: { departmentId?: string; semester?: number }): Promise<Class[]> {
+    const cacheKey = `classes:all:${filters?.departmentId || 'all'}:${filters?.semester || 'all'}`;
+    const cached = getCached<Class[]>(cacheKey);
+    if (cached) return cached;
+
     let query = supabase
       .from('classes')
       .select(`*, department:departments(*)`);
@@ -603,14 +657,17 @@ export const classService = {
           .select('*')
           .in('id', inchargeIds);
         const facultyMap = new Map((facultyList || []).map((f: any) => [f.id, f]));
-        return data.map((c: any) => ({
+        const result = data.map((c: any) => ({
           ...c,
           class_incharge: facultyMap.get(c.incharge_id) || null,
           department_id: c.department_id,
           class_incharge_id: c.incharge_id,
         }));
+        setCache(cacheKey, result);
+        return result;
       }
     }
+    setCache(cacheKey, data || []);
     return data || [];
   },
 
@@ -641,6 +698,7 @@ export const classService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('classes');
     return data;
   },
 
@@ -662,6 +720,7 @@ export const classService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('classes');
     return data;
   },
 
@@ -671,6 +730,7 @@ export const classService = {
       .delete()
       .eq('id', id);
     if (error) handleError(error);
+    clearApiCache('classes');
   },
 };
 
@@ -1218,45 +1278,64 @@ export const notificationService = {
 
 export const timetableService = {
   async getForClass(classId: string): Promise<TimetableEntry[]> {
-    const { data: snakeData, error: snakeErr } = await supabase
-      .from('timetable_entries')
-      .select(`*, course:courses(id, name, code), class:classes(id, name, section), faculty_profile:profiles!faculty_id(first_name, last_name)`)
-      .eq('class_id', classId)
-      .eq('is_active', true)
-      .order('day_of_week')
-      .order('start_time');
-
-    if (!snakeErr && snakeData?.length) return snakeData as any;
-
     const { data, error } = await supabase
-      .from('timetable')
-      .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
+      .from('timetable_with_relations')
+      .select('*')
       .eq('class_id', classId)
       .order('day_of_week')
       .order('start_time');
-    if (error) handleError(error);
-    return (data || []) as any;
+
+    if (error) {
+      console.warn('timetable_with_relations view missing, falling back');
+      const { data: fallback, error: fError } = await supabase
+        .from('timetable_entries')
+        .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
+        .eq('class_id', classId)
+        .eq('is_active', true)
+        .order('day_of_week')
+        .order('start_time');
+      if (fError && fError.code !== 'PGRST116') handleError(fError);
+      return (fallback || []) as any;
+    }
+    
+    // Map view columns back to object structure expected by UI
+    return (data || []).map((row: any) => ({
+      ...row,
+      course: { id: row.course_id, name: row.subject_name, code: row.subject_code },
+      class: { id: row.class_id, name: row.class_name, section: row.class_section },
+      faculty: { 
+        id: row.faculty_id, 
+        employee_id: row.faculty_employee_id,
+        profile: { first_name: row.faculty_first_name, last_name: row.faculty_last_name }
+      }
+    })) as any;
   },
 
   async getForFaculty(facultyId: string): Promise<TimetableEntry[]> {
-    const { data: snakeData, error: snakeErr } = await supabase
-      .from('timetable_entries')
-      .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
-      .eq('faculty_id', facultyId)
-      .eq('is_active', true)
-      .order('day_of_week')
-      .order('start_time');
-
-    if (!snakeErr && snakeData?.length) return snakeData as any;
-
     const { data, error } = await supabase
-      .from('timetable')
-      .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
+      .from('timetable_with_relations')
+      .select('*')
       .eq('faculty_id', facultyId)
       .order('day_of_week')
       .order('start_time');
-    if (error) handleError(error);
-    return (data || []) as any;
+
+    if (error) {
+      const { data: fallback, error: fError } = await supabase
+        .from('timetable_entries')
+        .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
+        .eq('faculty_id', facultyId)
+        .eq('is_active', true)
+        .order('day_of_week')
+        .order('start_time');
+      if (fError && fError.code !== 'PGRST116') handleError(fError);
+      return (fallback || []) as any;
+    }
+    
+    return (data || []).map((row: any) => ({
+      ...row,
+      course: { id: row.course_id, name: row.subject_name, code: row.subject_code },
+      class: { id: row.class_id, name: row.class_name, section: row.class_section }
+    })) as any;
   },
 
   async create(entry: Partial<TimetableEntry>): Promise<TimetableEntry | null> {
