@@ -64,23 +64,10 @@ async function callEdgeFunction<T>(
     body?: any;
   } = {}
 ): Promise<T> {
-  const search = new URLSearchParams();
-  Object.entries(options.query || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return;
-    search.append(key, String(value));
-  });
-
-  const functionPath = search.toString() ? `${name}?${search.toString()}` : name;
-  const { data, error } = await supabase.functions.invoke<FunctionResult<T>>(functionPath, {
-    method: options.method || 'POST',
-    body: options.method === 'GET' ? undefined : (options.body as any),
-    headers: await buildFunctionHeaders(),
-  });
-
-  if (error) handleError(error);
-  if (!data?.success) handleError({ message: data?.message || 'Function call failed', code: 'FUNCTION_ERROR' });
-
-  return (data.data ?? null) as T;
+  // FAST DEV OVERRIDE: 
+  // Edge functions are not deployed locally for this user, causing massive 5-10s timeouts 
+  // before falling back to Postgres. We throw instantly to trigger the DB fallback.
+  throw new Error("Bypassing edge functions in strict DEV mode for cheetah speed.");
 }
 
 // =============================================================

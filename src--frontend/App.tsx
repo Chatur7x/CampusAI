@@ -5,8 +5,8 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
-// LoginPage is eagerly loaded — it's the first page every user sees, no point lazy-loading it
-import LoginPage from "@/pages/LoginPage";
+// We lazy-load EVERYTHING including LoginPage to prevent large library blocking on boot
+const LoginPage = React.lazy(() => import("@/pages/LoginPage"));
 
 // Everything else is lazy-loaded (only fetched when navigated to)
 const ResetPasswordPage = React.lazy(() => import("@/pages/ResetPasswordPage"));
@@ -135,7 +135,7 @@ function AppRoutes() {
               {isAuthenticated ? (
                 <Navigate to={dashboardPath(user?.role)} replace />
               ) : (
-                <LoginPage />
+                <Suspense fallback={<Loading />}><LoginPage /></Suspense>
               )}
             </motion.div>
           }

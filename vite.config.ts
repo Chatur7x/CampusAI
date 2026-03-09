@@ -1,5 +1,5 @@
 import path from "path"
-import react from "@vitejs/plugin-react"
+import react from "@vitejs/plugin-react-swc"
 import { defineConfig } from "vite"
 
 // https://vitejs.dev/config/
@@ -72,9 +72,10 @@ export default defineConfig({
 
   // ── Dev Server Optimizations ─────────────────────────────────
   optimizeDeps: {
+    // Pre-bundle these dependencies to speed up page load during dev
     include: [
       'react',
-      'react-dom',
+      'react-dom/client',
       'react-router-dom',
       '@supabase/supabase-js',
       'lucide-react',
@@ -84,6 +85,10 @@ export default defineConfig({
       'sonner',
       'date-fns',
       'cmdk',
+      'framer-motion',
+      'recharts'
     ],
+    // Exclude large WASM/compute-heavy libraries from pre-bundling if they break or slow down initial boot
+    exclude: ['@mediapipe/face_mesh']
   },
 });

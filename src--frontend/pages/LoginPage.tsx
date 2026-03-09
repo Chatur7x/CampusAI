@@ -103,13 +103,24 @@ export default function LoginPage() {
         setTimeout(() => resolve({ success: false, error: "Request timed out — check your connection." }), 8000)
       );
       const result = await Promise.race([signIn(email, password), timeout]);
-      if (!result.success) setError(result.error || "Login failed");
+      
+      if (!result.success) {
+        setError(result.error || "Login failed due to an unknown database issue. Please try again.");
+      } else {
+        // Fix: If login succeeded but React Router hasn't redirected yet (e.g., due to suppressed schema error fallback),
+        // we force a redirect by waiting a split second, then doing a hard reload.
+        setTimeout(() => {
+          if (window.location.pathname === "/login") {
+            window.location.reload();
+          }
+        }, 1000);
+      }
     } catch (err) {
       const msg = (err as Error).message || "";
       if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-        setError("Cannot reach server. Check your internet connection.");
+        setError("🔌 Cannot reach the authentication server. Please check your internet connection or ensure the backend is running.");
       } else {
-        setError(msg || "Login failed");
+        setError(msg || "An unexpected error disrupted the login process.");
       }
     } finally {
       setLoading(false);

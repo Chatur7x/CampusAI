@@ -65,6 +65,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // HELPERS
 // =============================================================
 
+// PostgREST schema cache errors should NEVER block login
+const SCHEMA_ERROR = 'Database error querying schema';
+function isSchemaError(msg: string | undefined | null): boolean {
+  return !!msg && msg.includes(SCHEMA_ERROR);
+}
+
 /** Build a minimal AuthUser from session metadata — no DB call needed */
 function userFromSession(su: SupabaseUser): AuthUser {
   const meta = (su.user_metadata || {}) as Record<string, unknown>;
@@ -106,13 +112,26 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
       const isFaculty = metaRole === 'FACULTY' || metaRole === 'CLASS_INCHARGE';
 
       // Run profile + role-specific query IN PARALLEL (saves one round-trip)
-      const [profileResult, studentResult, facultyResult] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', su.id).single(),
-        isStudent ? supabase.from('students').select('*').eq('user_id', su.id).single() : Promise.resolve({ data: null }),
-        isFaculty ? supabase.from('faculty').select('*').eq('user_id', su.id).single() : Promise.resolve({ data: null }),
-      ]);
+      let profileResult: any, studentResult: any, facultyResult: any;
+      try {
+        [profileResult, studentResult, facultyResult] = await Promise.all([
+          supabase.from('profiles').select('*').eq('user_id', su.id).single(),
+          isStudent ? supabase.from('students').select('*').eq('user_id', su.id).single() : Promise.resolve({ data: null }),
+          isFaculty ? supabase.from('faculty').select('*').eq('user_id', su.id).single() : Promise.resolve({ data: null }),
+        ]);
+      } catch (dbErr: any) {
+        // PostgREST schema cache is broken — fall back to JWT metadata
+        console.warn('PostgREST query failed (schema cache issue), using JWT data:', dbErr?.message);
+        return userFromSession(su);
+      }
 
-      const rawProfile = profileResult.data;
+      // If the profile query returned a schema error, bail to JWT data
+      if (profileResult?.error && isSchemaError(profileResult.error.message)) {
+        console.warn('PostgREST schema error on profiles — using JWT metadata instead');
+        return userFromSession(su);
+      }
+
+      const rawProfile = profileResult?.data;
 
       // Determine role: DB profile > user metadata > default to STUDENT
       const fallback = userFromSession(su);
@@ -314,13 +333,57 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   // Sign in with email/password
   const signIn = useCallback(async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return { success: false, error: error.message };
-      // onAuthStateChange will handle setting user
+      console.log('[AUTH] Attempting signInWithPassword for:', email);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      console.log('[AUTH] signInWithPassword result - data:', !!data?.session, 'error:', error?.message);
+      
+      if (error) {
+        // Schema error = Supabase server-side crash (500). 
+        // GoTrue does NOT create a session in this case, so there's nothing to recover.
+        // Show a clear, actionable error to the user.
+        if (isSchemaError(error.message)) {
+          console.error('[AUTH] Supabase 500 schema error — server cannot authenticate:', error.message);
+          // Try to check if somehow a session was created despite the error
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            console.warn('[AUTH] Found session despite schema error — recovering');
+            setSession(sessionData.session);
+            setUser(userFromSession(sessionData.session.user));
+            fetchUserData(sessionData.session.user).then(fullUser => {
+              if (fullUser) setUser(fullUser);
+            });
+            return { success: true };
+          }
+          return { 
+            success: false, 
+            error: '⚠️ Database schema error on Supabase server. Please run the FIX_LOGIN_FINAL.sql script in your Supabase SQL Editor to repair the schema cache.' 
+          };
+        }
+        console.error('[AUTH] Real auth error:', error.message);
+        return { success: false, error: error.message };
+      }
+      
+      console.log('[AUTH] Login successful, session:', !!data?.session);
       return { success: true };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      // Network-level failures (Supabase project paused, no internet, etc.)
+      console.error('[AUTH] Exception during signIn:', msg);
+      
+      // PostgREST schema cache error — check if session exists anyway
+      if (isSchemaError(msg)) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) {
+          console.warn('[AUTH] Schema error exception but session found — login succeeded');
+          // Fix: Manually update context state since event listener is bypassed
+          setSession(sessionData.session);
+          setUser(userFromSession(sessionData.session.user));
+          fetchUserData(sessionData.session.user).then(fullUser => {
+            if (fullUser) setUser(fullUser);
+          });
+          return { success: true };
+        }
+      }
+      // Network-level failures
       if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ERR_CONNECTION') || msg.includes('TIMEOUT')) {
         return {
           success: false,

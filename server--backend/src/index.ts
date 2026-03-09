@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import router from './routes';
+import routes from './routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { apiRequestLogger, extraSecurityHeaders } from './middleware/security';
 import { env } from './config/env';
@@ -76,7 +76,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // Mount API routes
-app.use('/api', apiRateLimiter, router);
+app.use('/api', apiRateLimiter, routes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
