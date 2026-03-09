@@ -24,6 +24,79 @@ DECLARE
   v_faculty_row  UUID;
 BEGIN
 
+  -- ========== CLEANUP DEPENDENCIES ==========
+
+  -- 0a. Clear grades for these students
+  DELETE FROM grades WHERE student_id IN (
+    SELECT id FROM students WHERE user_id IN (SELECT id FROM auth.users WHERE email IN ('24eg109a28@anurag.edu.in', '24eg109a50@anurag.edu.in'))
+  );
+
+  -- 0b. Clear leave_requests
+  DELETE FROM leave_requests WHERE student_id IN (
+    SELECT id FROM students WHERE user_id IN (SELECT id FROM auth.users WHERE email IN ('24eg109a28@anurag.edu.in', '24eg109a50@anurag.edu.in'))
+  ) OR approved_by IN (
+    SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in')
+  );
+
+  -- 0c. Clear attendance
+  DELETE FROM attendance WHERE student_id IN (
+    SELECT id FROM students WHERE user_id IN (SELECT id FROM auth.users WHERE email IN ('24eg109a28@anurag.edu.in', '24eg109a50@anurag.edu.in'))
+  ) OR verified_by IN (
+    SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in')
+  ) OR subject_id IN (
+    SELECT id FROM subjects WHERE faculty_id IN (SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in'))
+  );
+
+  -- 0d. Clear timetable_entries
+  DELETE FROM timetable_entries WHERE faculty_id IN (
+    SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in')
+  ) OR subject_id IN (
+    SELECT id FROM subjects WHERE faculty_id IN (SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in'))
+  ) OR class_id IN (
+    SELECT id FROM classes WHERE incharge_id IN (SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in'))
+  );
+
+  -- 0e. Clear subjects
+  DELETE FROM subjects WHERE faculty_id IN (
+    SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in')
+  );
+
+  -- 1. Delete the specific students to free up the classes and faculty references
+  DELETE FROM students 
+  WHERE user_id IN (
+    SELECT id FROM auth.users WHERE email IN ('24eg109a28@anurag.edu.in', '24eg109a50@anurag.edu.in')
+  );
+
+  -- 2. Clear the HOD references first
+  UPDATE departments 
+  SET hod_id = NULL 
+  WHERE hod_id IN (SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in'));
+
+  -- 3. Delete classes where this faculty is the incharge
+  DELETE FROM classes 
+  WHERE incharge_id IN (SELECT id FROM faculty WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in'));
+
+  -- 4. Delete the faculty profile
+  DELETE FROM faculty 
+  WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'saikrishnait@anurag.edu.in');
+
+  -- 4.5 Delete admins profile
+  DELETE FROM admins
+  WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'admin@anurag.edu.in');
+
+  -- 5. Delete specific user profiles
+  DELETE FROM profiles 
+  WHERE email IN ('24eg109a28@anurag.edu.in', '24eg109a50@anurag.edu.in', 'saikrishnait@anurag.edu.in', 'admin@anurag.edu.in');
+
+  -- ========== CLEANUP OLD USERS ==========
+  -- Deleting from auth.users cascades downwards to students/faculty/profiles
+  DELETE FROM auth.users WHERE email IN (
+    '24eg109a28@anurag.edu.in',
+    '24eg109a50@anurag.edu.in',
+    'saikrishnait@anurag.edu.in',
+    'admin@anurag.edu.in'
+  );
+
   -- ========== AUTH USERS ==========
 
   -- Student 1
@@ -36,13 +109,12 @@ BEGIN
     '00000000-0000-0000-0000-000000000000',
     gen_random_uuid(), 'authenticated', 'authenticated',
     '24eg109a28@anurag.edu.in',
-    crypt('123456', gen_salt('bf')),
+    crypt('Chatur7', gen_salt('bf')),
     NOW(), NOW(), NOW(),
     '{"provider":"email","providers":["email"]}',
-    '{"role":"STUDENT","first_name":"Student","last_name":"One"}',
+    '{"role":"STUDENT","first_name":"Chaturvedhi Narsimha","last_name":"Kolluri"}',
     false, ''
   )
-  ON CONFLICT (email) DO NOTHING
   RETURNING id INTO v_student1_uid;
 
   -- If already exists, fetch the id
@@ -60,13 +132,12 @@ BEGIN
     '00000000-0000-0000-0000-000000000000',
     gen_random_uuid(), 'authenticated', 'authenticated',
     '24eg109a50@anurag.edu.in',
-    crypt('123456', gen_salt('bf')),
+    crypt('Divya7', gen_salt('bf')),
     NOW(), NOW(), NOW(),
     '{"provider":"email","providers":["email"]}',
-    '{"role":"STUDENT","first_name":"Student","last_name":"Two"}',
+    '{"role":"STUDENT","first_name":"Sree Divya","last_name":"Ledalla"}',
     false, ''
   )
-  ON CONFLICT (email) DO NOTHING
   RETURNING id INTO v_student2_uid;
 
   IF v_student2_uid IS NULL THEN
@@ -83,13 +154,12 @@ BEGIN
     '00000000-0000-0000-0000-000000000000',
     gen_random_uuid(), 'authenticated', 'authenticated',
     'saikrishnait@anurag.edu.in',
-    crypt('123456', gen_salt('bf')),
+    crypt('SAIKRISHNATHELIVINGLEGEND#28', gen_salt('bf')),
     NOW(), NOW(), NOW(),
     '{"provider":"email","providers":["email"]}',
-    '{"role":"FACULTY","first_name":"Sai Krishna","last_name":"IT"}',
+    '{"role":"FACULTY","first_name":"Sai Krishna","last_name":"Gudepu"}',
     false, ''
   )
-  ON CONFLICT (email) DO NOTHING
   RETURNING id INTO v_faculty_uid;
 
   IF v_faculty_uid IS NULL THEN
@@ -112,7 +182,6 @@ BEGIN
     '{"role":"ADMIN","first_name":"Admin","last_name":"Anurag"}',
     false, ''
   )
-  ON CONFLICT (email) DO NOTHING
   RETURNING id INTO v_admin_uid;
 
   IF v_admin_uid IS NULL THEN
@@ -140,7 +209,7 @@ BEGIN
   -- ========== DEPARTMENT ==========
 
   INSERT INTO departments (id, name, code, description, is_active)
-  VALUES (gen_random_uuid(), 'Information Technology', 'IT', 'Department of Information Technology', true)
+  VALUES (gen_random_uuid(), 'Computer Science & Cyber Security', 'CSE-CS', 'Department of Computer Science & Cyber Security', true)
   ON CONFLICT (code) DO NOTHING
   RETURNING id INTO v_dept_id;
 
@@ -162,7 +231,7 @@ BEGIN
   -- ========== FACULTY ROW (needed before class) ==========
 
   INSERT INTO faculty (id, user_id, employee_id, designation, department_id, joining_date, specialization, is_active)
-  VALUES (gen_random_uuid(), v_faculty_uid, 'FAC-SK-001', 'Assistant Professor', v_dept_id, '2022-06-01', 'Computer Science', true)
+  VALUES (gen_random_uuid(), v_faculty_uid, 'AU_FAC_IT-007', 'Assistant Professor', v_dept_id, '2022-06-01', 'Cyber Security', true)
   ON CONFLICT (user_id) DO NOTHING
   RETURNING id INTO v_faculty_row;
 
@@ -173,7 +242,7 @@ BEGIN
   -- ========== CLASS ==========
 
   INSERT INTO classes (id, name, section, department_id, course_id, incharge_id, room_number, capacity, academic_year, is_active)
-  VALUES (gen_random_uuid(), 'IT-4th Sem', 'A', v_dept_id, v_course_id, v_faculty_row, 'LH-301', 60, '2024-2025', true)
+  VALUES (gen_random_uuid(), 'CSE-CS-4th Sem', 'CSE-CS', v_dept_id, v_course_id, v_faculty_row, 'LH-301', 60, '2024-2025', true)
   ON CONFLICT (name, section, academic_year) DO NOTHING
   RETURNING id INTO v_class_id;
 
@@ -185,9 +254,9 @@ BEGIN
 
   INSERT INTO profiles (id, user_id, email, role, first_name, last_name, is_active, theme, language)
   VALUES
-    (gen_random_uuid(), v_student1_uid, '24eg109a28@anurag.edu.in', 'STUDENT', 'Student', 'One', true, 'dark', 'en'),
-    (gen_random_uuid(), v_student2_uid, '24eg109a50@anurag.edu.in', 'STUDENT', 'Student', 'Two', true, 'dark', 'en'),
-    (gen_random_uuid(), v_faculty_uid,  'saikrishnait@anurag.edu.in', 'FACULTY', 'Sai Krishna', 'IT', true, 'dark', 'en'),
+    (gen_random_uuid(), v_student1_uid, '24eg109a28@anurag.edu.in', 'STUDENT', 'Chaturvedhi Narsimha', 'Kolluri', true, 'dark', 'en'),
+    (gen_random_uuid(), v_student2_uid, '24eg109a50@anurag.edu.in', 'STUDENT', 'Sree Divya', 'Ledalla', true, 'dark', 'en'),
+    (gen_random_uuid(), v_faculty_uid,  'saikrishnait@anurag.edu.in', 'FACULTY', 'Sai Krishna', 'Gudepu', true, 'dark', 'en'),
     (gen_random_uuid(), v_admin_uid,    'admin@anurag.edu.in', 'ADMIN', 'Admin', 'Anurag', true, 'dark', 'en')
   ON CONFLICT (user_id) DO NOTHING;
 
@@ -210,9 +279,9 @@ BEGIN
   UPDATE departments SET hod_id = v_faculty_row WHERE id = v_dept_id AND hod_id IS NULL;
 
   RAISE NOTICE '✅ Users seeded successfully!';
-  RAISE NOTICE 'Student 1: 24eg109a28@anurag.edu.in / 123456';
-  RAISE NOTICE 'Student 2: 24eg109a50@anurag.edu.in / 123456';
-  RAISE NOTICE 'Faculty:   saikrishnait@anurag.edu.in / 123456';
+  RAISE NOTICE 'Student 1: 24eg109a28@anurag.edu.in / Chatur7';
+  RAISE NOTICE 'Student 2: 24eg109a50@anurag.edu.in / Divya7';
+  RAISE NOTICE 'Faculty:   saikrishnait@anurag.edu.in / SAIKRISHNATHELIVINGLEGEND#28';
   RAISE NOTICE 'Admin:     admin@anurag.edu.in / admin123';
 
 END $$;
