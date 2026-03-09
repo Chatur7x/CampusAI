@@ -1,56 +1,29 @@
 # =============================================================
-# CampusAI — CI/CD Pipeline
+# CampusAI — CI/Aiserver
 # =============================================================
-name: CI
+name: CI/Aiserver
 
 on:
   push:
     branches: [main, develop]
+    paths:
+      - 'ai-server/**'
+      - '.github/workflows/aiserver.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'ai-server/**'
+      - '.github/workflows/aiserver.yml'
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: aiserver-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 20
   PYTHON_VERSION: "3.12"
 
 jobs:
-  # ── Frontend Lint + Build ──────────────────────────────────
-  frontend:
-    name: Frontend (Lint & Build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - run: npm ci
-
-      - name: Lint
-        run: npx eslint src--frontend/ --max-warnings 100
-
-      - name: Type Check
-        run: npx tsc --noEmit
-
-      - name: Build
-        run: npx vite build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: dist/
-          retention-days: 7
-
-  # ── AI Server Checks ──────────────────────────────────────
-  ai-server:
+  aiserver-check:
     name: AI Server (Lint & Verify)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -92,7 +65,7 @@ jobs:
       - name: Verify FastAPI app loads
         run: |
           python -c "
-          import sys, importlib, types
+          import sys, types
           # Stub heavy optional modules so 'from main import app' succeeds
           for mod in [
               'insightface', 'insightface.app', 'insightface.app.FaceAnalysis',
@@ -117,44 +90,3 @@ jobs:
           SUPABASE_SERVICE_KEY: placeholder-key
           CAMPUS_LAT: "17.5"
           CAMPUS_LNG: "78.5"
-
-  # ── Express Backend ────────────────────────────────────────
-  backend:
-    name: Backend (Build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: server--backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: server--backend/package-lock.json
-
-      - run: npm ci
-
-      - name: Generate Prisma Client
-        run: npx prisma generate
-
-      - name: Type Check
-        run: npx tsc --noEmit
-
-  # ── Docker Build (on main only) ────────────────────────────
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [frontend, ai-server, backend]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build AI Server image
-        run: docker build -t campusai-ai-server ./ai-server
-
-      - name: Build Frontend image
-        run: docker build -t campusai-frontend .
