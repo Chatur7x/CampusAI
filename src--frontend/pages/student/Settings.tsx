@@ -20,13 +20,46 @@ export default function StudentSettingsPage() {
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [changingPw, setChangingPw] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(user?.profile?.avatar_url || '');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const faceRegistered = user?.student?.face_registered || false;
+
+  const handleAvatarUpload = async (event: any) => {
+    try {
+      setUploadingAvatar(true);
+      if (!event.target.files || event.target.files.length === 0) return;
+      
+      const file = event.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user?.id}-${Math.random()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const res = await updateProfile({ avatar_url: publicUrl } as any);
+      if (res?.success === false) throw new Error(res.error);
+      
+      setAvatarUrl(publicUrl);
+      toast.success('Profile photo updated');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to upload photo');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      const res = await updateProfile({ first_name: firstName, last_name: lastName, phone } as any);
+      const res = await updateProfile({ first_name: firstName, last_name: lastName, phone, avatar_url: avatarUrl } as any);
       if (res?.success === false) throw new Error(res.error);
       toast.success('Profile updated successfully');
     } catch (err: any) {
@@ -74,6 +107,27 @@ export default function StudentSettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex flex-col items-center gap-4 mb-6">
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-emerald-500/30 bg-slate-800 flex items-center justify-center">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-12 h-12 text-slate-600" />
+                  )}
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
+                <label className="absolute bottom-0 right-0 p-1.5 bg-emerald-600 rounded-full cursor-pointer hover:bg-emerald-500 transition-colors shadow-lg">
+                  <Camera className="w-4 h-4 text-white" />
+                  <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+                </label>
+              </div>
+              <p className="text-xs text-slate-400">Click camera icon to change photo</p>
+            </div>
             <div className="space-y-2">
               <Label className="text-slate-300">First Name</Label>
               <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />

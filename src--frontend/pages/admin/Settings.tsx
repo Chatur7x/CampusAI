@@ -75,11 +75,14 @@ export default function SettingsPage() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await Promise.all(Object.entries(settings).map(([k, v]) => saveSetting(k as keyof SettingState, v)));
-      toast.success('Settings saved');
+      // Sequential saves to avoid potential issues with parallel upserts
+      for (const [key, value] of Object.entries(settings)) {
+        await settingsService.set(key, String(value));
+      }
+      toast.success('All settings saved successfully');
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to save settings');
+      console.error('Settings save error:', err);
+      toast.error('Failed to save some settings');
     } finally {
       setSaving(false);
     }

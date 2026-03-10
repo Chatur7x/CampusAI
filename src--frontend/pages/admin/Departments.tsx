@@ -52,10 +52,19 @@ export default function DepartmentsPage() {
   };
 
   const handleAddDepartment = async () => {
+    const trimmedDept = {
+      name: newDepartment.name.trim(),
+      code: newDepartment.code.trim().toUpperCase(),
+      description: newDepartment.description.trim(),
+    };
+    if (!trimmedDept.name || !trimmedDept.code) {
+      toast.error('Name and Code are required');
+      return;
+    }
     try {
-      await departmentService.create(newDepartment);
+      await departmentService.create(trimmedDept);
       toast.success('Department created successfully');
-      auditLogService.log('CREATE', 'department', '', { newValues: newDepartment });
+      auditLogService.log('CREATE', 'department', '', { newValues: trimmedDept });
       setIsAddDialogOpen(false);
       fetchDepartments();
       setNewDepartment({ name: '', code: '', description: '' });
@@ -67,10 +76,19 @@ export default function DepartmentsPage() {
 
   const handleEditDepartment = async () => {
     if (!selectedDept) return;
+    const trimmedEdit = {
+      name: editForm.name.trim(),
+      code: editForm.code.trim().toUpperCase(),
+      description: editForm.description.trim(),
+    };
+    if (!trimmedEdit.name || !trimmedEdit.code) {
+      toast.error('Name and Code are required');
+      return;
+    }
     try {
-      await departmentService.update(selectedDept.id, editForm);
+      await departmentService.update(selectedDept.id, trimmedEdit);
       toast.success('Department updated successfully');
-      auditLogService.log('UPDATE', 'department', selectedDept.id, { newValues: editForm });
+      auditLogService.log('UPDATE', 'department', selectedDept.id, { newValues: trimmedEdit });
       setIsEditDialogOpen(false);
       fetchDepartments();
     } catch (error) {

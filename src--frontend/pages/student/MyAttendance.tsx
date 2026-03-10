@@ -12,6 +12,18 @@ import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
 import { leaveService } from '@/lib/api';
 import { toast } from 'sonner';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Legend,
+} from 'recharts';
 
 interface AttRecord {
   date: string;
@@ -169,23 +181,46 @@ export default function MyAttendancePage() {
             ) : attendanceHistory.length === 0 ? (
               <p className="text-slate-400 text-sm text-center py-12">No attendance records yet.</p>
             ) : (
-            <div className="space-y-3 max-h-[520px] overflow-auto pr-1">
-              {attendanceHistory.map((record, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 rounded-xl bg-slate-900/70 border border-slate-800"
-                >
-                  <div className="flex items-center gap-3">
-                    {getStatusIcon(record.status)}
-                    <div>
-                      <p className="font-medium text-white">{record.subject}</p>
-                      <p className="text-sm text-slate-400">{record.date}</p>
-                    </div>
-                  </div>
-                  <Badge className={getStatusColor(record.status)}>{record.status}</Badge>
+              <div className="space-y-6">
+                <div className="h-64 mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={attendanceHistory.slice(0, 20).reverse()}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
+                      <YAxis stroke="#64748b" fontSize={10} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
+                        itemStyle={{ color: '#10b981' }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey={(r: any) => r.status === 'PRESENT' ? 100 : 0} 
+                        name="Presence"
+                        stroke="#10b981" 
+                        strokeWidth={2}
+                        dot={{ fill: '#10b981' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="space-y-3 max-h-[300px] overflow-auto pr-1">
+                  {attendanceHistory.map((record, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-4 rounded-xl bg-slate-900/70 border border-slate-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        {getStatusIcon(record.status)}
+                        <div>
+                          <p className="font-medium text-white">{record.subject}</p>
+                          <p className="text-sm text-slate-400">{record.date}</p>
+                        </div>
+                      </div>
+                      <Badge className={getStatusColor(record.status)}>{record.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

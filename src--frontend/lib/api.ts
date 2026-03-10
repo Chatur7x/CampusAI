@@ -1340,6 +1340,7 @@ export const timetableService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('timetable');
     return data;
   },
 
@@ -1351,6 +1352,7 @@ export const timetableService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('timetable');
     return data;
   },
 

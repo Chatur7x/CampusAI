@@ -81,12 +81,11 @@ export default function CoursesPage() {
   const handleAdd = async () => {
     try {
       await courseService.create({
-        name: form.name,
-        code: form.code,
+        name: form.name.trim(),
+        code: form.code.trim().toUpperCase(),
         credits: form.credits,
-        semester: form.semester,
         department_id: form.department_id,
-        description: form.description,
+        description: form.description.trim(),
       } as any);
       toast.success('Course created successfully');
       auditLogService.log('CREATE', 'course', '', { newValues: form });
@@ -103,12 +102,11 @@ export default function CoursesPage() {
     if (!selectedCourse) return;
     try {
       await courseService.update(selectedCourse.id, {
-        name: form.name,
-        code: form.code,
+        name: form.name.trim(),
+        code: form.code.trim().toUpperCase(),
         credits: form.credits,
-        semester: form.semester,
         department_id: form.department_id,
-        description: form.description,
+        description: form.description.trim(),
       } as any);
       toast.success('Course updated successfully');
       auditLogService.log('UPDATE', 'course', selectedCourse.id, { newValues: form });
@@ -142,7 +140,7 @@ export default function CoursesPage() {
       name: course.name,
       code: course.code,
       credits: course.credits,
-      semester: course.semester,
+      semester: (course as any).semester || 1,
       department_id: (course as any).department_id,
       description: course.description || '',
     });
@@ -168,90 +166,6 @@ export default function CoursesPage() {
 
   const getDeptName = (deptId: string) => departments.find((d) => d.id === deptId)?.name || deptId;
 
-  const renderCourseForm = (onSubmit: () => void, submitLabel: string) => (
-    <div className="grid gap-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-slate-300">Course Name</Label>
-          <Input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="bg-slate-800 border-slate-700 text-white"
-            placeholder="e.g., Data Structures"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-slate-300">Course Code</Label>
-          <Input
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-            className="bg-slate-800 border-slate-700 text-white"
-            placeholder="e.g., CS201"
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label className="text-slate-300">Credits</Label>
-          <Input
-            type="number"
-            min={1}
-            max={6}
-            value={form.credits}
-            onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 1 })}
-            className="bg-slate-800 border-slate-700 text-white"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-slate-300">Semester</Label>
-          <Select
-            value={String(form.semester)}
-            onValueChange={(v) => setForm({ ...form, semester: parseInt(v) })}
-          >
-            <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-slate-300">Department</Label>
-          <Select
-              value={form.department_id}
-            onValueChange={(v) => setForm({ ...form, department_id: v })}
-          >
-            <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700">
-              {departments.map((dept) => (
-                <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label className="text-slate-300">Description</Label>
-        <Textarea
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          className="bg-slate-800 border-slate-700 text-white resize-none"
-          placeholder="Brief course description..."
-          rows={3}
-        />
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={() => { setIsAddOpen(false); setIsEditOpen(false); resetForm(); }}>Cancel</Button>
-        <Button onClick={onSubmit} className="bg-violet-600 hover:bg-violet-700">{submitLabel}</Button>
-      </DialogFooter>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -271,7 +185,14 @@ export default function CoursesPage() {
               <DialogTitle className="text-white">Add New Course</DialogTitle>
               <DialogDescription className="text-slate-400">Create a new academic course</DialogDescription>
             </DialogHeader>
-            {renderCourseForm(handleAdd, "Create Course")}
+            <CourseForm 
+              form={form} 
+              setForm={setForm} 
+              departments={departments} 
+              onSubmit={handleAdd} 
+              submitLabel="Create Course" 
+              onCancel={() => setIsAddOpen(false)}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -335,20 +256,19 @@ export default function CoursesPage() {
                 <TableHead className="text-slate-400">Code</TableHead>
                 <TableHead className="text-slate-400">Department</TableHead>
                 <TableHead className="text-slate-400">Credits</TableHead>
-                <TableHead className="text-slate-400">Semester</TableHead>
                 <TableHead className="text-slate-400 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : filteredCourses.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-slate-500">No courses found</TableCell>
+                  <TableCell colSpan={5} className="text-center py-8 text-slate-500">No courses found</TableCell>
                 </TableRow>
               ) : (
                 filteredCourses.map((course) => (
@@ -367,7 +287,6 @@ export default function CoursesPage() {
                     <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{course.code}</Badge></TableCell>
                     <TableCell className="text-slate-300">{course.department?.name || getDeptName(course.department_id)}</TableCell>
                     <TableCell><Badge className="bg-cyan-500/20 text-cyan-400">{course.credits} cr</Badge></TableCell>
-                    <TableCell className="text-slate-300">Sem {course.semester}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEdit(course)}><Edit className="w-4 h-4" /></Button>
@@ -388,7 +307,14 @@ export default function CoursesPage() {
             <DialogTitle className="text-white">Edit Course</DialogTitle>
             <DialogDescription className="text-slate-400">Update course details</DialogDescription>
           </DialogHeader>
-          {renderCourseForm(handleEdit, "Save Changes")}
+          <CourseForm 
+            form={form} 
+            setForm={setForm} 
+            departments={departments} 
+            onSubmit={handleEdit} 
+            submitLabel="Save Changes" 
+            onCancel={() => setIsEditOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -406,6 +332,94 @@ export default function CoursesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+interface CourseFormProps {
+  form: any;
+  setForm: (form: any) => void;
+  departments: Department[];
+  onSubmit: () => void;
+  onCancel: () => void;
+  submitLabel: string;
+}
+
+function CourseForm({ form, setForm, departments, onSubmit, onCancel, submitLabel }: CourseFormProps) {
+  return (
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-300">Course Name</Label>
+          <Input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="bg-slate-800 border-slate-700 text-white"
+            placeholder="e.g., Data Structures"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-300">Course Code</Label>
+          <Input
+            value={form.code}
+            onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+            className="bg-slate-800 border-slate-700 text-white"
+            placeholder="e.g., CS201"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-300">Credits</Label>
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={form.credits}
+            onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 1 })}
+            className="bg-slate-800 border-slate-700 text-white"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-300">Department</Label>
+          <Select
+            value={form.department_id}
+            onValueChange={(v) => setForm({ ...form, department_id: v })}
+          >
+            <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {departments.map((dept) => (
+                <SelectItem key={dept.id} value={dept.id}>
+                  {dept.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label className="text-slate-300">Description</Label>
+        <Textarea
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          className="bg-slate-800 border-slate-700 text-white resize-none"
+          placeholder="Brief course description..."
+          rows={3}
+        />
+      </div>
+      <DialogFooter className="pt-2">
+        <Button variant="outline" onClick={onCancel} className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700">
+          Cancel
+        </Button>
+        <Button 
+          onClick={onSubmit} 
+          className="bg-violet-600 hover:bg-violet-700 text-white shadow-[0_0_15px_rgba(124,58,237,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+        >
+          {submitLabel}
+        </Button>
+      </DialogFooter>
     </div>
   );
 }

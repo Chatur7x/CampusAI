@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calculator, TrendingUp, AlertTriangle, CheckCircle2, Info, BookOpen, Loader2 } from 'lucide-react';
@@ -114,15 +115,20 @@ export default function AttendanceCalculatorPage() {
   const analysis = useMemo(() => {
     if (totalClasses === 0) return { canSkip: 0, needsToAttend: 0 };
     
+    // Safety Margin: Classes that can be missed while staying above threshold
+    // (A) / (T + S) = req / 100  => S = (100*A / req) - T
+    const safetyMargin = Math.floor(Math.max(0, (100 * safeAttended / requiredPercentage) - totalClasses));
+
     if (currentPercentage >= requiredPercentage) {
-      // Classes we can skip: A / (T + y) = req / 100
-      const y = (100 * safeAttended - requiredPercentage * totalClasses) / requiredPercentage;
       return {
-        canSkip: Math.floor(Math.max(0, y)),
+        canSkip: safetyMargin,
         needsToAttend: 0,
       };
     } else {
-      // Classes we need to attend consecutively: (A + x) / (T + x) = req / 100
+      // Classes needed in a row: (A + x) / (T + x) = req / 100
+      // 100A + 100x = reqT + reqx
+      // x(100 - req) = reqT - 100A
+      // x = (reqT - 100A) / (100 - req)
       const x = (requiredPercentage * totalClasses - 100 * safeAttended) / (100 - requiredPercentage);
       return {
         canSkip: 0,
@@ -265,13 +271,23 @@ export default function AttendanceCalculatorPage() {
               <div>
                 <h4 className={`font-semibold ${risk.color}`}>{risk.level} STATUS</h4>
                 {currentPercentage >= requiredPercentage ? (
-                  <p className="text-sm text-emerald-200/70 mt-1">
-                    You can safely skip <strong className="text-emerald-300 font-bold">{analysis.canSkip}</strong> consecutive class{analysis.canSkip === 1 ? '' : 'es'} without dropping below {requiredPercentage}%.
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-sm text-emerald-200/70 mt-1">
+                      You are safely above the target! You can skip <strong className="text-emerald-300 font-bold">{analysis.canSkip}</strong> more classes.
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                       <Badge className="bg-emerald-500/20 text-emerald-300 border-none">Safety Margin: {analysis.canSkip} classes</Badge>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-sm text-amber-200/70 mt-1">
-                    You must attend the next <strong className="text-amber-400 font-bold">{analysis.needsToAttend}</strong> consecutive class{analysis.needsToAttend === 1 ? '' : 'es'} to reach your target of {requiredPercentage}%.
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-sm text-amber-200/70 mt-1">
+                      Target not met. You must attend the next <strong className="text-amber-400 font-bold">{analysis.needsToAttend}</strong> consecutive classes.
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                       <Badge className="bg-amber-500/20 text-amber-300 border-none">Required: {analysis.needsToAttend} more</Badge>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

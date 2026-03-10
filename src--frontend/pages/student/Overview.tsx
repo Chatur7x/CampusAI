@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   GraduationCap,
@@ -9,7 +10,11 @@ import {
   Bell,
   Loader2,
   BookOpen,
+  ArrowRight,
+  TrendingUp,
+  HelpCircle,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import {
   LineChart,
@@ -47,6 +52,7 @@ interface NoticeItem {
 
 export default function StudentOverview() {
   const { user } = useSupabaseAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [todayClasses, setTodayClasses] = useState<TodayClass[]>([]);
@@ -199,6 +205,32 @@ export default function StudentOverview() {
       cancelled = true;
     };
   }, [user]);
+  
+  // ── Supabase Realtime Listener ──
+  useEffect(() => {
+    if (!user) return;
+    
+    const channel = supabase
+      .channel('public:notices')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notices' 
+      }, (payload) => {
+        const newNotice = payload.new as NoticeItem;
+        setNotices(prev => [newNotice, ...prev.slice(0, 2)]);
+        toast.info(`New Notice: ${newNotice.title}`, {
+          description: newNotice.content.substring(0, 100) + '...',
+          icon: <Bell className="w-4 h-4 text-emerald-400" />,
+          duration: 6000,
+        });
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   // Compute attendance stats from real data
   const attendance = useMemo(() => {
@@ -282,6 +314,78 @@ export default function StudentOverview() {
             </Badge>
           </div>
         </div>
+      </div>
+      
+      {/* Attendance Risk Alert */}
+      {!loading && attendance.percentage < 75 && (
+        <Card className="bg-red-500/10 border-red-500/20 shadow-lg rounded-3xl animate-in fade-in slide-in-from-top-4 duration-1000">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/20 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6 text-red-400" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <h3 className="text-xl font-bold text-red-200">Attendance Risk Warning</h3>
+                <p className="text-red-100/70 text-sm">
+                  Your attendance has dropped to <span className="font-bold text-red-300">{attendance.percentage}%</span>. 
+                  You are below the mandatory 75% threshold.
+                </p>
+                <div className="pt-2">
+                  <Button 
+                    variant="link" 
+                    className="h-auto p-0 text-red-300 hover:text-red-200 flex items-center gap-1 font-semibold"
+                    onClick={() => navigate('/student/calculator')}
+                  >
+                    Use Calculator to fix <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quick Action Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card 
+          className="group cursor-pointer bg-slate-900/40 border-slate-800/60 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all rounded-3xl overflow-hidden shadow-xl"
+          onClick={() => navigate('/student/live-attendance')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                  <CheckCircle className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-lg">Mark Attendance</h3>
+                  <p className="text-slate-400 text-sm">Scan QR or enter 6-digit code</p>
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className="group cursor-pointer bg-slate-900/40 border-slate-800/60 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all rounded-3xl overflow-hidden shadow-xl"
+          onClick={() => navigate('/student/calculator')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
+                  <TrendingUp className="w-6 h-6 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-lg">Attendance Margin</h3>
+                  <p className="text-slate-400 text-sm">Calculate classes for 75% target</p>
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Attendance Card */}

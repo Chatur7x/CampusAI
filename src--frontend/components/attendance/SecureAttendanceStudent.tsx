@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, ShieldCheck, AlertTriangle, Fingerprint, ScanFace, CheckCircle2, Lock, Bluetooth, WifiOff, RefreshCw } from 'lucide-react';
+import { MapPin, ShieldCheck, AlertTriangle, Fingerprint, ScanFace, CheckCircle2, Lock, Bluetooth, WifiOff, RefreshCw, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
 import { auditLogService } from '@/lib/api';
 import { toast } from 'sonner';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 // Anurag University campus coordinates
 const CAMPUS_LAT = 17.5023;
@@ -108,12 +109,61 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
     }
   }
 
-  const startSession = () => {
+  const startSession = async () => {
     if (sessionCode.length === 6) {
-      setStep(2);
-      verifyLocation();
+      setAttendanceStatus('submitting');
+      try {
+        // Validate session code against Supabase
+        const { data: session, error } = await supabase
+          .from('attendance_sessions')
+          .select('*')
+          .eq('code', sessionCode)
+          .gt('expires_at', new Date().toISOString())
+          .eq('is_active', true)
+          .single();
+
+        if (error || !session) {
+          toast.error("Invalid or expired session code.");
+          setAttendanceStatus('idle');
+          return;
+        }
+
+        toast.success("Session code verified!");
+        setStep(2);
+        verifyLocation();
+      } catch (err) {
+        toast.error("Verification failed. Please try again.");
+        setAttendanceStatus('idle');
+      }
     }
   };
+
+  const handleQrScan = (decodedText: string) => {
+    if (decodedText.length === 6) {
+      setSessionCode(decodedText);
+      // Automatically proceed if it's a 6-digit code
+      // We can't call startSession directly because of state closure, 
+      // but we can set sStep or similar.
+      // For now, just set the code and let user click confirm or auto-trigger.
+    }
+  };
+
+  useEffect(() => {
+    if (step === 1) {
+      const scanner = new Html5QrcodeScanner(
+        "qr-reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        /* verbose= */ false
+      );
+      scanner.render(handleQrScan, (_err) => {
+        // console.warn(err);
+      });
+
+      return () => {
+        scanner.clear().catch(_error => console.error("Failed to clear scanner", _error));
+      };
+    }
+  }, [step]);
 
   const verifyLocation = () => {
     setLocationStatus('verifying');
@@ -398,6 +448,9 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
                 </div>
                 
                 <div className="max-w-xs mx-auto space-y-4">
+                  {/* QR Scanner Placeholder */}
+                  <div id="qr-reader" className="w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mb-4"></div>
+                  
                   <div className="space-y-2">
                     <Label className="text-slate-300">6-Digit Code</Label>
                     <Input 
@@ -409,10 +462,11 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
                   </div>
                   <Button 
                     onClick={startSession}
-                    disabled={sessionCode.length !== 6}
+                    disabled={sessionCode.length !== 6 || attendanceStatus === 'submitting'}
                     className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-lg"
                   >
-                    Start Verification
+                    {attendanceStatus === 'submitting' ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                    Confirm Session Code
                   </Button>
                 </div>
               </motion.div>

@@ -94,12 +94,12 @@ export default function ClassesPage() {
   const handleAdd = async () => {
     try {
       await classService.create({
-        name: form.name,
+        name: form.name.trim(),
         section: form.section,
         department_id: form.department_id,
         course_id: form.course_id || null,
         class_incharge_id: form.class_incharge_id || null,
-        room: form.room || null,
+        room: form.room.trim() || null,
         capacity: form.capacity,
         academic_year: form.academicYear,
       } as any);
@@ -117,12 +117,12 @@ export default function ClassesPage() {
     if (!selectedClass) return;
     try {
       await classService.update(selectedClass.id, {
-        name: form.name,
+        name: form.name.trim(),
         section: form.section,
         department_id: form.department_id,
         course_id: form.course_id || null,
         class_incharge_id: form.class_incharge_id || null,
-        room: form.room || null,
+        room: form.room.trim() || null,
         capacity: form.capacity,
         academic_year: form.academicYear,
       } as any);
@@ -376,7 +376,7 @@ export default function ClassesPage() {
                     </TableCell>
                     <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{cls.section}</Badge></TableCell>
                     <TableCell className="text-slate-300">{cls.department?.name}</TableCell>
-                    <TableCell className="text-slate-300">{cls.roomNumber || '—'}</TableCell>
+                    <TableCell className="text-slate-300">{cls.room || '—'}</TableCell>
                     <TableCell className="text-slate-300">{cls.capacity}</TableCell>
                     <TableCell>
                       <Badge className={
