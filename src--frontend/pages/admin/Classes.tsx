@@ -180,7 +180,7 @@ export default function ClassesPage() {
       c.department?.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const ClassForm = ({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) => (
+  const renderClassForm = (onSubmit: () => void, submitLabel: string) => (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -283,7 +283,7 @@ export default function ClassesPage() {
               <DialogTitle className="text-white">Add New Class</DialogTitle>
               <DialogDescription className="text-slate-400">Create a new class section</DialogDescription>
             </DialogHeader>
-            <ClassForm onSubmit={handleAdd} submitLabel="Create Class" />
+            {renderClassForm(handleAdd, "Create Class")}
           </DialogContent>
         </Dialog>
       </div>
@@ -407,7 +407,7 @@ export default function ClassesPage() {
             <DialogTitle className="text-white">Edit Class</DialogTitle>
             <DialogDescription className="text-slate-400">Update class details</DialogDescription>
           </DialogHeader>
-          <ClassForm onSubmit={handleEdit} submitLabel="Save Changes" />
+          {renderClassForm(handleEdit, "Save Changes")}
         </DialogContent>
       </Dialog>
 

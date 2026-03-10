@@ -230,7 +230,7 @@ export default function FacultyPage() {
     }
   };
 
-  const FacultyForm = ({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) => (
+  const renderFacultyForm = (onSubmit: () => void, submitLabel: string) => (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -310,7 +310,7 @@ export default function FacultyPage() {
                 <DialogTitle className="text-white">Add Faculty Member</DialogTitle>
                 <DialogDescription className="text-slate-400">Enter details for the new faculty member</DialogDescription>
               </DialogHeader>
-              <FacultyForm onSubmit={handleAdd} submitLabel="Add Faculty" />
+              {renderFacultyForm(handleAdd, "Add Faculty")}
             </DialogContent>
           </Dialog>
         </div>
@@ -400,7 +400,7 @@ export default function FacultyPage() {
             <DialogTitle className="text-white">Edit Faculty</DialogTitle>
             <DialogDescription className="text-slate-400">Update faculty details</DialogDescription>
           </DialogHeader>
-          <FacultyForm onSubmit={handleEdit} submitLabel="Save Changes" />
+          {renderFacultyForm(handleEdit, "Save Changes")}
         </DialogContent>
       </Dialog>
 

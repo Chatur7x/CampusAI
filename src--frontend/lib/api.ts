@@ -327,6 +327,7 @@ export const departmentService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('departments');
     return data;
   },
 
@@ -345,6 +346,7 @@ export const departmentService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('departments');
     return data;
   },
 
@@ -443,6 +445,7 @@ export const facultyService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('faculty');
     return data;
   },
 
@@ -465,6 +468,7 @@ export const facultyService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('faculty');
     return data;
   },
 
@@ -602,6 +606,7 @@ export const studentService = {
       .update({ face_data: faceData, face_registered: true })
       .eq('id', studentId);
     if (error) handleError(error);
+    clearApiCache('students');
   },
 
   async delete(id: string): Promise<void> {
@@ -762,6 +767,7 @@ export const courseService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('courses');
     return data;
   },
 
@@ -781,6 +787,7 @@ export const courseService = {
       .select()
       .single();
     if (error) handleError(error);
+    clearApiCache('courses');
     return data;
   },
 
@@ -790,6 +797,7 @@ export const courseService = {
       .delete()
       .eq('id', id);
     if (error) handleError(error);
+    clearApiCache('courses');
   },
 };
 
@@ -1352,6 +1360,7 @@ export const timetableService = {
       .update({ is_active: false })
       .eq('id', id);
     if (error) handleError(error);
+    clearApiCache('timetable');
   },
 };
 

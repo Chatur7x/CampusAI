@@ -251,6 +251,86 @@ export default function StudentsPage() {
     }
   };
 
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  const renderStudentForm = (formValues: any, setFormValues: any, onSubmit: () => void, submitLabel: string) => (
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-300">First Name</Label>
+          <Input
+            value={formValues.firstName}
+            onChange={(e) => setFormValues({ ...formValues, firstName: e.target.value })}
+            className="bg-slate-800 border-slate-700 text-white"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-300">Last Name</Label>
+          <Input
+            value={formValues.lastName}
+            onChange={(e) => setFormValues({ ...formValues, lastName: e.target.value })}
+            className="bg-slate-800 border-slate-700 text-white"
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label className="text-slate-300">Email</Label>
+        <Input
+          type="email"
+          value={formValues.email}
+          onChange={(e) => setFormValues({ ...formValues, email: e.target.value })}
+          className="bg-slate-800 border-slate-700 text-white"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-slate-300">Enrollment ID</Label>
+        <Input
+          value={formValues.enrollmentId}
+          onChange={(e) => setFormValues({ ...formValues, enrollmentId: e.target.value })}
+          className="bg-slate-800 border-slate-700 text-white"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-300">Department</Label>
+          <Select
+            value={formValues.departmentId}
+            onValueChange={(value) => setFormValues({ ...formValues, departmentId: value })}
+          >
+            <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+              <SelectValue placeholder="Select department" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {departments.map((dept) => (
+                <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-300">Class</Label>
+          <Select
+            value={formValues.classId}
+            onValueChange={(value) => setFormValues({ ...formValues, classId: value })}
+          >
+            <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+              <SelectValue placeholder="Select class" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {classes.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>{cls.name} - {cls.section}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); setIsEditDialogOpen(false); }}>Cancel</Button>
+        <Button onClick={onSubmit} className="bg-violet-600 hover:bg-violet-700">{submitLabel}</Button>
+      </DialogFooter>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -282,93 +362,71 @@ export default function StudentsPage() {
                   Enter the details for the new student
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">First Name</Label>
-                    <Input
-                      value={newStudent.firstName}
-                      onChange={(e) => setNewStudent({ ...newStudent, firstName: e.target.value })}
-                      className="bg-slate-800 border-slate-700 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Last Name</Label>
-                    <Input
-                      value={newStudent.lastName}
-                      onChange={(e) => setNewStudent({ ...newStudent, lastName: e.target.value })}
-                      className="bg-slate-800 border-slate-700 text-white"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Email</Label>
-                  <Input
-                    type="email"
-                    value={newStudent.email}
-                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                    className="bg-slate-800 border-slate-700 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Enrollment ID</Label>
-                  <Input
-                    value={newStudent.enrollmentId}
-                    onChange={(e) => setNewStudent({ ...newStudent, enrollmentId: e.target.value })}
-                    className="bg-slate-800 border-slate-700 text-white"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Department</Label>
-                    <Select
-                      value={newStudent.departmentId}
-                      onValueChange={(value) => setNewStudent({ ...newStudent, departmentId: value })}
-                    >
-                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Class</Label>
-                    <Select
-                      value={newStudent.classId}
-                      onValueChange={(value) => setNewStudent({ ...newStudent, classId: value })}
-                    >
-                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                        <SelectValue placeholder="Select class" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        {classes.map((cls) => (
-                          <SelectItem key={cls.id} value={cls.id}>
-                            {cls.name} - {cls.section}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddStudent} className="bg-violet-600 hover:bg-violet-700">
-                  Add Student
-                </Button>
-              </DialogFooter>
+              {renderStudentForm(newStudent, setNewStudent, handleAddStudent, "Add Student")}
             </DialogContent>
           </Dialog>
         </div>
       </div>
+
+      {/* Student Details Dialog */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-white">Student Details</DialogTitle>
+            <DialogDescription className="text-slate-400">Complete profile information</DialogDescription>
+          </DialogHeader>
+          {selectedStudent && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <div className="flex flex-col items-center gap-4 p-4 rounded-xl bg-slate-800/30">
+                <Avatar className="w-24 h-24 border-4 border-violet-500/20">
+                  <AvatarFallback className="bg-violet-500/20 text-violet-400 text-2xl">
+                    {getInitials((selectedStudent.profile?.first_name || '') + ' ' + (selectedStudent.profile?.last_name || ''))}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="text-center">
+                  <h3 className="text-xl font-bold text-white">{selectedStudent.profile?.first_name} {selectedStudent.profile?.last_name}</h3>
+                  <p className="text-slate-400 text-sm">{selectedStudent.profile?.email}</p>
+                </div>
+                <Badge variant={selectedStudent.face_registered ? 'default' : 'secondary'} className={selectedStudent.face_registered ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}>
+                  {selectedStudent.face_registered ? 'Face Registered' : 'Face Not Registered'}
+                </Badge>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-slate-500 text-xs uppercase tracking-wider">Academic Info</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                      <p className="text-xs text-slate-500">Enrollment ID</p>
+                      <p className="text-sm font-medium text-white">{selectedStudent.enrollment_id}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                      <p className="text-xs text-slate-500">Semester</p>
+                      <p className="text-sm font-medium text-white">{selectedStudent.semester}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <p className="text-xs text-slate-500">Department</p>
+                    <p className="text-sm font-medium text-white">{selectedStudent.department?.name || 'N/A'}</p>
+                  </div>
+                </div>
+                <div>
+                  <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <p className="text-xs text-slate-500">Class Section</p>
+                    <p className="text-sm font-medium text-white">{selectedStudent.class?.name || 'N/A'} - {selectedStudent.class?.section || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Close</Button>
+            <Button className="bg-violet-600 hover:bg-violet-700" onClick={() => { setIsDetailsOpen(false); openEditDialog(selectedStudent!); }}>Edit Profile</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Search */}
       <Card className="bg-slate-900/50 border-slate-800">
@@ -455,6 +513,7 @@ export default function StudentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="sm" className="text-violet-400 hover:text-violet-300 px-2 h-8" onClick={() => { setSelectedStudent(student); setIsDetailsOpen(true); }}>View</Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEditDialog(student)}>
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -478,46 +537,7 @@ export default function StudentsPage() {
             <DialogTitle className="text-white">Edit Student</DialogTitle>
             <DialogDescription className="text-slate-400">Update student details</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-slate-300">First Name</Label>
-                <Input value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-slate-300">Last Name</Label>
-                <Input value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-300">Email</Label>
-              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-slate-300">Department</Label>
-                <Select value={editForm.departmentId} onValueChange={(v) => setEditForm({ ...editForm, departmentId: v })}>
-                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    {departments.map((dept) => (<SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-slate-300">Class</Label>
-                <Select value={editForm.classId} onValueChange={(v) => setEditForm({ ...editForm, classId: v })}>
-                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    {classes.map((cls) => (<SelectItem key={cls.id} value={cls.id}>{cls.name} - {cls.section}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditStudent} className="bg-violet-600 hover:bg-violet-700">Save Changes</Button>
-          </DialogFooter>
+          {renderStudentForm(editForm, setEditForm, handleEditStudent, "Save Changes")}
         </DialogContent>
       </Dialog>
 

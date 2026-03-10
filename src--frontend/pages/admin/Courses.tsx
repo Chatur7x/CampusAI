@@ -168,7 +168,7 @@ export default function CoursesPage() {
 
   const getDeptName = (deptId: string) => departments.find((d) => d.id === deptId)?.name || deptId;
 
-  const CourseForm = ({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) => (
+  const renderCourseForm = (onSubmit: () => void, submitLabel: string) => (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -271,7 +271,7 @@ export default function CoursesPage() {
               <DialogTitle className="text-white">Add New Course</DialogTitle>
               <DialogDescription className="text-slate-400">Create a new academic course</DialogDescription>
             </DialogHeader>
-            <CourseForm onSubmit={handleAdd} submitLabel="Create Course" />
+            {renderCourseForm(handleAdd, "Create Course")}
           </DialogContent>
         </Dialog>
       </div>
@@ -388,7 +388,7 @@ export default function CoursesPage() {
             <DialogTitle className="text-white">Edit Course</DialogTitle>
             <DialogDescription className="text-slate-400">Update course details</DialogDescription>
           </DialogHeader>
-          <CourseForm onSubmit={handleEdit} submitLabel="Save Changes" />
+          {renderCourseForm(handleEdit, "Save Changes")}
         </DialogContent>
       </Dialog>
 
