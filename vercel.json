@@ -5,7 +5,7 @@
   "buildCommand": "npx vite build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/ai/(.*)", "destination": "https://campusai-ai.railway.app/api/$1" },
+    { "source": "/api/ai/(.*)", "destination": "https://web-production-3c7fb.up.railway.app/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
