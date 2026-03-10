@@ -32,7 +32,7 @@ export default function FacultyOverview() {
   const [stats, setStats] = useState({
     myClasses: 0,
     todaySchedule: 0,
-    totalStudents: 0,
+    avgAttendance: 0,
     pendingLeaves: 0,
   });
   const [weeklyData, setWeeklyData] = useState<{ day: string; attendance: number }[]>([]);
@@ -59,7 +59,8 @@ export default function FacultyOverview() {
         const scheduleToday = timetable.filter((t) => t.day_of_week === todayDow);
         setTodaySchedule(scheduleToday);
 
-        let totalStudents = 0;
+        let totalAttendancePct = 0;
+        let classesWithAttendance = 0;
         let pendingLeaves = 0;
         const perf: ClassPerformance[] = [];
 
@@ -92,10 +93,13 @@ export default function FacultyOverview() {
         ).length;
 
         for (const { classId, students, todayAttendance } of classDataResults) {
-          totalStudents += students.length;
           const present = todayAttendance.filter((r) => r.status === 'PRESENT').length;
           const total = todayAttendance.length || students.length;
           const percentage = total ? Math.round((present / total) * 100) : 0;
+          if (total > 0) {
+            totalAttendancePct += percentage;
+            classesWithAttendance++;
+          }
           const className = timetable.find((t) => t.class_id === classId)?.class?.name || 'Class';
           perf.push({ className, percentage });
         }
@@ -103,7 +107,7 @@ export default function FacultyOverview() {
         setStats({
           myClasses: classIds.length,
           todaySchedule: scheduleToday.length,
-          totalStudents,
+          avgAttendance: classesWithAttendance > 0 ? Math.round(totalAttendancePct / classesWithAttendance) : 0,
           pendingLeaves,
         });
         setClassPerformance(perf);
@@ -172,8 +176,8 @@ export default function FacultyOverview() {
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-slate-400">My Classes</p>
-                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.myClasses}</p>
+                <p className="text-sm text-slate-400">Low Attendance Students</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : atRiskStudents.length}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-cyan-500/10 flex items-center justify-center">
                 <Users className="w-6 h-6 text-cyan-400" />
@@ -186,7 +190,7 @@ export default function FacultyOverview() {
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-slate-400">Today's Schedule</p>
+                <p className="text-sm text-slate-400">Today's Classes</p>
                 <p className="text-2xl font-bold text-white">{loading ? '—' : stats.todaySchedule}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
@@ -200,8 +204,8 @@ export default function FacultyOverview() {
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-slate-400">Total Students</p>
-                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.totalStudents}</p>
+                <p className="text-sm text-slate-400">Avg Attendance</p>
+                <p className="text-2xl font-bold text-white">{loading ? '—' : `${stats.avgAttendance}%`}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-emerald-400" />
