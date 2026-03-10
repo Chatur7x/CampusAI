@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "name": "campusai",
   "framework": "vite",
   "buildCommand": "npx vite build",
   "outputDirectory": "dist",
