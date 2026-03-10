@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 import {
   Dialog,
@@ -60,6 +61,7 @@ export default function TimetablePage() {
   const [isCsvOpen, setIsCsvOpen] = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<TimetableEntryWithRelations | null>(null);
+  const [draggedOverSlot, setDraggedOverSlot] = useState<{ dayIdx: number; time: string } | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     classId: '',
@@ -242,6 +244,44 @@ export default function TimetablePage() {
     }
   };
 
+  // ── Drag & Drop Rescheduling ──
+  const handleDropEntry = async (entryId: string, dayIdx: number, time: string) => {
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) return;
+    if (entry.day_of_week === dayIdx && entry.start_time === time) return; // Unchanged
+
+    try {
+      const startHour = parseInt(time.split(':')[0], 10);
+      const endHourStr = `${String(startHour + 1).padStart(2, '0')}:00`;
+      const prevDay = DAYS[entry.day_of_week ?? 0];
+      const prevStart = entry.start_time;
+      const prevEnd = entry.end_time;
+
+      // Simple conflict check
+      const conflict = entries.find(e => e.id !== entry.id && e.faculty_id === entry.faculty_id && e.day_of_week === dayIdx && e.start_time <= time && e.end_time > time);
+      if (conflict) {
+        toast.warning(`Faculty warning: ${conflict.faculty?.profile?.first_name || 'Member'} is already busy at this time. Proceeding anyway.`);
+      }
+
+      await timetableService.update(entry.id, {
+        day_of_week: dayIdx,
+        start_time: time,
+        end_time: endHourStr,
+      });
+
+      toast.success('Timetable entry rescheduled successfully');
+      const courseName = entry.course?.name || '';
+      auditLogService.log('UPDATE', 'timetable_entry', entry.id, { newValues: { action: 'DRAG_AND_DROP', dayIdx, time } });
+
+      if (entry.faculty_id) {
+        notifyFaculty(entry.faculty_id, 'Rescheduled', `Schedule changed: ${courseName} moved from ${prevDay} ${prevStart}-${prevEnd} to ${DAYS[dayIdx]} ${time}-${endHourStr}`);
+      }
+      fetchTimetable();
+    } catch (err) {
+      toast.error('Failed to reschedule entry');
+    }
+  };
+
   // ── CSV Import ──
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -393,7 +433,12 @@ export default function TimetablePage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Timetable</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white">Timetable Builder</h1>
+            <Badge variant="outline" className="bg-violet-500/10 text-violet-300 border-violet-500/30 shadow-[0_0_10px_rgba(139,92,246,0.15)]">
+              Drag & Drop Rescheduling
+            </Badge>
+          </div>
           <p className="text-slate-400">{todayDateStr} • {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -513,12 +558,26 @@ export default function TimetablePage() {
                   <div className={`text-xs p-2 flex items-center ${time === currentHour ? 'text-violet-400 font-semibold' : 'text-slate-500'}`}>{time}{time === currentHour ? ' ◀' : ''}</div>
                   {DAYS.map((_, dayIdx) => {
                     const slotEntries = getEntriesForSlot(dayIdx, time);
+                    const isTarget = draggedOverSlot?.dayIdx === dayIdx && draggedOverSlot?.time === time;
                     return (
-                      <div key={dayIdx} className="min-h-[60px] bg-slate-800/30 rounded p-1">
+                      <div 
+                        key={dayIdx} 
+                        className={`min-h-[60px] rounded p-1 transition-all ${isTarget ? 'bg-violet-500/20 ring-2 ring-violet-500 border-dashed border-2 border-violet-400' : 'bg-slate-800/30'} flex flex-col gap-1`}
+                        onDragOver={(e) => { e.preventDefault(); setDraggedOverSlot({ dayIdx, time }); }}
+                        onDragLeave={() => setDraggedOverSlot(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDraggedOverSlot(null);
+                          const id = e.dataTransfer.getData('text/plain');
+                          if (id) handleDropEntry(id, dayIdx, time);
+                        }}
+                      >
                         {slotEntries.map((entry) => (
                           <div
                             key={entry.id}
-                            className={`${getColorForSubject(entry.course_id || entry.id)} rounded p-2 text-xs border cursor-pointer group relative`}
+                            draggable
+                            onDragStart={(e) => { e.dataTransfer.setData('text/plain', entry.id); }}
+                            className={`${getColorForSubject(entry.course_id || entry.id)} rounded p-2 text-xs border cursor-move group relative shadow-md transition-all hover:scale-[1.02] hover:shadow-lg hover:z-10`}
                           >
                             <p className="font-medium truncate">{entry.course?.name || 'Course'}</p>
                             <p className="opacity-70 truncate">{entry.faculty?.profile?.first_name || 'Faculty'}</p>
