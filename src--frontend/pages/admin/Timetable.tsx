@@ -66,6 +66,12 @@ export default function TimetablePage() {
     endTime: '10:00',
     roomNumber: '',
   });
+
+  // ── Today/Now detection ──
+  const now = new Date();
+  const todayDayIdx = now.getDay() === 0 ? -1 : now.getDay() - 1; // Mon=0..Sat=5, Sun=-1
+  const currentHour = `${String(now.getHours()).padStart(2, '0')}:00`;
+  const todayDateStr = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchClasses();
@@ -175,7 +181,7 @@ export default function TimetablePage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Timetable</h1>
-          <p className="text-slate-400">Manage weekly class schedules</p>
+          <p className="text-slate-400">{todayDateStr} • {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedClassId} onValueChange={setSelectedClassId}>
@@ -296,14 +302,14 @@ export default function TimetablePage() {
               {/* Header */}
               <div className="grid grid-cols-[80px_repeat(6,1fr)] gap-1 mb-2">
                 <div className="text-xs text-slate-500 font-medium p-2">Time</div>
-                {DAYS.map((day) => (
-                  <div key={day} className="text-xs text-slate-400 font-medium p-2 text-center bg-slate-800/50 rounded">{day}</div>
+                {DAYS.map((day, dayIdx) => (
+                  <div key={day} className={`text-xs font-medium p-2 text-center rounded ${dayIdx === todayDayIdx ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40' : 'text-slate-400 bg-slate-800/50'}`}>{day}{dayIdx === todayDayIdx ? ' (Today)' : ''}</div>
                 ))}
               </div>
               {/* Time Slots */}
               {TIME_SLOTS.map((time) => (
-                <div key={time} className="grid grid-cols-[80px_repeat(6,1fr)] gap-1 mb-1">
-                  <div className="text-xs text-slate-500 p-2 flex items-center">{time}</div>
+                <div key={time} className={`grid grid-cols-[80px_repeat(6,1fr)] gap-1 mb-1 ${time === currentHour ? 'ring-1 ring-violet-500/30 rounded bg-violet-500/5' : ''}`}>
+                  <div className={`text-xs p-2 flex items-center ${time === currentHour ? 'text-violet-400 font-semibold' : 'text-slate-500'}`}>{time}{time === currentHour ? ' ◀' : ''}</div>
                   {DAYS.map((_, dayIdx) => {
                     const slotEntries = getEntriesForSlot(dayIdx, time);
                     return (

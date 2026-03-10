@@ -12,6 +12,12 @@ export default function StudentTimetablePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // ── Today/Now detection ──
+  const now = new Date();
+  const todayDayIdx = now.getDay(); // 0=Sun,1=Mon..6=Sat
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const todayDateStr = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
   useEffect(() => {
     (async () => {
       try {
@@ -59,7 +65,7 @@ export default function StudentTimetablePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">My Timetable</h1>
-        <p className="text-slate-400">Your weekly class schedule</p>
+        <p className="text-slate-400">{todayDateStr} • {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
       </div>
 
       {entries.length === 0 ? (
@@ -71,12 +77,14 @@ export default function StudentTimetablePage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {DAYS.map((day, index) => {
-            const slots = grouped[index + 1] || grouped[index] || [];
+            const dayNum = index + 1;
+            const slots = grouped[dayNum] || grouped[index] || [];
             if (slots.length === 0) return null;
+            const isToday = todayDayIdx === dayNum || (todayDayIdx === index + 1);
             return (
-              <Card key={day} className="bg-slate-900/50 border-slate-800">
+              <Card key={day} className={`bg-slate-900/50 border-slate-800 ${isToday ? 'ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10' : ''}`}>
                 <CardHeader>
-                  <CardTitle className="text-white text-lg">{day}</CardTitle>
+                  <CardTitle className={`text-lg ${isToday ? 'text-emerald-300' : 'text-white'}`}>{day}{isToday ? ' (Today)' : ''}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -84,13 +92,15 @@ export default function StudentTimetablePage() {
                       const st = slot.start_time || '';
                       const et = slot.end_time || '';
                       const subj = slot.course?.name || slot.course?.code || '';
-                      const fac = slot.faculty_profile ? `${slot.faculty_profile.first_name || ''} ${slot.faculty_profile.last_name || ''}`.trim() : '';
+                      const fac = slot.faculty_profile ? `${slot.faculty_profile.first_name || ''} ${slot.faculty_profile.last_name || ''}`.trim() : (slot.faculty?.profile ? `${slot.faculty.profile.first_name || ''} ${slot.faculty.profile.last_name || ''}`.trim() : '');
                       const room = slot.room || '';
+                      const isCurrentSlot = isToday && st <= currentTime && et > currentTime;
                       return (
-                        <div key={slot.id || i} className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                        <div key={slot.id || i} className={`p-3 rounded-lg ${isCurrentSlot ? 'bg-emerald-500/15 border-2 border-emerald-400/50 shadow-md shadow-emerald-500/10' : 'bg-emerald-500/5 border border-emerald-500/10'}`}>
                           <div className="flex items-center gap-2 mb-2">
-                            <Clock className="w-4 h-4 text-emerald-400" />
+                            <Clock className={`w-4 h-4 ${isCurrentSlot ? 'text-emerald-300 animate-pulse' : 'text-emerald-400'}`} />
                             <span className="text-sm text-emerald-400">{st}{et ? ` - ${et}` : ''}</span>
+                            {isCurrentSlot && <span className="text-xs bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full font-medium">NOW</span>}
                           </div>
                           <p className="font-medium text-white">{subj || 'Untitled'}</p>
                           <div className="flex items-center gap-3 mt-2 text-sm text-slate-400">
