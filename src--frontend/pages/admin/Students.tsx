@@ -218,6 +218,39 @@ export default function StudentsPage() {
       .toUpperCase();
   };
 
+  const handleExportCSV = () => {
+    try {
+      if (filteredStudents.length === 0) {
+        toast.info('No students to export');
+        return;
+      }
+      
+      const headers = ['First Name', 'Last Name', 'Email', 'Enrollment ID', 'Department', 'Class', 'Semester', 'Face Registered'];
+      const rows = filteredStudents.map(s => [
+        s.profile?.first_name || '',
+        s.profile?.last_name || '',
+        s.profile?.email || '',
+        s.enrollment_id || '',
+        s.department?.name || '',
+        `${s.class?.name || ''} - ${s.class?.section || ''}`,
+        s.semester?.toString() || '',
+        s.face_registered ? 'Yes' : 'No'
+      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
+      
+      const csvContent = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `students_export_${new Date().toISOString().split('T')[0]}.csv`);
+      a.click();
+      toast.success('Students exported successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export students');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -231,7 +264,7 @@ export default function StudentsPage() {
             <Upload className="w-4 h-4 mr-2" />
             Import CSV
           </Button>
-          <Button variant="outline" className="border-slate-700">
+          <Button variant="outline" className="border-slate-700" onClick={handleExportCSV}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>

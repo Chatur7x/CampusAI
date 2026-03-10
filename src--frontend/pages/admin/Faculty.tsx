@@ -197,6 +197,39 @@ export default function FacultyPage() {
   const getInitials = (f: Faculty) =>
     (((f as any).profile?.first_name?.[0] || '') + ((f as any).profile?.last_name?.[0] || '')).toUpperCase() || 'F';
 
+  const handleExportCSV = () => {
+    try {
+      if (filteredFaculty.length === 0) {
+        toast.info('No faculty to export');
+        return;
+      }
+      
+      const headers = ['First Name', 'Last Name', 'Email', 'Employee ID', 'Designation', 'Department', 'Specialization', 'Joining Date'];
+      const rows = filteredFaculty.map(f => [
+        f.profile?.first_name || '',
+        f.profile?.last_name || '',
+        f.profile?.email || '',
+        f.employee_id || '',
+        f.designation || '',
+        f.department?.name || '',
+        f.specialization || '',
+        f.joining_date || ''
+      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
+      
+      const csvContent = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `faculty_export_${new Date().toISOString().split('T')[0]}.csv`);
+      a.click();
+      toast.success('Faculty exported successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export faculty');
+    }
+  };
+
   const FacultyForm = ({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) => (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
@@ -267,7 +300,7 @@ export default function FacultyPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="border-slate-700"><Upload className="w-4 h-4 mr-2" />Import</Button>
-          <Button variant="outline" className="border-slate-700"><Download className="w-4 h-4 mr-2" />Export</Button>
+          <Button variant="outline" className="border-slate-700" onClick={handleExportCSV}><Download className="w-4 h-4 mr-2" />Export</Button>
           <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="bg-violet-600 hover:bg-violet-700"><Plus className="w-4 h-4 mr-2" />Add Faculty</Button>

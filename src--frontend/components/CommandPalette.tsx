@@ -27,20 +27,83 @@ import {
 } from 'lucide-react';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { studentService, facultyService, classService, departmentService } from '@/lib/api';
 
 interface CommandItem {
   icon: React.ElementType;
   label: string;
+  subLabel?: string;
   shortcut?: string;
   action: () => void;
   keywords?: string[];
 }
 
+interface SearchEntity {
+  id: string;
+  type: 'Student' | 'Faculty' | 'Class' | 'Department';
+  name: string;
+  description: string;
+  path: string;
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [entities, setEntities] = useState<SearchEntity[]>([]);
+  const [loading, setLoading] = useState(false);
+  
   const navigate = useNavigate();
   const { user, signOut: logout } = useSupabaseAuth();
   const { setTheme } = useTheme();
+
+  // Load global search data when opened (Admin only for now)
+  useEffect(() => {
+    if (open && user?.role === 'ADMIN' && entities.length === 0) {
+      setLoading(true);
+      Promise.all([
+        studentService.getAll(),
+        facultyService.getAll(),
+        classService.getAll(),
+        departmentService.getAll(),
+      ]).then(([students, faculty, classes, depts]) => {
+        const searchData: SearchEntity[] = [
+          ...students.map((s: any) => ({
+            id: s.id,
+            type: 'Student' as const,
+            name: `${s.profile?.first_name || ''} ${s.profile?.last_name || ''}`.trim() || s.enrollment_id || 'Student',
+            description: s.enrollment_id || 'Student',
+            path: '/admin/students',
+          })),
+          ...faculty.map((f: any) => ({
+            id: f.id,
+            type: 'Faculty' as const,
+            name: `${f.profile?.first_name || ''} ${f.profile?.last_name || ''}`.trim() || f.employee_id || 'Faculty',
+            description: f.employee_id || 'Faculty',
+            path: '/admin/faculty',
+          })),
+          ...classes.map((c: any) => ({
+            id: c.id,
+            type: 'Class' as const,
+            name: `${c.name} - ${c.section}`,
+            description: 'Class',
+            path: '/admin/classes',
+          })),
+          ...depts.map((d: any) => ({
+            id: d.id,
+            type: 'Department' as const,
+            name: d.name,
+            description: d.code || 'Department',
+            path: '/admin/departments',
+          })),
+        ];
+        setEntities(searchData);
+        setLoading(false);
+      }).catch((e) => {
+        console.error('Failed to load global search data', e);
+        setLoading(false);
+      });
+    }
+  }, [open, user, entities.length]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -127,11 +190,42 @@ export function CommandPalette() {
     },
   ];
 
+  // Filter global search results
+  const globalResults = query.length > 1 ? entities.filter((e) => 
+    e.name.toLowerCase().includes(query.toLowerCase()) || 
+    e.description.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 10) : [];
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search..." />
+      <CommandInput 
+        placeholder="Type a command or search globally..." 
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>{loading ? 'Loading search data...' : 'No results found.'}</CommandEmpty>
+        
+        {globalResults.length > 0 && (
+          <CommandGroup heading="Global Search Results">
+            {globalResults.map((item) => (
+              <CommandItem
+                key={item.id}
+                onSelect={() => runCommand(() => navigate(item.path))}
+                className="cursor-pointer"
+              >
+                {item.type === 'Student' ? <GraduationCap className="mr-2 h-4 w-4 text-emerald-400" /> :
+                 item.type === 'Faculty' ? <Users className="mr-2 h-4 w-4 text-blue-400" /> :
+                 item.type === 'Class' ? <BookOpen className="mr-2 h-4 w-4 text-cyan-400" /> :
+                 <Building2 className="mr-2 h-4 w-4 text-violet-400" />}
+                <div className="flex flex-col">
+                  <span>{item.name}</span>
+                  <span className="text-xs text-slate-500">{item.type} • {item.description}</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
         
         <CommandGroup heading="Navigation">
           {getNavigationItems().map((item) => (
