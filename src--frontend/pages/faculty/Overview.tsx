@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Users, Calendar, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { Users, Calendar, TrendingUp, Clock, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -38,7 +38,11 @@ export default function FacultyOverview() {
   const [weeklyData, setWeeklyData] = useState<{ day: string; attendance: number }[]>([]);
   const [classPerformance, setClassPerformance] = useState<ClassPerformance[]>([]);
   const [todaySchedule, setTodaySchedule] = useState<FacultyTimetableEntry[]>([]);
+  const [atRiskStudents, setAtRiskStudents] = useState<{ name: string; enrollmentId: string; className: string; percentage: number }[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ── Live time for NOW detection ──
+  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
   const todayDate = useMemo(() => new Date(), []);
   const todayIso = useMemo(() => todayDate.toISOString().split('T')[0], [todayDate]);
@@ -103,6 +107,27 @@ export default function FacultyOverview() {
           pendingLeaves,
         });
         setClassPerformance(perf);
+
+        // ── At-risk students (<75% attendance) ──
+        try {
+          const allStudents = classDataResults.flatMap(r => r.students);
+          const riskStudents: typeof atRiskStudents = [];
+          for (const student of allStudents.slice(0, 50)) {
+            try {
+              const stats = await attendanceService.getStatistics(student.id);
+              if (stats.percentage < 75 && stats.percentage > 0) {
+                const className = timetable.find(t => t.class_id === student.class_id)?.class?.name || 'Class';
+                riskStudents.push({
+                  name: (student as any).first_name || (student as any).profile?.first_name || student.enrollment_id || 'Student',
+                  enrollmentId: student.enrollment_id || '',
+                  className,
+                  percentage: stats.percentage,
+                });
+              }
+            } catch { /* skip */ }
+          }
+          setAtRiskStudents(riskStudents.sort((a, b) => a.percentage - b.percentage).slice(0, 10));
+        } catch { /* at-risk fetch failure is non-critical */ }
 
         const lastSeven = (summaryResult || []).slice(0, 7).reverse();
         setWeeklyData(
@@ -237,25 +262,68 @@ export default function FacultyOverview() {
               <p className="text-slate-400 text-sm">No classes scheduled for today.</p>
             ) : (
               <div className="space-y-3">
-                {todaySchedule.map((slot) => (
-                  <div key={slot.id} className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50">
-                    <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-slate-300" />
+                {todaySchedule.map((slot) => {
+                  const st = slot.start_time || '';
+                  const et = slot.end_time || '';
+                  const isNow = st <= currentTime && et > currentTime;
+                  const isDone = et <= currentTime;
+                  return (
+                    <div key={slot.id} className={`flex items-center gap-4 p-3 rounded-lg ${isNow ? 'bg-cyan-500/10 border border-cyan-500/20' : 'bg-slate-800/50'}`}>
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${isNow ? 'bg-cyan-500/20' : 'bg-slate-700'}`}>
+                        <Clock className={`w-5 h-5 ${isNow ? 'text-cyan-300 animate-pulse' : 'text-slate-300'}`} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-white">{slot.course?.name || 'Subject'}</p>
+                        <p className="text-sm text-slate-400">{slot.class?.name || 'Class'} • Room {slot.room || '—'}</p>
+                      </div>
+                      {isNow ? (
+                        <Badge className="bg-cyan-500/20 text-cyan-200 border-cyan-500/30 animate-pulse">NOW</Badge>
+                      ) : isDone ? (
+                        <Badge variant="outline" className="text-slate-500 border-slate-700">Done</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-emerald-300 border-emerald-500/30">
+                          {st} - {et}
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-white">{slot.course?.name || 'Subject'}</p>
-                      <p className="text-sm text-slate-400">{slot.class?.name || 'Class'} • Room {slot.room || '—'}</p>
-                    </div>
-                    <Badge variant="outline" className="text-slate-300">
-                      {slot.start_time} - {slot.end_time}
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* At-Risk Students (<75%) */}
+      {!loading && atRiskStudents.length > 0 && (
+        <Card className="bg-slate-950/70 border border-red-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+              At-Risk Students (below 75% attendance)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {atRiskStudents.map((s, i) => (
+                <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.percentage < 50 ? 'bg-red-500/15' : 'bg-amber-500/15'}`}>
+                    <AlertTriangle className={`w-5 h-5 ${s.percentage < 50 ? 'text-red-400' : 'text-amber-400'}`} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-white">{s.name}</p>
+                    <p className="text-xs text-slate-400">{s.enrollmentId} • {s.className}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-lg font-bold ${s.percentage < 50 ? 'text-red-400' : 'text-amber-400'}`}>{s.percentage}%</p>
+                    <p className="text-xs text-slate-500">Attendance</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
         <CardHeader>

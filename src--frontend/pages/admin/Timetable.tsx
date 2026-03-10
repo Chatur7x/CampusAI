@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -20,10 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, Plus, Trash2, Clock } from 'lucide-react';
+import { Calendar, Plus, Trash2, Clock, Pencil, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TimetableEntry, Class, Faculty, Course, Profile } from '@/lib/database.types';
-import { timetableService, classService, facultyService, courseService, auditLogService } from '@/lib/api';
+import { timetableService, classService, facultyService, courseService, auditLogService, notificationService } from '@/lib/api';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TIME_SLOTS = [
@@ -55,10 +55,22 @@ export default function TimetablePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isCsvOpen, setIsCsvOpen] = useState(false);
+  const [csvImporting, setCsvImporting] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<TimetableEntryWithRelations | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     classId: '',
+    courseId: '',
+    facultyId: '',
+    dayOfWeek: 0,
+    startTime: '09:00',
+    endTime: '10:00',
+    roomNumber: '',
+  });
+  const [editForm, setEditForm] = useState({
     courseId: '',
     facultyId: '',
     dayOfWeek: 0,
@@ -69,9 +81,10 @@ export default function TimetablePage() {
 
   // ── Today/Now detection ──
   const now = new Date();
-  const todayDayIdx = now.getDay() === 0 ? -1 : now.getDay() - 1; // Mon=0..Sat=5, Sun=-1
+  const todayDayIdx = now.getDay() === 0 ? -1 : now.getDay() - 1;
   const currentHour = `${String(now.getHours()).padStart(2, '0')}:00`;
   const todayDateStr = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchClasses();
@@ -125,6 +138,24 @@ export default function TimetablePage() {
     }
   };
 
+  // ── Notify affected faculty ──
+  const notifyFaculty = async (facultyId: string, action: string, details: string) => {
+    try {
+      const fac = facultyList.find(f => f.id === facultyId);
+      const userId = fac?.user_id || (fac as any)?.userId;
+      if (userId) {
+        await notificationService.create({
+          user_id: userId,
+          type: 'TIMETABLE_UPDATE' as any,
+          title: `Timetable ${action}`,
+          message: details,
+        });
+      }
+    } catch {
+      // Notification failure shouldn't block the operation
+    }
+  };
+
   const handleAdd = async () => {
     if (!selectedClassId || !form.courseId || !form.facultyId) {
       toast.error('Class, course, and faculty are required');
@@ -140,12 +171,56 @@ export default function TimetablePage() {
         end_time: form.endTime,
         room: form.roomNumber || null,
       });
+      const courseName = courses.find(c => c.id === form.courseId)?.name || '';
+      const className = selectedClass?.name || '';
       toast.success('Timetable entry added');
       auditLogService.log('CREATE', 'timetable_entry', '', { newValues: form });
+      notifyFaculty(form.facultyId, 'Updated', `New period added: ${courseName} for ${className} on ${DAYS[form.dayOfWeek]} ${form.startTime}-${form.endTime}`);
       setIsAddOpen(false);
       fetchTimetable();
     } catch (error) {
       toast.error('Failed to add entry');
+    }
+  };
+
+  // ── Edit handler ──
+  const openEdit = (entry: TimetableEntryWithRelations) => {
+    setSelectedEntry(entry);
+    setEditForm({
+      courseId: entry.course_id || '',
+      facultyId: entry.faculty_id || '',
+      dayOfWeek: entry.day_of_week ?? 0,
+      startTime: entry.start_time || '09:00',
+      endTime: entry.end_time || '10:00',
+      roomNumber: entry.room || '',
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!selectedEntry) return;
+    try {
+      await timetableService.update(selectedEntry.id, {
+        course_id: editForm.courseId,
+        faculty_id: editForm.facultyId,
+        day_of_week: editForm.dayOfWeek,
+        start_time: editForm.startTime,
+        end_time: editForm.endTime,
+        room: editForm.roomNumber || null,
+      });
+      const courseName = courses.find(c => c.id === editForm.courseId)?.name || '';
+      toast.success('Timetable entry updated');
+      auditLogService.log('UPDATE', 'timetable_entry', selectedEntry.id, { oldValues: selectedEntry, newValues: editForm });
+      notifyFaculty(editForm.facultyId, 'Modified', `Schedule updated: ${courseName} on ${DAYS[editForm.dayOfWeek]} ${editForm.startTime}-${editForm.endTime}`);
+      // If faculty changed, also notify the old faculty
+      if (selectedEntry.faculty_id && selectedEntry.faculty_id !== editForm.facultyId) {
+        notifyFaculty(selectedEntry.faculty_id, 'Removed', `You have been unassigned from a period on ${DAYS[editForm.dayOfWeek]} ${editForm.startTime}-${editForm.endTime}`);
+      }
+      setIsEditOpen(false);
+      setSelectedEntry(null);
+      fetchTimetable();
+    } catch (error) {
+      toast.error('Failed to update entry');
     }
   };
 
@@ -155,11 +230,93 @@ export default function TimetablePage() {
       await timetableService.delete(selectedEntry.id);
       toast.success('Entry deleted');
       auditLogService.log('DELETE', 'timetable_entry', selectedEntry.id, {});
+      if (selectedEntry.faculty_id) {
+        const courseName = selectedEntry.course?.name || '';
+        notifyFaculty(selectedEntry.faculty_id, 'Removed', `Period removed: ${courseName} on ${DAYS[selectedEntry.day_of_week ?? 0]}`);
+      }
       setIsDeleteOpen(false);
       setSelectedEntry(null);
       fetchTimetable();
     } catch (error) {
       toast.error('Failed to delete');
+    }
+  };
+
+  // ── CSV Import ──
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvImporting(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { toast.error('CSV must have header + at least 1 row'); return; }
+
+      // Expected CSV: day,course_code,faculty_employee_id,start_time,end_time,room
+      const header = lines[0].toLowerCase().split(',').map(h => h.trim());
+      const dayCol = header.findIndex(h => h.includes('day'));
+      const courseCol = header.findIndex(h => h.includes('course'));
+      const facCol = header.findIndex(h => h.includes('faculty') || h.includes('employee'));
+      const startCol = header.findIndex(h => h.includes('start'));
+      const endCol = header.findIndex(h => h.includes('end'));
+      const roomCol = header.findIndex(h => h.includes('room'));
+
+      if (dayCol < 0 || courseCol < 0 || startCol < 0 || endCol < 0) {
+        toast.error('CSV must have columns: day, course, start_time, end_time');
+        return;
+      }
+
+      let imported = 0;
+      let skipped = 0;
+      const notifiedFaculty = new Set<string>();
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        const dayStr = cols[dayCol]?.toLowerCase();
+        const dayIdx = DAYS.findIndex(d => d.toLowerCase() === dayStr || d.toLowerCase().startsWith(dayStr));
+        if (dayIdx < 0) { skipped++; continue; }
+
+        const courseCode = cols[courseCol];
+        const course = courses.find(c => c.code?.toLowerCase() === courseCode?.toLowerCase() || c.name?.toLowerCase() === courseCode?.toLowerCase());
+        if (!course) { skipped++; continue; }
+
+        let faculty: FacultyWithProfile | undefined;
+        if (facCol >= 0 && cols[facCol]) {
+          faculty = facultyList.find(f =>
+            f.employee_id?.toLowerCase() === cols[facCol]?.toLowerCase() ||
+            f.profile?.first_name?.toLowerCase() === cols[facCol]?.toLowerCase()
+          );
+        }
+
+        try {
+          await timetableService.create({
+            class_id: selectedClassId,
+            course_id: course.id,
+            faculty_id: faculty?.id || undefined,
+            day_of_week: dayIdx,
+            start_time: cols[startCol] || '09:00',
+            end_time: cols[endCol] || '10:00',
+            room: roomCol >= 0 ? cols[roomCol] || null : null,
+          });
+          imported++;
+          if (faculty?.id) notifiedFaculty.add(faculty.id);
+        } catch { skipped++; }
+      }
+
+      // Notify all affected faculty
+      for (const fId of notifiedFaculty) {
+        notifyFaculty(fId, 'Bulk Update', `${imported} new periods added to your schedule via CSV import`);
+      }
+
+      toast.success(`Imported ${imported} entries${skipped > 0 ? `, ${skipped} skipped` : ''}`);
+      auditLogService.log('BULK_IMPORT', 'timetable_entry', selectedClassId, { newValues: { imported, skipped } });
+      fetchTimetable();
+      setIsCsvOpen(false);
+    } catch (error) {
+      toast.error('CSV import failed');
+    } finally {
+      setCsvImporting(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
     }
   };
 
@@ -176,6 +333,62 @@ export default function TimetablePage() {
 
   const selectedClass = classes.find((c) => c.id === selectedClassId);
 
+  // ── Shared form fields JSX builder ──
+  const renderFormFields = (
+    f: typeof form | typeof editForm,
+    setF: (v: typeof form | typeof editForm) => void
+  ) => (
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-300">Day</Label>
+          <Select value={String(f.dayOfWeek)} onValueChange={(v) => setF({ ...f, dayOfWeek: parseInt(v, 10) })}>
+            <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-300">Course</Label>
+          <Select value={f.courseId} onValueChange={(v) => setF({ ...f, courseId: v })}>
+            <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="Select" /></SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {courses.map((course) => (
+                <SelectItem key={course.id} value={course.id}>{course.code} - {course.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-300">Faculty</Label>
+          <Select value={f.facultyId} onValueChange={(v) => setF({ ...f, facultyId: v })}>
+            <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="Select" /></SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {facultyList.map((fc) => (
+                <SelectItem key={fc.id} value={fc.id}>{fc.profile?.first_name} {fc.profile?.last_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-300">Start Time</Label>
+          <Input type="time" value={f.startTime} onChange={(e) => setF({ ...f, startTime: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-300">End Time</Label>
+          <Input type="time" value={f.endTime} onChange={(e) => setF({ ...f, endTime: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label className="text-slate-300">Room Number</Label>
+        <Input value={f.roomNumber} onChange={(e) => setF({ ...f, roomNumber: e.target.value })} className="bg-slate-800 border-slate-700 text-white" placeholder="e.g., Lab-301" />
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -183,7 +396,7 @@ export default function TimetablePage() {
           <h1 className="text-2xl font-bold text-white">Timetable</h1>
           <p className="text-slate-400">{todayDateStr} • {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Select value={selectedClassId} onValueChange={setSelectedClassId}>
             <SelectTrigger className="w-[220px] bg-slate-800 border-slate-700 text-white">
               <SelectValue placeholder="Select class" />
@@ -194,6 +407,42 @@ export default function TimetablePage() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* CSV Import Button */}
+          <Dialog open={isCsvOpen} onOpenChange={setIsCsvOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
+                <Upload className="w-4 h-4 mr-2" />CSV Import
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-900 border-slate-800">
+              <DialogHeader>
+                <DialogTitle className="text-white">Import Timetable from CSV</DialogTitle>
+                <DialogDescription className="text-slate-400">
+                  Upload a CSV file with columns: <span className="text-violet-400">day, course, faculty, start_time, end_time, room</span>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="rounded-lg bg-slate-800/50 p-4 text-xs text-slate-400 font-mono">
+                  <p className="text-slate-300 font-semibold mb-2">Example CSV format:</p>
+                  <p>day,course,faculty,start_time,end_time,room</p>
+                  <p>Monday,CS201,FAC-001,09:00,10:00,Lab-301</p>
+                  <p>Tuesday,CS201,FAC-001,10:00,11:00,Lab-302</p>
+                </div>
+                <Input
+                  ref={csvInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCsvImport}
+                  disabled={csvImporting}
+                  className="bg-slate-800 border-slate-700 text-white file:bg-violet-600 file:text-white file:border-0 file:rounded-lg file:px-3 file:py-1 file:mr-3 file:cursor-pointer"
+                />
+                {csvImporting && <p className="text-sm text-violet-400 animate-pulse">Importing…</p>}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Entry Button */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button className="bg-violet-600 hover:bg-violet-700"><Plus className="w-4 h-4 mr-2" />Add Entry</Button>
@@ -205,55 +454,7 @@ export default function TimetablePage() {
                   Add a new period to {selectedClass?.name} - {selectedClass?.section}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Day</Label>
-                    <Select value={String(form.dayOfWeek)} onValueChange={(v) => setForm({ ...form, dayOfWeek: parseInt(v, 10) })}>
-                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Course</Label>
-                    <Select value={form.courseId} onValueChange={(v) => setForm({ ...form, courseId: v })}>
-                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        {courses.map((course) => (
-                          <SelectItem key={course.id} value={course.id}>{course.code} - {course.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Faculty</Label>
-                    <Select value={form.facultyId} onValueChange={(v) => setForm({ ...form, facultyId: v })}>
-                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        {facultyList.map((f) => (
-                          <SelectItem key={f.id} value={f.id}>{f.profile?.first_name} {f.profile?.last_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Start Time</Label>
-                    <Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">End Time</Label>
-                    <Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className="bg-slate-800 border-slate-700 text-white" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Room Number</Label>
-                  <Input value={form.roomNumber} onChange={(e) => setForm({ ...form, roomNumber: e.target.value })} className="bg-slate-800 border-slate-700 text-white" placeholder="e.g., Lab-301" />
-                </div>
-              </div>
+              {renderFormFields(form, setForm as any)}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                 <Button onClick={handleAdd} className="bg-violet-600 hover:bg-violet-700">Add Entry</Button>
@@ -323,7 +524,10 @@ export default function TimetablePage() {
                             <p className="opacity-70 truncate">{entry.faculty?.profile?.first_name || 'Faculty'}</p>
                             {entry.room && <p className="opacity-50">{entry.room}</p>}
                             <div className="absolute top-1 right-1 hidden group-hover:flex gap-0.5">
-                              <Button variant="ghost" size="icon" className="h-5 w-5 text-white/70 hover:text-white" onClick={() => { setSelectedEntry(entry); setIsDeleteOpen(true); }}>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 text-white/70 hover:text-white" onClick={() => openEdit(entry)}>
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 text-white/70 hover:text-red-400" onClick={() => { setSelectedEntry(entry); setIsDeleteOpen(true); }}>
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
@@ -338,6 +542,23 @@ export default function TimetablePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">Edit Timetable Entry</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Update this period for {selectedClass?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {renderFormFields(editForm, setEditForm as any)}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleEdit} className="bg-violet-600 hover:bg-violet-700">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

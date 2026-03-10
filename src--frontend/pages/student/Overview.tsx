@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { GraduationCap, AlertCircle, CheckCircle, Clock, Bell, Loader2 } from 'lucide-react';
+import { GraduationCap, AlertCircle, CheckCircle, Clock, Bell, Loader2, BookOpen } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import {
   LineChart,
   Line,
@@ -13,6 +14,7 @@ import {
 } from 'recharts';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 interface AttendanceRecord {
   date: string;
@@ -41,6 +43,10 @@ export default function StudentOverview() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [todayClasses, setTodayClasses] = useState<TodayClass[]>([]);
   const [notices, setNotices] = useState<NoticeItem[]>([]);
+  const [subjectStats, setSubjectStats] = useState<{ name: string; present: number; total: number; pct: number }[]>([]);
+
+  // ── Live time for NOW detection ──
+  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
   useEffect(() => {
     if (!user) return;
@@ -110,6 +116,46 @@ export default function StudentOverview() {
           setRecords(attData || []);
           setTodayClasses(todaySchedule);
           setNotices(noticeData || []);
+
+          // ── Per-subject attendance breakdown ──
+          const bySubject = new Map<string, { present: number; total: number }>();
+          for (const r of (attData || [])) {
+            const sid = (r as any).subject_id || r.subjectId || 'unknown';
+            if (!bySubject.has(sid)) bySubject.set(sid, { present: 0, total: 0 });
+            const entry = bySubject.get(sid)!;
+            entry.total++;
+            if (r.status === 'PRESENT') entry.present++;
+          }
+          // Resolve subject names
+          const allSubjectIds = [...bySubject.keys()].filter(k => k !== 'unknown');
+          let nameMap: Record<string, string> = { ...subjectMap };
+          if (allSubjectIds.length > 0) {
+            const { data: moreSubs } = await supabase.from('courses').select('id, name').in('id', allSubjectIds);
+            for (const s of (moreSubs || [])) nameMap[s.id] = s.name;
+          }
+          setSubjectStats(
+            Array.from(bySubject.entries()).map(([sid, val]) => ({
+              name: nameMap[sid] || sid,
+              present: val.present,
+              total: val.total,
+              pct: val.total > 0 ? Math.round((val.present / val.total) * 100) : 0,
+            })).sort((a, b) => a.pct - b.pct)
+          );
+
+          // ── In-app toast: class starting in ~10 min ──
+          const nowTime = new Date();
+          const nowMins = nowTime.getHours() * 60 + nowTime.getMinutes();
+          for (const cls of todaySchedule) {
+            const [h, m] = cls.startTime.split(':').map(Number);
+            const clsMins = h * 60 + m;
+            const diff = clsMins - nowMins;
+            if (diff > 0 && diff <= 10) {
+              toast.info(`Class starting soon: ${cls.subject} at ${cls.startTime}`, {
+                duration: 8000,
+                icon: '🔔',
+              });
+            }
+          }
         }
       } catch (err) {
         console.error('Overview fetch error:', err);
@@ -317,22 +363,60 @@ export default function StudentOverview() {
               <p className="text-slate-400 text-sm text-center py-8">No classes scheduled today.</p>
             ) : (
               <div className="space-y-3">
-                {todayClasses.map((cls, i) => (
-                  <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
-                    <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-emerald-400" />
+                {todayClasses.map((cls, i) => {
+                  const isNow = cls.startTime <= currentTime && cls.endTime > currentTime;
+                  const isDone = cls.endTime <= currentTime;
+                  return (
+                    <div key={i} className={`flex items-center gap-4 p-3 rounded-lg border ${isNow ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${isNow ? 'bg-emerald-500/20' : 'bg-emerald-500/10'}`}>
+                        <Clock className={`w-5 h-5 ${isNow ? 'text-emerald-300 animate-pulse' : 'text-emerald-400'}`} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-white">{cls.subject}</p>
+                        <p className="text-sm text-slate-400">{cls.startTime} - {cls.endTime}</p>
+                      </div>
+                      {isNow ? (
+                        <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-500/30 animate-pulse">NOW</Badge>
+                      ) : isDone ? (
+                        <Badge variant="outline" className="text-slate-500 border-slate-700">Done</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-emerald-300 border-emerald-500/30">Upcoming</Badge>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-white">{cls.subject}</p>
-                      <p className="text-sm text-slate-400">{cls.startTime} - {cls.endTime}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Per-Subject Attendance */}
+      {!loading && subjectStats.length > 0 && (
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-emerald-400" />
+              Per-Subject Attendance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {subjectStats.map((s, i) => (
+                <div key={i}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-slate-300">{s.name}</span>
+                    <span className={`text-sm font-semibold ${s.pct >= 75 ? 'text-emerald-400' : s.pct >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {s.pct}% ({s.present}/{s.total})
+                    </span>
+                  </div>
+                  <Progress value={s.pct} className="h-2 bg-slate-800" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Notices */}
       <Card className="bg-slate-900/50 border-slate-800">
