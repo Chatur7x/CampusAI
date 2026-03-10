@@ -30,6 +30,8 @@ import {
   ChevronDown,
   User,
   Brain,
+  ClipboardList,
+  BookOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -45,6 +47,8 @@ const FacultyNoticesPage = lazy(() => import('@/pages/faculty/Notices'));
 const FacultySettingsPage = lazy(() => import('@/pages/faculty/Settings'));
 const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistration'));
 const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
+const FacultyLeaveRequestsPage = lazy(() => import('@/pages/faculty/LeaveRequests'));
+const FacultyAssignmentsPage = lazy(() => import('@/pages/faculty/Assignments'));
 
 // Loading spinner for lazy-loaded pages
 const PageLoader = () => (
@@ -64,9 +68,11 @@ const sidebarItems = [
   { icon: Calendar, label: 'Timetable', path: '/faculty/timetable' },
   { icon: ClipboardCheck, label: 'Attendance', path: '/faculty/attendance' },
   { icon: BarChart3, label: 'Analytics', path: '/faculty/analytics' },
+  { icon: BookOpen, label: 'Assignments', path: '/faculty/assignments' },
   { icon: Bell, label: 'Notices', path: '/faculty/notices' },
-  { icon: Settings, label: 'Settings', path: '/faculty/settings' },
+  { icon: ClipboardList, label: 'Leave Approvals', path: '/faculty/leaves' },
   { icon: User, label: 'Register Student', path: '/faculty/register-student' },
+  { icon: Settings, label: 'Settings', path: '/faculty/settings' },
   { icon: Brain, label: 'AI Analytics', path: '/faculty/ai-analytics' },
 ];
 
@@ -303,9 +309,11 @@ export default function FacultyDashboard() {
               <Route path="/timetable" element={<FacultyTimetablePage />} />
               <Route path="/attendance" element={<AttendanceSessionPage />} />
               <Route path="/analytics" element={<FacultyAnalyticsPage />} />
+              <Route path="/assignments" element={<FacultyAssignmentsPage />} />
               <Route path="/notices" element={<FacultyNoticesPage />} />
               <Route path="/settings" element={<FacultySettingsPage />} />
               <Route path="/register-student" element={<StudentRegistrationPage />} />
+              <Route path="/leaves" element={<FacultyLeaveRequestsPage />} />
               <Route path="/ai-analytics" element={<AIDashboard role="faculty" />} />
             </Routes>
           </Suspense>

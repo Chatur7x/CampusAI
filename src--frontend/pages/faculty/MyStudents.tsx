@@ -5,8 +5,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { GraduationCap, TrendingDown, AlertCircle } from 'lucide-react';
-import { timetableService, studentService, attendanceService } from '@/lib/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { GraduationCap, TrendingDown, AlertCircle, Mail, Send, Loader2 } from 'lucide-react';
+import { timetableService, studentService, attendanceService, notificationService } from '@/lib/api';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import type { Student, TimetableEntry } from '@/lib/database.types';
 
@@ -26,6 +30,9 @@ export default function MyStudentsPage() {
   const { user } = useSupabaseAuth();
   const [items, setItems] = useState<StudentWithRisk[]>([]);
   const [loading, setLoading] = useState(true);
+  const [messagingStudent, setMessagingStudent] = useState<Student | null>(null);
+  const [messageContent, setMessageContent] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -62,6 +69,33 @@ export default function MyStudentsPage() {
     load();
   }, [user?.faculty?.id]);
 
+  const handleSendMessage = async () => {
+    if (!messagingStudent || !messageContent.trim()) {
+      toast.error('Message cannot be empty');
+      return;
+    }
+    if (!messagingStudent.user_id) {
+      toast.error('This student has not linked their user account yet');
+      return;
+    }
+    setSendingMessage(true);
+    try {
+      await notificationService.create({
+        user_id: messagingStudent.user_id,
+        type: 'SYSTEM',
+        title: `Message from ${user?.profile?.first_name || 'Faculty'}`,
+        message: messageContent.trim(),
+      });
+      toast.success('Message sent to student successfully');
+      setMessagingStudent(null);
+      setMessageContent('');
+    } catch (err) {
+      toast.error('Failed to send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const total = items.length;
   const atRisk = items.filter((s) => s.risk !== 'LOW').length;
   const critical = items.filter((s) => s.risk === 'HIGH').length;
@@ -93,6 +127,29 @@ export default function MyStudentsPage() {
           Register new student
         </Button>
       </div>
+
+        <Dialog open={!!messagingStudent} onOpenChange={(open) => !open && setMessagingStudent(null)}>
+          <DialogContent className="bg-slate-900 border border-slate-800 text-white">
+            <DialogHeader>
+              <DialogTitle>Send Message to {messagingStudent?.profile?.first_name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label className="text-slate-300">Message Content</Label>
+                <Textarea 
+                  className="bg-slate-800 border-slate-700 min-h-[120px]" 
+                  placeholder="Type your message here. It will be sent as a direct notification..."
+                  value={messageContent}
+                  onChange={(e) => setMessageContent(e.target.value)}
+                />
+              </div>
+              <Button onClick={handleSendMessage} disabled={sendingMessage} className="w-full bg-cyan-600 hover:bg-cyan-700">
+                {sendingMessage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                {sendingMessage ? 'Sending...' : 'Send Message'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="bg-slate-900/50 border-slate-800">
@@ -166,11 +223,14 @@ export default function MyStudentsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-32">
+                    <div className="w-24 hidden sm:block">
                       <Progress value={percentage} className="h-2 bg-slate-800" />
                     </div>
-                    <span className="text-sm text-slate-400 w-12">{percentage}%</span>
-                    <Badge className={getRiskColor(risk)}>{risk}</Badge>
+                    <span className="text-sm text-slate-400 w-10">{percentage}%</span>
+                    <Badge className={`${getRiskColor(risk)} w-20 justify-center`}>{risk}</Badge>
+                    <Button variant="ghost" size="icon" className="hover:bg-cyan-500/10 text-slate-400 hover:text-cyan-400 border border-transparent hover:border-cyan-500/30" onClick={() => setMessagingStudent(student)}>
+                      <Mail className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
