@@ -1,6 +1,6 @@
 # =============================================================
-# CAMPUSAI — Advanced AI/ML Server Dependencies
-# 10 AI Features · 7+ ML Models · 8 Algorithms · 20+ Libraries
+# CAMPUSAI — AI Server Dependencies (Railway-optimized)
+# Lightweight version that works within Railway free-tier limits
 # =============================================================
 
 # ── Core Server ──
@@ -9,39 +9,19 @@ uvicorn[standard]>=0.34
 python-multipart>=0.0.18
 pydantic>=2.10
 
-# ── Face Recognition (ArcFace primary, DeepFace optional backup) ──
+# ── Face Recognition (lightweight) ──
 opencv-python-headless>=4.10
 insightface>=0.7.3
 onnxruntime>=1.20
-deepface>=0.0.93              # Optional: FaceNet/VGG-Face backup (needs tf)
-
-# ── Liveness / Anti-Spoof ──
-mediapipe>=0.10.18
-torch>=2.2                    # CNN spoof classifier + deepfake detection
-torchvision>=0.17
 
 # ── ML / Statistics ──
 scikit-learn>=1.5
-statsmodels>=0.14
 scipy>=1.14
 pandas>=2.2
 numpy>=1.26
 
-# ── Fraud / Anomaly Detection ──
-pyod>=2.0
-
-# ── Trend Forecasting ──
-prophet>=1.1                  # Facebook Prophet time-series
-
-# ── Explainable AI ──
-shap>=0.46                    # SHAP feature importance
-
 # ── Geo Validation ──
 geopy>=2.4
-
-# ── Model Monitoring ──
-mlflow>=2.19
-evidently>=0.4                # Data/model drift detection
 
 # ── Database ──
 supabase>=2.11
@@ -51,4 +31,4 @@ httpx>=0.28
 pillow>=11
 python-dotenv>=1.0
 joblib>=1.4
-aiofiles>=24.1                # Async file I/O for audit logs
+aiofiles>=24.1

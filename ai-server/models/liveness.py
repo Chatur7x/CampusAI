@@ -61,14 +61,18 @@ except ImportError:
 def _get_face_mesh():
     global _mp_face_mesh
     if _mp_face_mesh is None:
-        import mediapipe as mp
-        _mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-        )
-        logger.info("Mediapipe FaceMesh initialised")
+        try:
+            import mediapipe as mp
+            _mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5,
+            )
+            logger.info("Mediapipe FaceMesh initialised")
+        except ImportError:
+            logger.warning("Mediapipe not installed — advanced liveness disabled")
+            return None
     return _mp_face_mesh
 
 
