@@ -458,11 +458,11 @@ export default function StudentOverview() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="bg-slate-900/50 border-slate-800 hover:border-emerald-500/30 transition-all cursor-default group">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                <CheckCircle className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
               </div>
               <div>
                 <p className="text-xs text-slate-400">Present</p>
@@ -474,11 +474,11 @@ export default function StudentOverview() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="bg-slate-900/50 border-slate-800 hover:border-red-500/30 transition-all cursor-default group">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-red-400" />
+              <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                <AlertCircle className="w-5 h-5 text-red-400 group-hover:scale-110 transition-transform" />
               </div>
               <div>
                 <p className="text-xs text-slate-400">Absent</p>
@@ -490,11 +490,11 @@ export default function StudentOverview() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="bg-slate-900/50 border-slate-800 hover:border-amber-500/30 transition-all cursor-default group">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-amber-400" />
+              <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+                <Clock className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
               </div>
               <div>
                 <p className="text-xs text-slate-400">Late</p>
@@ -506,11 +506,11 @@ export default function StudentOverview() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="bg-slate-900/50 border-slate-800 hover:border-violet-500/30 transition-all cursor-default group">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                <GraduationCap className="w-5 h-5 text-violet-400" />
+              <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+                <GraduationCap className="w-5 h-5 text-violet-400 group-hover:scale-110 transition-transform" />
               </div>
               <div>
                 <p className="text-xs text-slate-400">Total Classes</p>

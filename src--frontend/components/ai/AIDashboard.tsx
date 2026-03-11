@@ -200,7 +200,12 @@ export default function AIDashboard({
 
       await Promise.allSettled(promises);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch AI analytics');
+      const msg = err instanceof Error ? err.message : 'Failed to fetch AI analytics';
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
+        setError('Python AI Server (FastAPI) is currently unreachable. Please ensure the backend is running on Railway or localhost.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -245,9 +250,12 @@ export default function AIDashboard({
       </div>
 
       {error && (
-        <div className="bg-amber-500/10 rounded-lg p-3 flex gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5" />
-          <p className="text-sm text-amber-700 dark:text-amber-400">{error}</p>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5 shrink-0" />
+          <div>
+            <h4 className="text-sm font-semibold text-red-400">Connection Error</h4>
+            <p className="text-sm text-red-300/80 mt-1 leading-relaxed text-balance">{error}</p>
+          </div>
         </div>
       )}
 

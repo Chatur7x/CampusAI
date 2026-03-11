@@ -129,6 +129,10 @@ export default function AttendanceCalculatorPage() {
       // 100A + 100x = reqT + reqx
       // x(100 - req) = reqT - 100A
       // x = (reqT - 100A) / (100 - req)
+      if (requiredPercentage === 100) {
+        // If 100% is required and we missed even one, we can NEVER reach exactly 100%.
+        return { canSkip: 0, needsToAttend: Infinity };
+      }
       const x = (requiredPercentage * totalClasses - 100 * safeAttended) / (100 - requiredPercentage);
       return {
         canSkip: 0,
@@ -282,10 +286,12 @@ export default function AttendanceCalculatorPage() {
                 ) : (
                   <div className="space-y-1">
                     <p className="text-sm text-amber-200/70 mt-1">
-                      Target not met. You must attend the next <strong className="text-amber-400 font-bold">{analysis.needsToAttend}</strong> consecutive classes.
+                      {analysis.needsToAttend === Infinity 
+                        ? 'Target mathematically impossible to reach (can never undo a missed class for 100%).'
+                        : `Target not met. You must attend the next ${analysis.needsToAttend} consecutive classes.`}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                       <Badge className="bg-amber-500/20 text-amber-300 border-none">Required: {analysis.needsToAttend} more</Badge>
+                       <Badge className="bg-amber-500/20 text-amber-300 border-none">Required: {analysis.needsToAttend === Infinity ? 'Impossible' : `${analysis.needsToAttend} more`}</Badge>
                     </div>
                   </div>
                 )}

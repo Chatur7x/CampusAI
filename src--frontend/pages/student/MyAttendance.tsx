@@ -184,7 +184,7 @@ export default function MyAttendancePage() {
               <div className="space-y-6">
                 <div className="h-64 mt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={attendanceHistory.slice(0, 20).reverse()}>
+                    <LineChart data={[...attendanceHistory].slice(0, 20).reverse()}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
                       <YAxis stroke="#64748b" fontSize={10} />

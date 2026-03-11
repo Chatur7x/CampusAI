@@ -93,8 +93,8 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="min-h-screen text-slate-50 flex relative overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 30%, #24243e 60%, #0f0c29 100%)" }}>
+    <div className="min-h-screen text-slate-50 flex relative overflow-hidden bg-slate-950"
+      style={{ background: "var(--background)" }}>
 
       {/* Glassmorphism animations */}
       <style>{`
@@ -116,7 +116,7 @@ export default function StudentDashboard() {
         style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
 
       {/* Desktop Sidebar — frosted glass */}
-      <aside className="hidden lg:flex w-68 flex-col relative z-20 border-r glass neo-3d">
+      <aside className="hidden lg:flex w-68 flex-col relative z-20 border-r glass neo-3d border-white/[0.05] bg-slate-950/20">
         {/* Logo */}
         <div className="p-6 border-b border-white/[0.08]">
           <Link to="/student" className="flex items-center gap-3">
