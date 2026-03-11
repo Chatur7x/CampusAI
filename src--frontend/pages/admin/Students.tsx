@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Plus, Upload, Download, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, Upload, Download, Edit, Trash2, ScanFace } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Student, Department, Class, Profile } from '@/lib/database.types';
 import { studentService, departmentService, classService, auditLogService } from '@/lib/api';
@@ -522,11 +522,18 @@ export default function StudentsPage() {
                           variant={student.face_registered ? 'default' : 'secondary'}
                           className={
                             student.face_registered
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-slate-700 text-slate-400'
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                              : 'bg-slate-700 text-slate-400 border-slate-600'
                           }
                         >
-                          {student.face_registered ? 'Yes' : 'No'}
+                          {student.face_registered ? (
+                            <div className="flex items-center gap-1">
+                              <ScanFace className="w-3 h-3" />
+                              VERIFIED
+                            </div>
+                          ) : (
+                            'PENDING'
+                          )}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right w-[10%]">

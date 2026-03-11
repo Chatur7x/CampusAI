@@ -81,7 +81,7 @@ async def register_face(req: RegisterRequest):
         print(f"[ERROR] Registration failed: Student not found for user_id {req.user_id}")
         raise HTTPException(
             status_code=404, 
-            detail=f"Registration Blocked: No student record found for user {req.user_id}. Please contact admin to ensure your student profile is initialized."
+            detail=f"Registration Blocked: No student record found for user {req.user_id}. AI Server cannot enroll faces for uninitialized profiles. Please ensure an admin has created your student entry in the database (Students Management page)."
         )
 
     result = generate_multi_embedding(req.images)

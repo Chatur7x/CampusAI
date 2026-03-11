@@ -82,20 +82,8 @@ export default function FaceRegistration() {
     }
   };
 
-  const startVisibilityCheck = () => {
-    intervalRef.current = setInterval(() => {
-      if (!videoRef.current || videoRef.current.readyState < 4) return;
-      const c = document.createElement('canvas');
-      c.width = 160; c.height = 120;
-      const ctx = c.getContext('2d')!;
-      ctx.drawImage(videoRef.current, 0, 0, 160, 120);
-      const d = ctx.getImageData(40, 20, 80, 80).data;
-      let sum = 0;
-      for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 3;
-      const avg = sum / (d.length / 4);
-      setFaceVisible(avg > 40 && avg < 235);
-    }, 400);
-  };
+  const [stabilityTicks, setStabilityTicks] = useState(0);
+  const STABILITY_THRESHOLD = 5; // ~2 seconds at 400ms intervals
 
   const initFlow = async () => {
     setStep('loading');
@@ -109,6 +97,39 @@ export default function FaceRegistration() {
       setErrorMsg(`Hardware access error: ${err instanceof Error ? err.message : 'Unknown'}`);
       setStep('error');
     }
+  };
+
+  const startVisibilityCheck = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      if (!videoRef.current || videoRef.current.readyState < 4) return;
+      
+      const c = document.createElement('canvas');
+      c.width = 160; c.height = 120;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(videoRef.current, 0, 0, 160, 120);
+      const d = ctx.getImageData(40, 20, 80, 80).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 3;
+      const avg = sum / (d.length / 4);
+      
+      const isVisible = avg > 40 && avg < 235;
+      setFaceVisible(isVisible);
+
+      if (isVisible && step === 'capture') {
+        setStabilityTicks(prev => {
+          const next = prev + 1;
+          if (next >= STABILITY_THRESHOLD) {
+            // Auto-trigger capture
+            setTimeout(() => capturePhoto(), 0);
+            return 0; // Reset after capture
+          }
+          return next;
+        });
+      } else {
+        setStabilityTicks(0);
+      }
+    }, 400);
   };
 
   const capturePhoto = () => {
@@ -299,12 +320,31 @@ export default function FaceRegistration() {
                     <div className={`w-64 h-80 border-2 rounded-[60px] transition-all duration-500 ${faceVisible ? 'border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.3)] scale-105' : 'border-slate-700/50 bg-slate-900/40'}`}>
                       {/* Scanning Line */}
                       {faceVisible && (
-                        <motion.div 
-                          className="w-full h-1 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)]"
-                          animate={{ top: ['0%', '100%', '0%'] }}
-                          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                          style={{ position: 'absolute', left: 0 }}
-                        />
+                        <>
+                          <motion.div 
+                            className="w-full h-1 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)]"
+                            animate={{ top: ['0%', '100%', '0%'] }}
+                            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                            style={{ position: 'absolute', left: 0 }}
+                          />
+                          {/* Auto-capture Countdown UI */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-2">
+                              {stabilityTicks > 0 && (
+                                <motion.div 
+                                  initial={{ scale: 0.8, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  className="px-4 py-2 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/40"
+                                >
+                                  <span className="text-emerald-400 font-mono text-sm tracking-widest uppercase">
+                                    Locking {Math.max(0, STABILITY_THRESHOLD - stabilityTicks)}...
+                                  </span>
+                                </motion.div>
+                              )}
+                              <div className="text-[10px] font-mono text-emerald-400/60 uppercase tracking-widest">Hold Still</div>
+                            </div>
+                          </div>
+                        </>
                       )}
                       
                       {/* Corner Accents */}

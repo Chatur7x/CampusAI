@@ -102,7 +102,10 @@ def fetch_student_by_user(user_id: str) -> dict | None:
     if res.data:
         set_to_cache(cache_key, res.data)
         set_to_cache(f"student_{res.data['id']}", res.data)
-    return res.data
+        return res.data
+    
+    # Do NOT cache None results for new users - this allows immediate enrollment after an admin creates the record
+    return None
 
 
 def update_face_data(student_id: str, embedding_json: str):
