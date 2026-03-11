@@ -91,6 +91,7 @@ def compute_confidence(
     device_risk: bool = False,
     session_mismatch: bool = False,
     proxy_location: bool = False,
+    shared_device: bool = False,
 ) -> ConfidenceResult:
     """
     Compute a weighted 4-component confidence score.
@@ -118,6 +119,8 @@ def compute_confidence(
         score -= 0.4
     if proxy_location:
         score -= 0.5
+    if shared_device:
+        score -= 0.3
         
     score = round(max(0.0, score), 4)
 
@@ -149,6 +152,8 @@ def compute_confidence(
         flags.append("SESSION_CODE_MISMATCH")
     if proxy_location:
         flags.append("PROXY_LOCATION_DETECTION")
+    if shared_device:
+        flags.append("SHARED_DEVICE_DETECTED")
 
     # Auto re-verification for border-line cases
     requires_reverification = category == "LOW" or len(flags) >= 2 or session_mismatch

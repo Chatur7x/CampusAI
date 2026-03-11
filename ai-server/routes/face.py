@@ -22,7 +22,7 @@ from utils.db import (
     fetch_all_students_with_faces, fetch_student_embeddings,
     insert_face_embedding, log_face_verification,
     fetch_last_geo_verification, log_geo_verification, log_security_event,
-    fetch_active_session
+    fetch_active_session, count_distinct_students_on_device
 )
 
 logger = logging.getLogger("campusai.routes.face")
@@ -230,6 +230,10 @@ async def verify_face_endpoint(req: VerifyRequest):
             spoof_reason="IMPOSSIBLE_TRAVEL" if impossible_travel_result.get("impossible") else ("PROXY_LOCATION" if proxy_location else None)
         )
 
+    # 5.5 Shared Device Check (Anti-Proxy)
+    distinct_students = count_distinct_students_on_device(req.device_fingerprint) if req.device_fingerprint else 0
+    shared_device = distinct_students > 1
+
     # 6. Confidence (4-component: face + liveness + geo + device trust)
     device_trust = compute_device_trust(
         device_fingerprint=req.device_fingerprint,
@@ -245,7 +249,8 @@ async def verify_face_endpoint(req: VerifyRequest):
         impossible_travel=impossible_travel_result.get("impossible", False),
         device_risk=device_trust < 0.3,
         session_mismatch=session_mismatch,
-        proxy_location=proxy_location
+        proxy_location=proxy_location,
+        shared_device=shared_device
     )
 
     # Write explicit verification log for this interaction

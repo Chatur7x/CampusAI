@@ -24,6 +24,7 @@ import {
   type VerifyFaceResponse,
 } from '@/lib/ai/apiClient';
 import { toast } from 'sonner';
+import { collectDeviceFingerprint, generateDeviceHash } from '@/lib/deviceFingerprint';
 
 type VerificationStep = 'selection' | 'focus' | 'session' | 'loading' | 'location' | 'face' | 'liveness' | 'verifying' | 'success' | 'failed';
 
@@ -252,7 +253,7 @@ export default function SecureAttendanceStudent() {
         latitude: locationData?.latitude,
         longitude: locationData?.longitude,
         accuracy_m: locationData?.accuracy,
-        device_fingerprint: 'WEB_' + navigator.userAgent.substring(0, 20),
+        device_fingerprint: await generateDeviceHash(await collectDeviceFingerprint()),
       });
 
       const res: VerificationResult = {

@@ -310,3 +310,23 @@ def fetch_active_session(class_id: str, code: str | None = None) -> dict | None:
     except Exception as e:
         logger.error(f"Failed to fetch active session: {e}")
         return None
+
+def count_distinct_students_on_device(device_id: str, minutes: int = 60) -> int:
+    """
+    Count how many unique students have verified using this device ID
+    within a sliding window (default 1 hour).
+    """
+    if not device_id:
+        return 0
+    sb = get_supabase()
+    delta = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=minutes)
+    try:
+        res = sb.table("face_verification_logs").select("student_id").eq("device_id", device_id).gte("created_at", delta.isoformat()).execute()
+        if not res.data:
+            return 0
+        # Count unique IDs
+        unique_ids = {r["student_id"] for r in res.data}
+        return len(unique_ids)
+    except Exception as e:
+        logger.error(f"Failed to count distinct students on device: {e}")
+        return 1 # Fallback to 1 to avoid false positives on errors
