@@ -70,7 +70,7 @@ def fetch_student_by_user(user_id: str) -> dict | None:
 
 def update_face_data(student_id: str, embedding_json: str):
     sb = get_supabase()
-    # Try camelCase first, then snake_case
+    # 1. Update the student record to mark face_registered=True (and preserve legacy faceData field for backwards compat)
     try:
         sb.table("students").update({
             "faceData": embedding_json,
@@ -81,6 +81,47 @@ def update_face_data(student_id: str, embedding_json: str):
             "face_data": embedding_json,
             "face_registered": True,
         }).eq("id", student_id).execute()
+    
+    # 2. Insert the embedding into the new time-series historical table
+    insert_face_embedding(student_id, embedding_json, confidence=1.0)
+
+
+def insert_face_embedding(student_id: str, embedding_json: str, confidence: float = 1.0):
+    """Insert a new vector into the historical embeddings table."""
+    sb = get_supabase()
+    try:
+        sb.table("face_embeddings").insert({
+            "student_id": student_id,
+            "embedding_vector": embedding_json,
+            "confidence": confidence,
+        }).execute()
+        logger.info(f"Inserted new historical embedding for student {student_id}")
+    except Exception as e:
+        logger.error(f"Failed to insert into face_embeddings: {e}")
+
+
+def fetch_student_embeddings(student_id: str) -> list[dict]:
+    """Fetch all historical embeddings for this student, ordered oldest to newest."""
+    sb = get_supabase()
+    try:
+        res = sb.table("face_embeddings").select("*").eq("student_id", student_id).order("created_at", desc=False).execute()
+        return res.data or []
+    except Exception as e:
+        logger.error(f"Failed to fetch face_embeddings: {e}")
+        return []
+
+
+def log_face_verification(student_id: str, similarity_score: float, device_id: str | None = None):
+    """Log a verification attempt into the history table."""
+    sb = get_supabase()
+    try:
+        sb.table("face_verification_logs").insert({
+            "student_id": student_id,
+            "similarity_score": similarity_score,
+            "device_id": device_id,
+        }).execute()
+    except Exception as e:
+        logger.error(f"Failed to append to face_verification_logs: {e}")
 
 
 def fetch_attendance_records(student_id: str | None = None, class_id: str | None = None):

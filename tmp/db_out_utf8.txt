@@ -1,0 +1,2 @@
+Students: ["id","user_id","enrollment_id","department_id","class_id","batch_year","semester","face_data","face_registered","guardian_name","guardian_phone","guardian_email","is_active","created_at","updated_at"]
+Attendance: []

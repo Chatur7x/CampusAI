@@ -291,6 +291,22 @@ export interface SecurityAlert {
   created_at: string;
 }
 
+export interface FaceEmbedding {
+  id: string;
+  student_id: string;
+  embedding_vector: Json;
+  confidence: number;
+  created_at: string;
+}
+
+export interface FaceVerificationLog {
+  id: string;
+  student_id: string | null;
+  similarity_score: number | null;
+  device_id: string | null;
+  timestamp: string;
+}
+
 // =============================================================
 // INSERT TYPES (Omit auto-generated fields)
 // =============================================================
@@ -402,6 +418,13 @@ export type SecurityAlertInsert = Partial<SecurityAlert> & {
   description: string;
 };
 
+export type FaceEmbeddingInsert = Partial<FaceEmbedding> & {
+  student_id: string;
+  embedding_vector: Json;
+};
+
+export type FaceVerificationLogInsert = Partial<FaceVerificationLog>;
+
 // =============================================================
 // UPDATE TYPES (All fields optional)
 // =============================================================
@@ -420,6 +443,8 @@ export type TimetableEntryUpdate = Partial<TimetableEntry>;
 export type MessageUpdate = Partial<Message>;
 export type AuditLogUpdate = Partial<AuditLog>;
 export type SecurityAlertUpdate = Partial<SecurityAlert>;
+export type FaceEmbeddingUpdate = Partial<FaceEmbedding>;
+export type FaceVerificationLogUpdate = Partial<FaceVerificationLog>;
 
 // =============================================================
 // DATABASE INTERFACE FOR SUPABASE CLIENT
@@ -497,6 +522,16 @@ export interface Database {
         Row: SecurityAlert;
         Insert: SecurityAlertInsert;
         Update: SecurityAlertUpdate;
+      };
+      face_embeddings: {
+        Row: FaceEmbedding;
+        Insert: FaceEmbeddingInsert;
+        Update: FaceEmbeddingUpdate;
+      };
+      face_verification_logs: {
+        Row: FaceVerificationLog;
+        Insert: FaceVerificationLogInsert;
+        Update: FaceVerificationLogUpdate;
       };
     };
     Views: {

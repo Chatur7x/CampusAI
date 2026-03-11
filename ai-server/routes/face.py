@@ -19,7 +19,8 @@ from models.geo_validation import validate_location, detect_gps_spoof
 from models.audit_logger import log_ai_decision
 from utils.db import (
     fetch_student, fetch_student_by_user, update_face_data,
-    fetch_all_students_with_faces,
+    fetch_all_students_with_faces, fetch_student_embeddings,
+    insert_face_embedding, log_face_verification
 )
 
 logger = logging.getLogger("campusai.routes.face")
@@ -105,24 +106,75 @@ async def verify_face_endpoint(req: VerifyRequest):
     if not student.get("faceRegistered") or not student.get("faceData"):
         raise HTTPException(400, "No face registered for this student")
 
-    stored = json.loads(student["faceData"]) if isinstance(student["faceData"], str) else student["faceData"]
+    # 1. Fetch multi-embeddings history
+    historical_embeddings = fetch_student_embeddings(student["id"])
+    
+    # 2. Face verification
+    match_result = {"match": False, "similarity": 0.0, "error": "No face data"}
+    
+    if len(historical_embeddings) > 0:
+        # User has adaptive embeddings table
+        best_sim = -1.0
+        best_match_result = None
+        for record in historical_embeddings:
+            try:
+                emb = record["embedding_vector"]
+                if isinstance(emb, str):
+                    emb = json.loads(emb)
+                # Verify against this historical record
+                res = verify_face(req.image, emb, enrollment_count=len(historical_embeddings))
+                if res.get("similarity", 0) > best_sim:
+                    best_sim = res.get("similarity", 0)
+                    best_match_result = res
+            except Exception as e:
+                logger.warning(f"Error comparing historical embedding: {e}")
+        
+        if best_match_result:
+            match_result = best_match_result
+            
+        # -- ADAPTIVE LEARNING OVER TIME --
+        # If we got a highly confident match, inject this new observation back into the history
+        if match_result.get("match") and match_result.get("similarity", 0) >= 0.90:
+            # We must re-extract the raw embedding to save it.
+            # verify_face doesn't return the raw embedding vector back to the route (for efficiency).
+            # But generate_embedding is heavily cached by the OS/Insightface for the exact same b64 array if called immediately again, or we can just call it here:
+            probe_vector_result = generate_embedding(req.image)
+            if probe_vector_result.get("embedding"):
+                insert_face_embedding(
+                    student_id=student["id"], 
+                    embedding_json=json.dumps(probe_vector_result["embedding"]),
+                    confidence=match_result.get("similarity", 0)
+                )
+    else:
+        # Fallback to legacy single-embedding if historical table is empty
+        stored = json.loads(student["faceData"]) if isinstance(student["faceData"], str) else student["faceData"]
+        match_result = verify_face(req.image, stored)
+        # Migrate their legacy embedding to the new system so it enables adaptive learning
+        insert_face_embedding(student["id"], json.dumps(stored), confidence=1.0)
+        
+        # Also run the adaptive check on the probe
+        if match_result.get("match") and match_result.get("similarity", 0) >= 0.90:
+            probe_vector_result = generate_embedding(req.image)
+            if probe_vector_result.get("embedding"):
+                insert_face_embedding(
+                    student_id=student["id"], 
+                    embedding_json=json.dumps(probe_vector_result["embedding"]),
+                    confidence=match_result.get("similarity", 0)
+                )
 
-    # 1. Face verification
-    match_result = verify_face(req.image, stored)
-
-    # 2. Liveness
+    # 3. Liveness
     liveness_result = {"liveness_score": 0.5}
     if req.liveness_frames and len(req.liveness_frames) > 0:
         liveness_result = analyse_liveness_sequence(req.liveness_frames)
     else:
         liveness_result = analyse_liveness(req.image)
 
-    # 3. Geo
+    # 4. Geo
     geo_result = {"geo_accuracy": 0.5, "valid": True}
     if req.latitude is not None and req.longitude is not None:
         geo_result = validate_location(req.latitude, req.longitude, req.accuracy_m or 0)
 
-    # 4. Confidence (4-component: face + liveness + geo + device trust)
+    # 5. Confidence (4-component: face + liveness + geo + device trust)
     device_trust = compute_device_trust(
         device_fingerprint=req.device_fingerprint,
         known_devices=req.known_devices,
@@ -136,7 +188,14 @@ async def verify_face_endpoint(req: VerifyRequest):
         device_trust=device_trust,
     )
 
-    # Audit log
+    # Write explicit verification log for this interaction
+    log_face_verification(
+        student_id=student["id"],
+        similarity_score=match_result.get("similarity", 0),
+        device_id=req.device_fingerprint
+    )
+
+    # System Audit log (Mainly for security metrics)
     log_ai_decision(
         decision_type="FACE_VERIFY",
         student_id=student.get("id"),
