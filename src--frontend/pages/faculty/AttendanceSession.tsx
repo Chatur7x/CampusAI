@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { attendanceService, studentService, timetableService } from '@/lib/api';
 import { useRealtimeAttendance } from '@/lib/realtime';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { TimetableEntry, Student } from '@/lib/database.types';
 
 type FacultyTimetableEntry = TimetableEntry & {
@@ -42,6 +43,28 @@ export default function AttendanceSessionPage() {
   });
 
   const isLoadingData = loading || attendanceLoading;
+  
+  // Real-time projector toast notifications
+  const prevAttendanceLen = useRef(0);
+  useEffect(() => {
+    if (attendance.length > prevAttendanceLen.current && prevAttendanceLen.current > 0) {
+        const diff = attendance.length - prevAttendanceLen.current;
+        const newRecords = attendance.slice(0, diff);
+        newRecords.forEach(record => {
+           if (record.status === 'PRESENT') {
+               const student = roster.find(s => s.id === record.student_id);
+               if (student) {
+                   const name = student.profile?.first_name || 'A student';
+                   toast.success(`${name} verified via AI (${Math.round((record.confidence_score || 0) * 100)}% match)`, {
+                       duration: 4000,
+                       icon: <CheckCircle className="w-5 h-5 text-emerald-400" />
+                   });
+               }
+           }
+        });
+    }
+    prevAttendanceLen.current = attendance.length;
+  }, [attendance, roster]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -250,11 +273,15 @@ export default function AttendanceSessionPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mergedStudents.map((student) => (
-                  <div
-                    key={student.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-slate-800/30"
-                  >
+                <AnimatePresence>
+                  {mergedStudents.map((student) => (
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={student.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border transition-colors duration-500 ${student.status === 'PRESENT' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-800/30 border-slate-800/0'}`}
+                    >
                     <div className="flex items-center gap-3">
                       <Avatar className="w-10 h-10">
                         <AvatarFallback className="bg-cyan-500/20 text-cyan-400">
@@ -294,9 +321,10 @@ export default function AttendanceSessionPage() {
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </AnimatePresence>
+            </div>
             </CardContent>
           </Card>
         </TabsContent>

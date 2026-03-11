@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,9 +37,8 @@ import type { Course, Department } from '@/lib/database.types';
 import { courseService, departmentService, auditLogService } from '@/lib/api';
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<(Course & { department?: Department | null })[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const parentRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -52,86 +53,86 @@ export default function CoursesPage() {
     description: '',
   });
 
-  useEffect(() => {
-    fetchCourses();
-    fetchDepartments();
-  }, []);
-
-  const fetchCourses = async () => {
-    try {
+  // ── Queries ──
+  const { data: courses = [] as (Course & { department?: Department | null })[], isLoading: isLoadingCourses } = useQuery({
+    queryKey: ['courses'],
+    queryFn: async () => {
       const data = await courseService.getAll();
-      setCourses(data);
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-      toast.error('Failed to load courses');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return data as (Course & { department?: Department | null })[];
+    },
+  });
 
-  const fetchDepartments = async () => {
-    try {
-      const data = await departmentService.getAll();
-      setDepartments(data);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-    }
-  };
+  const { data: departments = [] as Department[] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => departmentService.getAll(),
+  });
 
-  const handleAdd = async () => {
-    try {
-      await courseService.create({
-        name: form.name.trim(),
-        code: form.code.trim().toUpperCase(),
-        credits: form.credits,
-        department_id: form.department_id,
-        description: form.description.trim(),
-      } as any);
+  const isLoading = isLoadingCourses;
+
+  // ── Mutations ──
+  const createMutation = useMutation({
+    mutationFn: (data: any) => courseService.create(data),
+    onSuccess: () => {
       toast.success('Course created successfully');
       auditLogService.log('CREATE', 'course', '', { newValues: form });
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
       setIsAddOpen(false);
       resetForm();
-      fetchCourses();
-    } catch (error) {
-      console.error('Error creating course:', error);
-      toast.error('Failed to create course');
-    }
+    },
+    onError: () => toast.error('Failed to create course'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => courseService.update(id, data),
+    onSuccess: (_, variables) => {
+      toast.success('Course updated successfully');
+      auditLogService.log('UPDATE', 'course', variables.id, { newValues: form });
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+      setIsEditOpen(false);
+      resetForm();
+    },
+    onError: () => toast.error('Failed to update course'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: courseService.delete,
+    onSuccess: (_, id) => {
+      toast.success('Course deleted successfully');
+      auditLogService.log('DELETE', 'course', id, {});
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+      setIsDeleteOpen(false);
+      setSelectedCourse(null);
+    },
+    onError: () => toast.error('Failed to delete course'),
+  });
+
+  // ── Handlers ──
+  const handleAdd = () => {
+    createMutation.mutate({
+      name: form.name.trim(),
+      code: form.code.trim().toUpperCase(),
+      credits: form.credits,
+      department_id: form.department_id,
+      description: form.description.trim(),
+    } as any);
   };
 
-  const handleEdit = async () => {
+  const handleEdit = () => {
     if (!selectedCourse) return;
-    try {
-      await courseService.update(selectedCourse.id, {
+    updateMutation.mutate({
+      id: selectedCourse.id,
+      data: {
         name: form.name.trim(),
         code: form.code.trim().toUpperCase(),
         credits: form.credits,
         department_id: form.department_id,
         description: form.description.trim(),
-      } as any);
-      toast.success('Course updated successfully');
-      auditLogService.log('UPDATE', 'course', selectedCourse.id, { newValues: form });
-      setIsEditOpen(false);
-      resetForm();
-      fetchCourses();
-    } catch (error) {
-      console.error('Error updating course:', error);
-      toast.error('Failed to update course');
-    }
+      } as any
+    });
   };
 
-  const handleDelete = async () => {
-    if (!selectedCourse) return;
-    try {
-      await courseService.delete(selectedCourse.id);
-      toast.success('Course deleted successfully');
-      auditLogService.log('DELETE', 'course', selectedCourse.id, {});
-      setIsDeleteOpen(false);
-      setSelectedCourse(null);
-      fetchCourses();
-    } catch (error) {
-      console.error('Error deleting course:', error);
-      toast.error('Failed to delete course');
-    }
+  const handleDelete = () => {
+    if (selectedCourse) deleteMutation.mutate(selectedCourse.id);
   };
 
   const openEdit = (course: Course) => {
@@ -157,12 +158,23 @@ export default function CoursesPage() {
     setSelectedCourse(null);
   };
 
-  const filteredCourses = courses.filter(
-    (c) =>
-      c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.department?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCourses = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return courses.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.code?.toLowerCase().includes(q) ||
+        c.department?.name?.toLowerCase().includes(q)
+    );
+  }, [courses, searchQuery]);
+
+  // ── Virtualizer ──
+  const rowVirtualizer = useVirtualizer({
+    count: filteredCourses.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64,
+    overscan: 5,
+  });
 
   const getDeptName = (deptId: string) => departments.find((d) => d.id === deptId)?.name || deptId;
 
@@ -247,10 +259,10 @@ export default function CoursesPage() {
         </Card>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-0">
+      <Card className="bg-slate-900/50 border-slate-800 flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-auto" ref={parentRef}>
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-sm">
               <TableRow className="border-slate-800 hover:bg-transparent">
                 <TableHead className="text-slate-400">Course</TableHead>
                 <TableHead className="text-slate-400">Code</TableHead>
@@ -261,44 +273,56 @@ export default function CoursesPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto" />
+                <TableRow><TableCell colSpan={5} className="text-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto" /></TableCell></TableRow>
+              ) : filteredCourses.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">No courses found</TableCell></TableRow>
+              ) : (
+                <TableRow style={{ height: `${rowVirtualizer.getTotalSize()}px`, pointerEvents: 'none' }}>
+                  <TableCell colSpan={5} className="p-0 border-0">
+                    <div className="relative w-full">
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const course = filteredCourses[virtualRow.index];
+                        return (
+                          <div
+                            key={virtualRow.index}
+                            className="absolute top-0 left-0 w-full flex items-center border-b border-slate-800 transition-colors hover:bg-slate-800/30 group pointer-events-auto px-4"
+                            style={{
+                              height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                          >
+                            <div className="flex-[2] min-w-0 pr-4 flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex-shrink-0 flex items-center justify-center">
+                                <BookOpen className="w-4 h-4 text-violet-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{course.name}</p>
+                                {course.description && <p className="text-xs text-slate-500 truncate">{course.description}</p>}
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0 pr-4">
+                              <Badge variant="outline" className="border-slate-700 text-slate-300 truncate">{course.code}</Badge>
+                            </div>
+                            <div className="flex-1 min-w-0 pr-4 text-slate-300 truncate">
+                              {course.department?.name || getDeptName(course.department_id)}
+                            </div>
+                            <div className="flex-1 min-w-0 pr-4">
+                              <Badge className="bg-cyan-500/20 text-cyan-400 truncate">{course.credits} cr</Badge>
+                            </div>
+                            <div className="flex-[0.5] flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={(e) => { e.stopPropagation(); openEdit(course); }}><Edit className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={(e) => { e.stopPropagation(); openDelete(course); }}><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </TableCell>
                 </TableRow>
-              ) : filteredCourses.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-slate-500">No courses found</TableCell>
-                </TableRow>
-              ) : (
-                filteredCourses.map((course) => (
-                  <TableRow key={course.id} className="border-slate-800">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                          <BookOpen className="w-4 h-4 text-violet-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-white">{course.name}</p>
-                          {course.description && <p className="text-xs text-slate-500 line-clamp-1 max-w-[200px]">{course.description}</p>}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{course.code}</Badge></TableCell>
-                    <TableCell className="text-slate-300">{course.department?.name || getDeptName(course.department_id)}</TableCell>
-                    <TableCell><Badge className="bg-cyan-500/20 text-cyan-400">{course.credits} cr</Badge></TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEdit(course)}><Edit className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={() => openDelete(course)}><Trash2 className="w-4 h-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
               )}
             </TableBody>
           </Table>
-        </CardContent>
+        </div>
       </Card>
 
       <Dialog open={isEditOpen} onOpenChange={(open) => { setIsEditOpen(open); if (!open) resetForm(); }}>

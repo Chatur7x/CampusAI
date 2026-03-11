@@ -87,6 +87,8 @@ def compute_confidence(
     liveness_score: float,
     geo_accuracy: float,
     device_trust: float = 0.5,
+    impossible_travel: bool = False,
+    device_risk: bool = False,
 ) -> ConfidenceResult:
     """
     Compute a weighted 4-component confidence score.
@@ -130,6 +132,10 @@ def compute_confidence(
         flags.append("OUTSIDE_CAMPUS")
     if device_trust < 0.3:
         flags.append("UNKNOWN_DEVICE")
+    if impossible_travel:
+        flags.append("IMPOSSIBLE_TRAVEL")
+    if device_risk:
+        flags.append("HIGH_DEVICE_RISK")
 
     # Auto re-verification for border-line cases
     requires_reverification = category == "LOW" or len(flags) >= 2

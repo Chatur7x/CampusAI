@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,11 +36,9 @@ import type { Class as DbClass, Department, Faculty, Profile } from '@/lib/datab
 import { classService, departmentService, facultyService, auditLogService } from '@/lib/api';
 
 export default function ClassesPage() {
+  const queryClient = useQueryClient();
+  const parentRef = useRef<HTMLDivElement>(null);
   type ClassWithRelations = DbClass & { department?: Department | null; class_incharge?: (Faculty & { profile?: Profile | null }) | null };
-  const [classes, setClasses] = useState<ClassWithRelations[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [facultyList, setFacultyList] = useState<(Faculty & { profile?: Profile | null })[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -55,68 +55,86 @@ export default function ClassesPage() {
     academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
   });
 
-  useEffect(() => {
-    fetchClasses();
-    fetchDepartments();
-    fetchFaculty();
-  }, []);
-
-  const fetchClasses = async () => {
-    try {
+  // ── Queries ──
+  const { data: classes = [] as ClassWithRelations[], isLoading: isLoadingClasses } = useQuery({
+    queryKey: ['classes'],
+    queryFn: async () => {
       const data = await classService.getAll();
-      setClasses(data);
-    } catch (error) {
-      console.error('Error fetching classes:', error);
-      toast.error('Failed to load classes');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return data as ClassWithRelations[];
+    },
+  });
 
-  const fetchDepartments = async () => {
-    try {
-      const data = await departmentService.getAll();
-      setDepartments(data);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-    }
-  };
+  const { data: departments = [] as Department[] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: departmentService.getAll,
+  });
 
-  const fetchFaculty = async () => {
-    try {
+  const { data: facultyList = [] as (Faculty & { profile?: Profile | null })[] } = useQuery({
+    queryKey: ['faculty'],
+    queryFn: async () => {
       const data = await facultyService.getAll();
-      setFacultyList(data);
-    } catch (error) {
-      console.error('Error fetching faculty:', error);
-    }
-  };
+      return data as (Faculty & { profile?: Profile | null })[];
+    },
+  });
 
-  const handleAdd = async () => {
-    try {
-      await classService.create({
-        name: form.name.trim(),
-        section: form.section,
-        department_id: form.department_id,
-        course_id: form.course_id || null,
-        class_incharge_id: form.class_incharge_id || null,
-        room: form.room.trim() || null,
-        capacity: form.capacity,
-        academic_year: form.academicYear,
-      } as any);
+  const isLoading = isLoadingClasses;
+
+  // ── Mutations ──
+  const createMutation = useMutation({
+    mutationFn: (data: any) => classService.create(data),
+    onSuccess: () => {
       toast.success('Class created successfully');
       auditLogService.log('CREATE', 'class', '', { newValues: form });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       setIsAddOpen(false);
       resetForm();
-      fetchClasses();
-    } catch (error) {
-      toast.error('Failed to create class');
-    }
+    },
+    onError: () => toast.error('Failed to create class'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => classService.update(id, data),
+    onSuccess: (_, variables) => {
+      toast.success('Class updated successfully');
+      auditLogService.log('UPDATE', 'class', variables.id, { newValues: form });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      setIsEditOpen(false);
+      resetForm();
+    },
+    onError: () => toast.error('Failed to update class'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: classService.delete,
+    onSuccess: (_, id) => {
+      toast.success('Class deleted successfully');
+      auditLogService.log('DELETE', 'class', id, {});
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      setIsDeleteOpen(false);
+      setSelectedClass(null);
+    },
+    onError: () => toast.error('Failed to delete class'),
+  });
+
+  // ── Handlers ──
+  const handleAdd = () => {
+    createMutation.mutate({
+      name: form.name.trim(),
+      section: form.section,
+      department_id: form.department_id,
+      course_id: form.course_id || null,
+      class_incharge_id: form.class_incharge_id || null,
+      room: form.room.trim() || null,
+      capacity: form.capacity,
+      academic_year: form.academicYear,
+    } as any);
   };
 
-  const handleEdit = async () => {
+  const handleEdit = () => {
     if (!selectedClass) return;
-    try {
-      await classService.update(selectedClass.id, {
+    updateMutation.mutate({
+      id: selectedClass.id,
+      data: {
         name: form.name.trim(),
         section: form.section,
         department_id: form.department_id,
@@ -125,29 +143,12 @@ export default function ClassesPage() {
         room: form.room.trim() || null,
         capacity: form.capacity,
         academic_year: form.academicYear,
-      } as any);
-      toast.success('Class updated successfully');
-      auditLogService.log('UPDATE', 'class', selectedClass.id, { newValues: form });
-      setIsEditOpen(false);
-      resetForm();
-      fetchClasses();
-    } catch (error) {
-      toast.error('Failed to update class');
-    }
+      } as any
+    });
   };
 
-  const handleDelete = async () => {
-    if (!selectedClass) return;
-    try {
-      await classService.delete(selectedClass.id);
-      toast.success('Class deleted successfully');
-      auditLogService.log('DELETE', 'class', selectedClass.id, {});
-      setIsDeleteOpen(false);
-      setSelectedClass(null);
-      fetchClasses();
-    } catch (error) {
-      toast.error('Failed to delete class');
-    }
+  const handleDelete = () => {
+    if (selectedClass) deleteMutation.mutate(selectedClass.id);
   };
 
   const openEdit = (cls: ClassWithRelations) => {
@@ -173,12 +174,23 @@ export default function ClassesPage() {
     setSelectedClass(null);
   };
 
-  const filteredClasses = classes.filter(
-    (c) =>
-      c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.section?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.department?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredClasses = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return classes.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.section?.toLowerCase().includes(q) ||
+        c.department?.name?.toLowerCase().includes(q)
+    );
+  }, [classes, searchQuery]);
+
+  // ── Virtualizer ──
+  const rowVirtualizer = useVirtualizer({
+    count: filteredClasses.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64,
+    overscan: 5,
+  });
 
   const renderClassForm = (onSubmit: () => void, submitLabel: string) => (
     <div className="grid gap-4 py-4">
@@ -338,10 +350,10 @@ export default function ClassesPage() {
         </Card>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-0">
+      <Card className="bg-slate-900/50 border-slate-800 flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-auto" ref={parentRef}>
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-sm">
               <TableRow className="border-slate-800 hover:bg-transparent">
                 <TableHead className="text-slate-400">Class</TableHead>
                 <TableHead className="text-slate-400">Section</TableHead>
@@ -354,51 +366,59 @@ export default function ClassesPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto" />
+                <TableRow><TableCell colSpan={7} className="text-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto" /></TableCell></TableRow>
+              ) : filteredClasses.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">No classes found</TableCell></TableRow>
+              ) : (
+                <TableRow style={{ height: `${rowVirtualizer.getTotalSize()}px`, pointerEvents: 'none' }}>
+                  <TableCell colSpan={7} className="p-0 border-0">
+                    <div className="relative w-full">
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const cls = filteredClasses[virtualRow.index];
+                        return (
+                          <div
+                            key={virtualRow.index}
+                            className="absolute top-0 left-0 w-full flex items-center border-b border-slate-800 transition-colors hover:bg-slate-800/30 group pointer-events-auto px-4"
+                            style={{
+                              height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                          >
+                            <div className="flex-[2] min-w-0 pr-4 flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex-shrink-0 flex items-center justify-center">
+                                <Users className="w-4 h-4 text-violet-400" />
+                              </div>
+                              <p className="text-sm font-medium text-white truncate">{cls.name}</p>
+                            </div>
+                            <div className="flex-1 min-w-0 pr-4">
+                              <Badge variant="outline" className="border-slate-700 text-slate-300 truncate">{cls.section}</Badge>
+                            </div>
+                            <div className="flex-1 min-w-0 pr-4 text-slate-300 truncate">{cls.department?.name}</div>
+                            <div className="flex-1 min-w-0 pr-4 text-slate-300 truncate">{cls.room || '—'}</div>
+                            <div className="flex-1 min-w-0 pr-4 text-slate-300 truncate">{cls.capacity}</div>
+                            <div className="flex-1 min-w-0 pr-4">
+                              <Badge className={
+                                (cls._count?.students || 0) >= cls.capacity
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-emerald-500/20 text-emerald-400'
+                              }>
+                                {cls._count?.students || 0}/{cls.capacity}
+                              </Badge>
+                            </div>
+                            <div className="flex-[0.5] flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={(e) => { e.stopPropagation(); openEdit(cls); }}><Edit className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={(e) => { e.stopPropagation(); setSelectedClass(cls); setIsDeleteOpen(true); }}><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </TableCell>
                 </TableRow>
-              ) : filteredClasses.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">No classes found</TableCell>
-                </TableRow>
-              ) : (
-                filteredClasses.map((cls) => (
-                  <TableRow key={cls.id} className="border-slate-800">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                          <Users className="w-4 h-4 text-violet-400" />
-                        </div>
-                        <p className="text-sm font-medium text-white">{cls.name}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{cls.section}</Badge></TableCell>
-                    <TableCell className="text-slate-300">{cls.department?.name}</TableCell>
-                    <TableCell className="text-slate-300">{cls.room || '—'}</TableCell>
-                    <TableCell className="text-slate-300">{cls.capacity}</TableCell>
-                    <TableCell>
-                      <Badge className={
-                        (cls._count?.students || 0) >= cls.capacity
-                          ? 'bg-red-500/20 text-red-400'
-                          : 'bg-emerald-500/20 text-emerald-400'
-                      }>
-                        {cls._count?.students || 0}/{cls.capacity}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEdit(cls)}><Edit className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={() => { setSelectedClass(cls); setIsDeleteOpen(true); }}><Trash2 className="w-4 h-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
               )}
             </TableBody>
           </Table>
-        </CardContent>
+        </div>
       </Card>
 
       <Dialog open={isEditOpen} onOpenChange={(open) => { setIsEditOpen(open); if (!open) resetForm(); }}>

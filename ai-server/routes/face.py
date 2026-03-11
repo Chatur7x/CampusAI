@@ -15,12 +15,13 @@ from models.face_recognition_module import (
 )
 from models.liveness import analyse_liveness, analyse_liveness_sequence
 from models.confidence import compute_confidence, compute_device_trust
-from models.geo_validation import validate_location, detect_gps_spoof
+from models.geo_validation import validate_location, detect_gps_spoof, check_impossible_travel
 from models.audit_logger import log_ai_decision
 from utils.db import (
     fetch_student, fetch_student_by_user, update_face_data,
     fetch_all_students_with_faces, fetch_student_embeddings,
-    insert_face_embedding, log_face_verification
+    insert_face_embedding, log_face_verification,
+    fetch_last_geo_verification, log_geo_verification, log_security_event
 )
 
 logger = logging.getLogger("campusai.routes.face")
@@ -169,10 +170,39 @@ async def verify_face_endpoint(req: VerifyRequest):
     else:
         liveness_result = analyse_liveness(req.image)
 
-    # 4. Geo
+    # 4. Geo + Impossible Travel
     geo_result = {"geo_accuracy": 0.5, "valid": True}
+    impossible_travel_result = {"impossible": False}
+    
     if req.latitude is not None and req.longitude is not None:
         geo_result = validate_location(req.latitude, req.longitude, req.accuracy_m or 0)
+        
+        # Impossible Travel Check
+        last_geo = fetch_last_geo_verification(student["userId"] if "userId" in student else student.get("user_id"))
+        if last_geo:
+            impossible_travel_result = check_impossible_travel(
+                req.latitude, req.longitude,
+                last_geo["latitude"], last_geo["longitude"],
+                last_geo["created_at"]
+            )
+            if impossible_travel_result.get("impossible"):
+                log_security_event(
+                    user_id=req.user_id,
+                    event_type="IMPOSSIBLE_TRAVEL",
+                    severity="HIGH",
+                    description=f"Impossible travel detected for user {req.user_id}. Distance: {impossible_travel_result.get('distance_km', 'N/A')}km, Time: {impossible_travel_result.get('time_diff_min', 'N/A')}min.",
+                    metadata=impossible_travel_result
+                )
+            
+        # Log this geo verification
+        log_geo_verification(
+            user_id=student["userId"] if "userId" in student else student.get("user_id"),
+            lat=req.latitude,
+            lon=req.longitude,
+            is_within_campus=geo_result["valid"],
+            spoof_detected=impossible_travel_result.get("impossible", False),
+            spoof_reason="IMPOSSIBLE_TRAVEL" if impossible_travel_result.get("impossible") else None
+        )
 
     # 5. Confidence (4-component: face + liveness + geo + device trust)
     device_trust = compute_device_trust(
@@ -186,6 +216,8 @@ async def verify_face_endpoint(req: VerifyRequest):
         liveness_score=liveness_result.get("liveness_score", liveness_result.get("avg_liveness_score", 0)),
         geo_accuracy=geo_result.get("geo_accuracy", 0),
         device_trust=device_trust,
+        impossible_travel=impossible_travel_result.get("impossible", False),
+        device_risk=device_trust < 0.3 # Flag unknown/suspicious devices
     )
 
     # Write explicit verification log for this interaction

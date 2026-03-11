@@ -86,7 +86,7 @@ def detect_gps_spoof(
     if is_mock:
         flags.append("MOCK_LOCATION")
 
-    # Impossible speed check
+    # Impossible speed check (Short term spoofing - e.g. jumping between buildings)
     if prev_lat is not None and prev_lon is not None and time_delta_s and time_delta_s > 0:
         dist = haversine(current_lat, current_lon, prev_lat, prev_lon)
         speed_kmh = (dist / time_delta_s) * 3.6
@@ -97,3 +97,58 @@ def detect_gps_spoof(
         "spoofing_suspected": len(flags) > 0,
         "flags": flags,
     }
+
+
+def check_impossible_travel(
+    current_lat: float,
+    current_lon: float,
+    last_lat: float,
+    last_lon: float,
+    last_timestamp: str | float,  # ISO string or unix timestamp
+) -> dict:
+    """
+    Impossible Travel (Velocity) Check.
+    Detects if a user has checked in from two distant locations faster than possible.
+    """
+    import datetime
+    
+    # 1. Parse time
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if isinstance(last_timestamp, str):
+        try:
+            # Handle Supabase style timestamps
+            last_t = datetime.datetime.fromisoformat(last_timestamp.replace('Z', '+00:00'))
+        except ValueError:
+            return {"impossible": False, "reason": "invalid_timestamp"}
+    else:
+        last_t = datetime.datetime.fromtimestamp(last_timestamp, datetime.timezone.utc)
+        
+    delta_s = (now - last_t).total_seconds()
+    if delta_s <= 0:
+        return {"impossible": False, "reason": "invalid_delta"}
+        
+    # 2. Calculate distance
+    dist_m = haversine(current_lat, current_lon, last_lat, last_lon)
+    dist_km = dist_m / 1000.0
+    
+    # 3. Calculate required velocity (km/h)
+    velocity_kmh = (dist_km / (delta_s / 3600.0))
+    
+    # Heuristics:
+    # - If distance > 5km and velocity > 1000 km/h (Faster than a jet)
+    # - If distance > 100km and velocity > 500 km/h
+    # - If distance < 5km, we ignore (likely GPS jitter/accuracy issues)
+    
+    is_impossible = False
+    if dist_km > 2 and velocity_kmh > 1000:
+        is_impossible = True
+    elif dist_km > 100 and velocity_kmh > 600:
+        is_impossible = True
+        
+    return {
+        "impossible": is_impossible,
+        "velocity_kmh": round(velocity_kmh, 2),
+        "distance_km": round(dist_km, 2),
+        "time_delta_mins": round(delta_s / 60.0, 2)
+    }
+

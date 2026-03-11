@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,9 +40,8 @@ import { supabase } from '@/lib/supabase';
 type FacultyWithRelations = Faculty & { profile?: Profile | null; department?: Department | null };
 
 export default function FacultyPage() {
-  const [faculty, setFaculty] = useState<FacultyWithRelations[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const parentRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -56,102 +57,103 @@ export default function FacultyPage() {
     joiningDate: new Date().toISOString().split('T')[0],
     specialization: '',
   });
-  useEffect(() => {
-    fetchFaculty();
-    fetchDepartments();
-  }, []);
 
-  const fetchFaculty = async () => {
-    try {
+  // ── Queries ──
+  const { data: faculty = [] as FacultyWithRelations[], isLoading: isLoadingFaculty } = useQuery({
+    queryKey: ['faculty'],
+    queryFn: async () => {
       const data = await facultyService.getAll();
-      setFaculty(data);
-    } catch (error) {
-      console.error('Error fetching faculty:', error);
-      toast.error('Failed to load faculty');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return data as FacultyWithRelations[];
+    },
+  });
 
-  const fetchDepartments = async () => {
-    try {
-      const data = await departmentService.getAll();
-      setDepartments(data);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-    }
-  };
+  const { data: departments = [] as Department[] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => departmentService.getAll(),
+  });
 
-  const handleAdd = async () => {
-    if (!form.firstName || !form.email || !form.employeeId || !form.departmentId) {
-      toast.error('Fill required fields before adding');
-      return;
-    }
-    try {
+  const isLoading = isLoadingFaculty;
+
+  // ── Mutations ──
+  const addMutation = useMutation({
+    mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke('bulk-operations', {
         body: {
           operation: 'import_faculty',
-          data: [
-            {
-              email: form.email.trim(),
-              firstName: form.firstName.trim(),
-              lastName: form.lastName.trim() || 'Faculty',
-              employeeId: form.employeeId.trim(),
-              departmentId: form.departmentId,
-              designation: form.designation,
-              joiningDate: form.joiningDate,
-              specialization: form.specialization || undefined,
-            },
-          ],
+          data: [{
+            email: form.email.trim(),
+            firstName: form.firstName.trim(),
+            lastName: form.lastName.trim() || 'Faculty',
+            employeeId: form.employeeId.trim(),
+            departmentId: form.departmentId,
+            designation: form.designation,
+            joiningDate: form.joiningDate,
+            specialization: form.specialization || undefined,
+          }],
           options: { skipDuplicates: true },
         },
       });
-
       if (error) throw error;
       if (!data?.success) throw new Error(data?.message || 'Failed to add faculty');
-
+      return data;
+    },
+    onSuccess: () => {
       toast.success('Faculty member added successfully');
       auditLogService.log('CREATE', 'faculty', '', { newValues: { email: form.email, employeeId: form.employeeId } });
+      queryClient.invalidateQueries({ queryKey: ['faculty'] });
       setIsAddOpen(false);
       resetForm();
-      fetchFaculty();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to add faculty');
-    }
-  };
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add faculty'),
+  });
 
-  const handleEdit = async () => {
-    if (!selectedFaculty) return;
-    try {
-      await facultyService.update(selectedFaculty.id, {
+  const updateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return facultyService.update(id, {
         employee_id: form.employeeId,
         designation: form.designation,
         department_id: form.departmentId,
         joining_date: form.joiningDate,
         specialization: form.specialization,
       });
+    },
+    onSuccess: (data, id) => {
       toast.success('Faculty updated successfully');
-      auditLogService.log('UPDATE', 'faculty', selectedFaculty.id, { newValues: form });
+      auditLogService.log('UPDATE', 'faculty', id, { newValues: form });
+      queryClient.invalidateQueries({ queryKey: ['faculty'] });
       setIsEditOpen(false);
       resetForm();
-      fetchFaculty();
-    } catch (error) {
-      toast.error('Failed to update faculty');
-    }
-  };
+    },
+    onError: () => toast.error('Failed to update faculty'),
+  });
 
-  const handleDelete = async () => {
-    if (!selectedFaculty) return;
-    try {
-      await facultyService.delete(selectedFaculty.id);
+  const deleteMutation = useMutation({
+    mutationFn: facultyService.delete,
+    onSuccess: (_, id) => {
       toast.success('Faculty member removed');
-      auditLogService.log('DELETE', 'faculty', selectedFaculty.id, {});
+      auditLogService.log('DELETE', 'faculty', id, {});
+      queryClient.invalidateQueries({ queryKey: ['faculty'] });
       setIsDeleteOpen(false);
       setSelectedFaculty(null);
-      fetchFaculty();
-    } catch (error) {
-      toast.error('Failed to remove faculty');
+    },
+    onError: () => toast.error('Failed to remove faculty'),
+  });
+
+  // ── Handlers ──
+  const handleAdd = () => {
+    if (!form.firstName || !form.email || !form.employeeId || !form.departmentId) {
+      toast.error('Fill required fields before adding');
+      return;
     }
+    addMutation.mutate();
+  };
+
+  const handleEdit = () => {
+    if (selectedFaculty) updateMutation.mutate(selectedFaculty.id);
+  };
+
+  const handleDelete = () => {
+    if (selectedFaculty) deleteMutation.mutate(selectedFaculty.id);
   };
 
   const openEdit = (f: FacultyWithRelations) => {
@@ -178,20 +180,30 @@ export default function FacultyPage() {
     setSelectedFaculty(null);
   };
 
-  const filteredFaculty = faculty.filter((f) => {
-    const employeeId = f.employee_id || '';
-    const first = f.profile?.first_name || '';
-    const last = f.profile?.last_name || '';
-    const email = f.profile?.email || '';
-    const designation = f.designation || '';
+  const filteredFaculty = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return (
-      employeeId.toLowerCase().includes(q) ||
-      first.toLowerCase().includes(q) ||
-      last.toLowerCase().includes(q) ||
-      email.toLowerCase().includes(q) ||
-      designation.toLowerCase().includes(q)
-    );
+    return faculty.filter((f) => {
+      const employeeId = f.employee_id || '';
+      const first = f.profile?.first_name || '';
+      const last = f.profile?.last_name || '';
+      const email = f.profile?.email || '';
+      const designation = f.designation || '';
+      return (
+        employeeId.toLowerCase().includes(q) ||
+        first.toLowerCase().includes(q) ||
+        last.toLowerCase().includes(q) ||
+        email.toLowerCase().includes(q) ||
+        designation.toLowerCase().includes(q)
+      );
+    });
+  }, [faculty, searchQuery]);
+
+  // ── Virtualizer ──
+  const rowVirtualizer = useVirtualizer({
+    count: filteredFaculty.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64, // Estimated row height
+    overscan: 5,
   });
 
   const getInitials = (f: Faculty) =>
@@ -346,10 +358,10 @@ export default function FacultyPage() {
         </Card>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-0">
+      <Card className="bg-slate-900/50 border-slate-800 flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-auto" ref={parentRef}>
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-sm">
               <TableRow className="border-slate-800 hover:bg-transparent">
                 <TableHead className="text-slate-400">Faculty</TableHead>
                 <TableHead className="text-slate-400">Employee ID</TableHead>
@@ -365,33 +377,51 @@ export default function FacultyPage() {
               ) : filteredFaculty.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center py-8 text-slate-500">No faculty found</TableCell></TableRow>
               ) : (
-                filteredFaculty.map((f) => (
-                  <TableRow key={f.id} className="border-slate-800">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8"><AvatarFallback className="bg-violet-500/20 text-violet-400 text-xs">{getInitials(f)}</AvatarFallback></Avatar>
-                        <div>
-                          <p className="text-sm font-medium text-white">{f.profile?.first_name} {f.profile?.last_name}</p>
-                          <p className="text-xs text-slate-400">{f.profile?.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell><Badge variant="outline" className="border-slate-700 text-slate-300">{f.employee_id}</Badge></TableCell>
-                    <TableCell className="text-slate-300">{f.designation}</TableCell>
-                    <TableCell className="text-slate-300">{f.department?.name}</TableCell>
-                    <TableCell className="text-slate-400 text-sm">{f.specialization || '—'}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEdit(f)}><Edit className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={() => { setSelectedFaculty(f); setIsDeleteOpen(true); }}><Trash2 className="w-4 h-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                <TableRow style={{ height: `${rowVirtualizer.getTotalSize()}px`, pointerEvents: 'none' }}>
+                  <TableCell colSpan={6} className="p-0 border-0">
+                    <div className="relative w-full">
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const f = filteredFaculty[virtualRow.index];
+                        return (
+                          <div
+                            key={virtualRow.index}
+                            className="absolute top-0 left-0 w-full flex items-center border-b border-slate-800 transition-colors hover:bg-slate-800/30 group pointer-events-auto px-4"
+                            style={{
+                              height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                          >
+                            <div className="flex-[2] min-w-0 pr-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8 flex-shrink-0">
+                                  <AvatarFallback className="bg-violet-500/20 text-violet-400 text-xs">{getInitials(f)}</AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-white truncate">{f.profile?.first_name} {f.profile?.last_name}</p>
+                                  <p className="text-xs text-slate-400 truncate">{f.profile?.email}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0 pr-4">
+                              <Badge variant="outline" className="border-slate-700 text-slate-300 truncate max-w-full">{f.employee_id}</Badge>
+                            </div>
+                            <div className="flex-1 min-w-0 pr-4 text-slate-300 truncate">{f.designation}</div>
+                            <div className="flex-1 min-w-0 pr-4 text-slate-300 truncate">{f.department?.name}</div>
+                            <div className="flex-1 min-w-0 pr-4 text-slate-400 text-sm truncate">{f.specialization || '—'}</div>
+                            <div className="flex-[0.5] flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={(e) => { e.stopPropagation(); openEdit(f); }}><Edit className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={(e) => { e.stopPropagation(); setSelectedFaculty(f); setIsDeleteOpen(true); }}><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>
-        </CardContent>
+        </div>
       </Card>
 
       <Dialog open={isEditOpen} onOpenChange={(open) => { setIsEditOpen(open); if (!open) resetForm(); }}>
