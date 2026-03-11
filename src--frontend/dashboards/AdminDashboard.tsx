@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { CommandPaletteTrigger } from '@/components/CommandPalette';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 import {
   LayoutDashboard,
@@ -128,208 +130,28 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen text-slate-50 flex relative overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #020617 0%, #0a192f 40%, #064e3b 80%, #022c22 100%)" }}>
-
-      {/* Glassmorphism animations */}
-      <style>{`
-        @keyframes blobDrift {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -40px) scale(1.05); }
-          66% { transform: translate(-20px, 20px) scale(0.95); }
-        }
-      `}</style>
-
-      {/* Animated gradient blobs for Royal Blue/Green */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden royal-grid opacity-30" aria-hidden>
-        <div className="absolute w-[800px] h-[800px] -top-[20%] -left-[10%] rounded-full bg-blue-600/20 blur-[120px] animate-pulse" style={{ animationDuration: '8s' }} />
-        <div className="absolute w-[600px] h-[600px] -bottom-[10%] -right-[5%] rounded-full bg-emerald-600/20 blur-[120px] animate-pulse" style={{ animationDelay: '-4s', animationDuration: '10s' }} />
-      </div>
-
-      {/* Frosted noise overlay */}
-      <div className="pointer-events-none fixed inset-0 opacity-[0.015]" aria-hidden
-        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
-      
-      {/* Desktop Sidebar — frosted glass */}
-      <aside className="hidden lg:flex w-68 flex-col relative z-20 border-r glass neo-3d shadow-2xl shadow-blue-900/10">
-        {/* Premium Logo */}
-        <div className="p-6 border-b border-white/[0.08]">
-          <Link to="/admin" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div className="absolute inset-0 bg-blue-500 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-300" />
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-emerald-500 to-teal-500 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)] group-hover:scale-110 transition-transform duration-300">
-                <LayoutDashboard className="w-5 h-5 text-white" />
-              </div>
-            </div>
-            <div>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-blue-200 via-white to-emerald-200 bg-clip-text text-transparent">CampusAI</h1>
-              <p className="text-xs text-blue-400 font-semibold tracking-wider">ADMIN PORTAL</p>
-            </div>
-          </Link>
-        </div>
-
-        {/* Toolbar */}
-        <div className="px-4 py-3 border-b border-white/[0.08] flex items-center gap-2">
-          <CommandPaletteTrigger className="flex-1" />
-          <ThemeToggle />
-          <NotificationBell />
-        </div>
-
-        {/* Navigation */}
-        <ScrollArea className="flex-1 py-4">
-          <nav className="px-3 space-y-1">
-            {sidebarItems.map((item) => (
-              <SidebarLink 
-                key={item.path} 
-                item={item} 
-                isActive={location.pathname === item.path}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-            ))}
-          </nav>
-        </ScrollArea>
-
-        {/* Premium User footer */}
-        <div className="p-4 border-t border-white/[0.08]">
-          <div className="flex items-center gap-3 p-3 rounded-xl border mb-3 transition-colors hover:bg-white/[0.02]" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.08)' }}>
-            <div className="relative">
-              <div className="absolute inset-0 bg-blue-500 rounded-full blur-md opacity-40" />
-              <Avatar className="relative border-2 border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
-                <AvatarFallback className="bg-gradient-to-br from-blue-500/30 to-emerald-500/30 text-blue-200 font-semibold">
-                  {getInitials(user?.profile?.first_name ? `${user.profile.first_name} ${user.profile.last_name ?? ''}` : user?.email || 'U')}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{user?.profile?.first_name || user?.email || 'User'}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
-            </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout" className="hover:bg-red-500/10 hover:text-red-400">
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-          <Button 
-            onClick={handleLogout} 
-            className="w-full border shadow-lg" 
-            variant="secondary"
-            style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }}
-          >
-            <LogOut className="w-4 h-4 mr-2" /> Logout
-          </Button>
-        </div>
-      </aside>
-
-      {/* Mobile Header — frosted glass */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 border-b"
-        style={{
-          background: 'rgba(255, 255, 255, 0.06)',
-          backdropFilter: 'blur(60px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(60px) saturate(180%)',
-          borderColor: 'rgba(255, 255, 255, 0.12)',
-          boxShadow: '0 4px 30px rgba(0,0,0,0.3)',
-        }}>
-        <div className="flex items-center justify-between p-4">
-          <Link to="/admin" className="flex items-center gap-2 group">
-            <div className="relative">
-              <div className="absolute inset-0 bg-blue-500 rounded-lg blur-md opacity-50 group-hover:opacity-75 transition-opacity duration-300" />
-              <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
-                <LayoutDashboard className="w-4 h-4 text-white" />
-              </div>
-            </div>
-            <span className="font-bold bg-gradient-to-r from-blue-200 via-white to-emerald-200 bg-clip-text text-transparent">CampusAI</span>
-          </Link>
-
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <NotificationBell />
-            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white hover:bg-slate-800">
-                  <Menu className="w-5 h-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-72 border-white/[0.12] p-0"
-                style={{ background: 'rgba(15, 12, 41, 0.95)', backdropFilter: 'blur(60px) saturate(180%)', WebkitBackdropFilter: 'blur(60px) saturate(180%)' }}>
-                <div className="p-6 border-b border-white/[0.08]">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-blue-500 rounded-xl blur-lg opacity-50" />
-                      <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
-                        <LayoutDashboard className="w-5 h-5 text-white" />
-                      </div>
-                    </div>
-                    <div>
-                      <h1 className="text-lg font-bold bg-gradient-to-r from-blue-200 via-white to-emerald-200 bg-clip-text text-transparent">CampusAI</h1>
-                      <p className="text-xs text-blue-400 font-semibold tracking-wider">ADMIN PORTAL</p>
-                    </div>
-                  </div>
-                </div>
-                <ScrollArea className="h-[calc(100vh-220px)] py-4">
-                  <nav className="px-3 space-y-1">
-                    {sidebarItems.map((item) => (
-                      <SidebarLink 
-                        key={item.path} 
-                        item={item} 
-                        isActive={location.pathname === item.path}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      />
-                    ))}
-                  </nav>
-                </ScrollArea>
-                <div className="p-4 border-t border-white/[0.08]">
-                  <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border transition-colors hover:bg-white/[0.02]" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.08)' }}>
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-blue-500 rounded-full blur-md opacity-40" />
-                      <Avatar className="relative w-8 h-8 border-2 border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
-                        <AvatarFallback className="bg-gradient-to-br from-blue-500/30 to-emerald-500/30 text-blue-200 text-sm font-semibold">
-                          {getInitials(user?.profile?.first_name ? `${user.profile.first_name} ${user.profile.last_name ?? ''}` : user?.email || 'U')}
-                        </AvatarFallback>
-                      </Avatar>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{user?.profile?.first_name || user?.email || 'User'}</p>
-                      <p className="text-xs text-slate-400 truncate">{user?.email || 'user@mail.com'}</p>
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handleLogout} 
-                    className="w-full border shadow-lg" 
-                    variant="secondary"
-                    style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" /> Logout
-                  </Button>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content with Suspense */}
-      <main className="flex-1 lg:ml-0 pt-16 lg:pt-0 relative z-10">
-        <div className="p-6 lg:p-8">
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<AdminOverview />} />
-              <Route path="/departments" element={<DepartmentsPage />} />
-              <Route path="/courses" element={<CoursesPage />} />
-              <Route path="/classes" element={<ClassesPage />} />
-              <Route path="/students" element={<StudentsPage />} />
-              <Route path="/register-student" element={<StudentRegistrationPage />} />
-              <Route path="/faculty" element={<FacultyPage />} />
-              <Route path="/timetable" element={<TimetablePage />} />
-              <Route path="/security" element={<SecurityPage />} />
-              <Route path="/blockchain" element={<BlockchainPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/ai-analytics" element={<AIDashboard role="admin" />} />
-              <Route path="/notices" element={<NoticesPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-            </Routes>
-          </Suspense>
-        </div>
-      </main>
-    </div>
+    <DashboardLayout role="admin" sidebarItems={sidebarItems}>
+      <Suspense fallback={<PageLoader />}>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<AdminOverview />} />
+            <Route path="/departments" element={<DepartmentsPage />} />
+            <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/classes" element={<ClassesPage />} />
+            <Route path="/students" element={<StudentsPage />} />
+            <Route path="/register-student" element={<StudentRegistrationPage />} />
+            <Route path="/faculty" element={<FacultyPage />} />
+            <Route path="/timetable" element={<TimetablePage />} />
+            <Route path="/security" element={<SecurityPage />} />
+            <Route path="/blockchain" element={<BlockchainPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/ai-analytics" element={<AIDashboard role="admin" />} />
+            <Route path="/notices" element={<NoticesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </ErrorBoundary>
+      </Suspense>
+    </DashboardLayout>
   );
 }
 
