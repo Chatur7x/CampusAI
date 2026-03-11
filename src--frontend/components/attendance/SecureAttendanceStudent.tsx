@@ -1,226 +1,202 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// =============================================================
+// SecureAttendanceStudent — Python AI Backend + Anti-Proxy Focus Mode
+// =============================================================
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, ShieldCheck, AlertTriangle, Fingerprint, ScanFace, CheckCircle2, Lock, Bluetooth, WifiOff, RefreshCw, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import {
+  CheckCircle2, AlertTriangle, ScanFace, Shield,
+  Loader2, MapPin, Lock, Eye, ShieldAlert,
+  Maximize, Brain, CheckSquare,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Badge } from '@/components/ui/badge';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
-import { auditLogService } from '@/lib/api';
+import { sessionService, attendanceService, auditLogService } from '@/lib/api';
+import {
+  verifyFace, captureFrame,
+  getCurrentLocation,
+  type VerifyFaceResponse,
+} from '@/lib/ai/apiClient';
 import { toast } from 'sonner';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { captureFrame, verifyFace } from '@/lib/ai/apiClient';
 
-// Anurag University campus coordinates
-const CAMPUS_LAT = 17.5023;
-const CAMPUS_LNG = 78.6068;
-const CAMPUS_RADIUS_METERS = 500;
+type VerificationStep = 'selection' | 'focus' | 'session' | 'loading' | 'location' | 'face' | 'liveness' | 'verifying' | 'success' | 'failed';
 
-interface SecureAttendanceStudentProps {
-  subjectId?: string;
-  timetableEntryId?: string;
+interface VerificationResult {
+  faceMatch: boolean;
+  faceConfidence: number;
+  livenessPass: boolean;
+  livenessScore: number;
+  locationValid: boolean;
+  distance: number;
+  confidenceScore: number;
+  confidenceCategory: string;
+  fraudAlerts: string[];
+  activeSession: any | null;
+  timestamp: string;
 }
 
-export default function SecureAttendanceStudent({ subjectId, timetableEntryId }: SecureAttendanceStudentProps) {
+const LIVENESS_FRAMES = 5;
+
+export default function SecureAttendanceStudent() {
   const { user } = useSupabaseAuth();
-  const [step, setStep] = useState(0); 
-  const [sessionCode, setSessionCode] = useState('');
-  const [locationStatus, setLocationStatus] = useState<'pending'|'verifying'|'success'|'failed'>('pending');
-  const [distanceInfo, setDistanceInfo] = useState<number | null>(null);
-  const [livenessChallenge, setLivenessChallenge] = useState('Please look straight at the camera');
-  const [livenessProgress, setLivenessProgress] = useState(0);
-  const [attendanceStatus, setAttendanceStatus] = useState<'idle'|'submitting'|'success'|'bluetooth'>('idle');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [probeImage, setProbeImage] = useState<string>('');
-  const [livenessFrames, setLivenessFrames] = useState<string[]>([]);
-  const [verificationHash, setVerificationHash] = useState('');
-  const [attendanceRecord, setAttendanceRecord] = useState<any>(null);
-  
-  // Custom states for Bluetooth Offline Feature
-  const [networkStatus, setNetworkStatus] = useState<'online'|'offline'>('online');
-  const [_bleTransfering, setBleTransfering] = useState(false);
-  const [violationWarning, setViolationWarning] = useState('');
+  const streamRef = useRef<MediaStream | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Handle Online/Offline Status
+  const [step, setStep] = useState<VerificationStep>('selection');
+  const [availableClasses, setAvailableClasses] = useState<any[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [sessionCode, setSessionCode] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isFocusLocked, setIsFocusLocked] = useState(false);
+  const [focusViolations, setFocusViolations] = useState(0);
+
+  // Stats
+  const [locationData, setLocationData] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+  const [faceVisible, setFaceVisible] = useState(false);
+  const [result, setResult] = useState<VerificationResult | null>(null);
+  const [activeSession, setActiveSession] = useState<any | null>(null);
+  const [livenessProgress, setLivenessProgress] = useState(0);
+  const [livenessInstruction, setLivenessInstruction] = useState('');
+
+  // ── Session Lookup ──
+
   useEffect(() => {
-    const handleOnline = () => setNetworkStatus('online');
-    const handleOffline = () => setNetworkStatus('offline');
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      stopCamera();
+    const fetchClasses = async () => {
+      if (!user?.student?.class_id) return;
+      const { data } = await supabase.from('classes').select('id, name').eq('id', user.student.class_id);
+      setAvailableClasses(data || []);
+      if (data?.length) setSelectedClassId(data[0].id);
     };
-  }, []);
+    fetchClasses();
+  }, [user]);
 
-  // Setup Anti-cheating mechanisms when session starts
-  useEffect(() => {
-    if (step > 1 && step < 5) {
-      // 1. Detect Tab Switch / App Background
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          setViolationWarning('WARNING: Tab switch detected! This activity has been flagged on your attendance record.');
-        }
-      };
-      
-      // 2. Detect Resize (split screen attempt)
-      const handleResize = () => {
-        if (window.innerWidth < screen.width * 0.8) {
-          setViolationWarning('WARNING: Split-screen/Resize detected. Please use full screen.');
-        }
-      };
+  // ── Focus Mode (Anti-Cheating) ──
 
-      // 3. Detect Fullscreen Exit
-      const handleFullscreenChange = () => {
-        if (!document.fullscreenElement) {
-          setViolationWarning('CRITICAL OFFENSE: Exited fullscreen mode! System anomaly logged.');
-          setStep(0); // Force back out
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('resize', handleResize);
-      document.addEventListener('fullscreenchange', handleFullscreenChange);
-      
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('resize', handleResize);
-        document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      };
-    }
-  }, [step]);
-
-  // Step 0: lock screen
-  const enterFullscreen = async () => {
+  const enterFocusMode = async () => {
     try {
       if (document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
-        setStep(1);
-      } else {
-         // Fallback for some IOS browsers
-         setStep(1);
       }
+      setIsFocusLocked(true);
+      setStep('session');
     } catch (err) {
-      console.error("Fullscreen failed:", err);
-      // Fallback
-      setStep(1);
-    }
-  }
-
-  const startSession = async () => {
-    if (sessionCode.length === 6) {
-      setAttendanceStatus('submitting');
-      try {
-        // Validate session code against Supabase
-        const { data: session, error } = await supabase
-          .from('attendance_sessions')
-          .select('*')
-          .eq('code', sessionCode)
-          .gt('expires_at', new Date().toISOString())
-          .eq('is_active', true)
-          .single();
-
-        if (error || !session) {
-          toast.error("Invalid or expired session code.");
-          setAttendanceStatus('idle');
-          return;
-        }
-
-        toast.success("Session code verified!");
-        setStep(2);
-        verifyLocation();
-      } catch (err) {
-        toast.error("Verification failed. Please try again.");
-        setAttendanceStatus('idle');
-      }
-    }
-  };
-
-  const handleQrScan = (decodedText: string) => {
-    if (decodedText.length === 6) {
-      setSessionCode(decodedText);
-      // Automatically proceed if it's a 6-digit code
-      // We can't call startSession directly because of state closure, 
-      // but we can set sStep or similar.
-      // For now, just set the code and let user click confirm or auto-trigger.
+      toast.error('Focus Mode requires Fullscreen permission');
     }
   };
 
   useEffect(() => {
-    if (step === 1) {
-      const scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        /* verbose= */ false
-      );
-      scanner.render(handleQrScan, (_err) => {
-        // console.warn(err);
-      });
+    if (!isFocusLocked) return;
 
-      return () => {
-        scanner.clear().catch(_error => console.error("Failed to clear scanner", _error));
-      };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        setFocusViolations(v => v + 1);
+        toast.error('Focus Violation: Tab switching detected!');
+        if (focusViolations >= 2) {
+          exitFocusMode('Too many focus violations. Session invalidated.');
+        }
+      }
+    };
+
+    const handleBlur = () => {
+        setFocusViolations(v => v + 1);
+        toast.warning('Focus Caution: Window focus lost.');
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        exitFocusMode('Security Alert: Fullscreen exited.');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [isFocusLocked, focusViolations]);
+
+  const exitFocusMode = (msg?: string) => {
+    setIsFocusLocked(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
     }
-  }, [step]);
-
-  const verifyLocation = () => {
-    setLocationStatus('verifying');
-
-    if (!navigator.geolocation) {
-      setViolationWarning("Geolocation is not supported by your browser");
-      setLocationStatus('failed');
-      return;
+    if (msg) {
+      setErrorMsg(msg);
+      setStep('failed');
+      stopCamera();
     }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        
-        // Use real campus coordinates from system settings
-        const classLat = CAMPUS_LAT;
-        const classLng = CAMPUS_LNG;
-        
-        // Haversine Formula for exact distance
-        const R = 6371e3; // Earth radius in metres
-        const f1 = latitude * Math.PI/180;
-        const f2 = classLat * Math.PI/180;
-        const df = (classLat-latitude) * Math.PI/180;
-        const dl = (classLng-longitude) * Math.PI/180;
-        const a = Math.sin(df/2) * Math.sin(df/2) +
-                  Math.cos(f1) * Math.cos(f2) *
-                  Math.sin(dl/2) * Math.sin(dl/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = Math.floor(R * c);
-        
-        setDistanceInfo(distance);
-
-        setTimeout(() => {
-          if (distance <= CAMPUS_RADIUS_METERS) {
-            setLocationStatus('success');
-            setTimeout(() => {
-              setStep(3);
-              startCamera();
-            }, 1800);
-          } else {
-            setLocationStatus('failed');
-            setViolationWarning(`Location Failed! You are ${distance}m away from campus (max ${CAMPUS_RADIUS_METERS}m).`);
-          }
-        }, 1500);
-      },
-      (err) => {
-        console.error(err);
-        setLocationStatus('failed');
-        setViolationWarning("Please enable GPS location services to verify attendance.");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
   };
 
+  // ── Camera & Verification Flow ──
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' },
+      });
+      streamRef.current = stream;
+    } catch (err) {
+      throw new Error('Camera permission denied');
+    }
+  };
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  };
+
+  const validateSessionAndStart = async () => {
+    if (sessionCode.length !== 6) return;
+    setStep('loading');
+    setStatusMsg('Verifying session code...');
+
+    try {
+      const sessionCheck = await sessionService.check(selectedClassId, sessionCode);
+      if (!sessionCheck.active) {
+        throw new Error('Invalid or expired session code');
+      }
+
+      setActiveSession(sessionCheck.session);
+      setStep('location');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Verification failed');
+      setStep('failed');
+    }
+  };
+
+  // ── Location Hook ──
+  useEffect(() => {
+    if (step !== 'location') return;
+    const checkLoc = async () => {
+      try {
+        setStatusMsg('Capturing secure GPS coordinate...');
+        const loc = await getCurrentLocation(10000);
+        setLocationData(loc);
+        
+        await startCamera();
+        setStep('face');
+      } catch (err) {
+        setErrorMsg('Location required for anti-proxy security');
+        setStep('failed');
+      }
+    };
+    checkLoc();
+  }, [step]);
+
+  // ── Face Hook ──
   const setVideoRef = (element: HTMLVideoElement | null) => {
     (videoRef as any).current = element;
     if (element && streamRef.current && element.srcObject !== streamRef.current) {
@@ -228,464 +204,399 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
       element.play().catch(console.error);
     }
   };
-  const streamRef = useRef<MediaStream | null>(null);
 
-  const startCamera = async () => {
-    try {
-      // Lowering resolution request to consume less RAM and increase FPS
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'user',
-          width: { ideal: 640 }, // Ask for 480p equivalent to save memory
-          height: { ideal: 480 },
-          frameRate: { ideal: 30 } // Cap FPS to steady rates instead of maxing CPU
-        } 
-      });
-      streamRef.current = stream;
-      // If ref is already bound (very likely since we transition step before calling)
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      runLivenessChecks();
-    } catch (err) {
-      console.error("Camera access denied");
+  useEffect(() => {
+    if (step === 'face') {
+        const interval = setInterval(() => {
+            if (!videoRef.current) return;
+            setFaceVisible(true); 
+        }, 1000);
+        return () => clearInterval(interval);
     }
-  };
+  }, [step]);
 
-  const runLivenessChecks = () => {
-    if (!videoRef.current) return;
-    
-    // 1. Capture main probe image immediately once stream stabilizes
-    setTimeout(() => {
-        if (videoRef.current) {
-           const probe = captureFrame(videoRef.current, 0.85);
-           setProbeImage(probe);
-        }
-    }, 1000); // 1-second grace period for camera exposure
-
-    const LIVENESS_FRAMES = 5;
-    const instructions = [
-      "Blink naturally",
-      "Turn head slightly left",
-      "Turn head slightly right",
-      "Smile widely",
-      "Look straight ahead"
-    ];
-
+  const startLivenessCapture = () => {
+    setStep('liveness');
+    setLivenessProgress(0);
+    const instructions = ['Look Straight', 'Blink Once', 'Tilt Head Left', 'Tilt Head Right', 'Smile'];
     let idx = 0;
     const frames: string[] = [];
-    setLivenessChallenge(instructions[0]);
-    setLivenessProgress(0);
+    
+    const probe = captureFrame(videoRef.current!, 0.9);
 
-    const interval = setInterval(() => {
-      if (!videoRef.current || videoRef.current.readyState < 4) return;
+    intervalRef.current = setInterval(() => {
+      if (!videoRef.current) return;
       frames.push(captureFrame(videoRef.current, 0.7));
       idx++;
-      setLivenessChallenge(instructions[Math.min(idx, instructions.length - 1)]);
-      setLivenessProgress(Math.round((idx / LIVENESS_FRAMES) * 100));
+      setLivenessInstruction(instructions[idx % instructions.length]);
+      setLivenessProgress((idx / LIVENESS_FRAMES) * 100);
 
       if (idx >= LIVENESS_FRAMES) {
-        clearInterval(interval);
-        setLivenessFrames(frames);
-        setLivenessChallenge("Liveness Frames Captured!");
-        setTimeout(() => setStep(4), 1000);
+        clearInterval(intervalRef.current!);
+        submitVerification(probe, frames);
       }
-    }, 1500); // giving user 1.5s per action
+    }, 1000);
   };
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-    }
-    if (videoRef.current) {
-        videoRef.current.srcObject = null;
-    }
-  };
+  const submitVerification = async (probe: string, frames: string[]) => {
+    setStep('verifying');
+    setStatusMsg('Multi-layer verification in progress...');
 
-  const submitAttendance = async () => {
-    if (networkStatus === 'offline') {
-      setAttendanceStatus('bluetooth');
-      setBleTransfering(true);
-      setTimeout(() => {
-        setBleTransfering(false);
-        setAttendanceStatus('success');
-        setStep(5);
-        stopCamera();
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(err => console.log(err));
-        }
-      }, 4000);
-      return;
-    }
-
-    setAttendanceStatus('submitting');
     try {
-      const studentId = user?.student?.id || user?.id || '';
+      const verification: VerifyFaceResponse = await verifyFace({
+        user_id: user?.id || '',
+        image: probe,
+        class_id: selectedClassId,
+        session_code: sessionCode,
+        liveness_frames: frames,
+        latitude: locationData?.latitude,
+        longitude: locationData?.longitude,
+        accuracy_m: locationData?.accuracy,
+        device_fingerprint: 'WEB_' + navigator.userAgent.substring(0, 20),
+      });
+
+      const res: VerificationResult = {
+        faceMatch: verification.match.match,
+        faceConfidence: Math.round(verification.match.similarity * 100),
+        livenessPass: verification.liveness.is_live,
+        livenessScore: Math.round((verification.liveness.avg_liveness_score || 0.8) * 100),
+        locationValid: verification.geo.valid,
+        distance: Math.round(verification.geo.distance_m || 0),
+        confidenceScore: Math.round(verification.confidence.score * 100),
+        confidenceCategory: verification.confidence.category,
+        fraudAlerts: verification.confidence.flags || [],
+        activeSession: activeSession,
+        timestamp: new Date().toISOString(),
+      };
+
+      setResult(res);
       
-      // 1. Python AI Verification (Connecting the Real Algorithm)
-      const verificationResponse = await verifyFace({
-          user_id: studentId,
-          image: probeImage,
-          liveness_frames: livenessFrames,
-          latitude: CAMPUS_LAT,
-          longitude: CAMPUS_LNG,
-          accuracy_m: 10,
-      });
+      if (res.faceMatch && res.livenessPass && res.locationValid) {
+        // Record into Supabase table
+        await attendanceService.mark({
+            student_id: user?.student?.id || user?.id || '',
+            class_id: selectedClassId,
+            course_id: activeSession?.course_id || '',
+            status: 'PRESENT',
+            method: 'AI_FACE_SECURE',
+            confidence_score: verification.confidence.score,
+            device_id: 'SECURE_WEB_' + navigator.userAgent.substring(0, 5)
+        });
 
-      const { match, similarity } = verificationResponse.match;
-      const livenessScore = verificationResponse.liveness.liveness_score ?? verificationResponse.liveness.avg_liveness_score ?? 0;
-      const livenessPass = verificationResponse.liveness.is_live;
-      const confScore = verificationResponse.confidence.score;
+        auditLogService.log('SECURE_ATTENDANCE_SUCCESS', 'attendance', user?.id || '', {
+            newValues: { sessionCode, confidence: res.confidenceScore }
+        });
 
-      // 2. Reject Spoofs or Non-Matches strictly
-      if (!match) {
-          throw new Error(`Face does not match registered profile. Similarity: ${Math.round(similarity * 100)}%`);
-      }
-      if (!livenessPass) {
-          throw new Error(`Liveness check failed (Spoof detection triggered). Score: ${Math.round(livenessScore * 100)}%`);
-      }
-
-      // 3. Database Insert
-      const { data, error } = await supabase
-        .from('attendance')
-        .insert({
-          student_id: studentId,
-          subject_id: subjectId || null,
-          timetable_entry_id: timetableEntryId || null,
-          date: new Date().toISOString().split('T')[0],
-          status: 'PRESENT',
-          method: 'AI_FACE',
-          confidence_score: confScore, // Using real AI confidence metric
-          face_similarity_score: similarity, // Optionally store the final face similarity
-          device_info: navigator.userAgent.substring(0, 100),
-        })
-        .select('id, blockchain_hash, created_at')
-        .single();
-
-      if (error) throw error;
-
-      setAttendanceRecord(data);
-      setVerificationHash(data?.blockchain_hash || '');
-      setAttendanceStatus('success');
-      setStep(5);
-      stopCamera();
-      toast.success('Attendance recorded successfully!');
-
-      auditLogService.log('ATTENDANCE_STUDENT_SUBMIT', 'attendance', data?.id || '', {
-        newValues: { studentId, method: 'AI_FACE', subjectId },
-      });
-
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(err => console.log(err));
+        setStep('success');
+        stopCamera();
+        exitFocusMode();
+      } else {
+        setErrorMsg(res.fraudAlerts[0] || 'Verification failed security criteria');
+        setStep('failed');
+        auditLogService.log('SECURE_ATTENDANCE_FAILURE', 'security_alert', user?.id || '', {
+            newValues: { flags: res.fraudAlerts, sessionCode }
+        });
       }
     } catch (err: any) {
-      console.error('Failed to submit attendance:', err);
-      toast.error(err.message || 'Failed to submit attendance');
-      setAttendanceStatus('idle');
+      setErrorMsg(err.message || 'AI Server Error');
+      setStep('failed');
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-
-      {/* Hero Banner */}
-      <div className={`relative overflow-hidden rounded-3xl border p-6 shadow-[0_25px_60px_rgba(0,0,0,0.45)] transition-colors duration-500 ${networkStatus === 'offline' ? 'border-amber-400/30 bg-gradient-to-r from-slate-900 via-amber-900/40 to-slate-900' : 'border-emerald-400/20 bg-gradient-to-r from-slate-900 via-slate-900/60 to-emerald-900/30'}`}>
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_80%_40%,rgba(59,130,246,0.1),transparent_35%)]" />
-        <div className="relative flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-semibold text-white">Live Verification</h1>
-            {networkStatus === 'offline' && (
-              <Badge variant="destructive" className="bg-amber-500/20 text-amber-300 border-amber-500/50 flex animate-pulse">
-                <WifiOff className="w-4 h-4 mr-2" /> Wi-Fi Disconnected
-              </Badge>
-            )}
-          </div>
-          <p className="text-slate-300">
-             {networkStatus === 'online' 
-              ? 'Complete the 4-layer secure process to mark your presence.' 
-              : 'Offline Mode Active. Data will be transmitted via Bluetooth Mesh directly to Faculty.'}
-          </p>
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/30">Geo-Locked</Badge>
-            {networkStatus === 'offline' && (
-              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50"><Bluetooth className="w-3 h-3 mr-1" /> BLE Mesh Ready</Badge>
-            )}
-            <Badge className="bg-cyan-500/15 text-cyan-200 border-cyan-500/30">Anti-Spoofing</Badge>
-          </div>
-        </div>
-      </div>
-      
-      <div className="max-w-2xl mx-auto space-y-6">
-        {violationWarning && (
-          <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-3 rounded-xl flex items-center gap-3 animate-pulse">
-            <AlertTriangle className="w-6 h-6 text-red-500" />
-            <p className="font-semibold">{violationWarning}</p>
-          </div>
+    <div className="max-w-xl mx-auto p-4 pt-12">
+      <AnimatePresence mode="wait">
+        {/* Step 1: Class Selection */}
+        {step === 'selection' && (
+          <motion.div key="selection" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <Card className="bg-slate-900 border-emerald-500/20 shadow-2xl overflow-hidden rounded-3xl">
+               <div className="h-2 bg-gradient-to-r from-emerald-500 to-cyan-500" />
+               <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-2xl font-bold">
+                    <Shield className="w-8 h-8 text-emerald-400" /> Secure Marking
+                  </CardTitle>
+                  <CardDescription className="text-slate-400">Multi-layer anti-proxy identity verification</CardDescription>
+               </CardHeader>
+               <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-400 uppercase text-[10px] font-bold tracking-widest">Target Session</Label>
+                    <select 
+                      className="w-full bg-slate-800 border-slate-700 rounded-xl p-4 text-white font-medium focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                      value={selectedClassId}
+                      onChange={(e) => setSelectedClassId(e.target.value)}
+                    >
+                      {availableClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col items-center gap-2">
+                        <Maximize className="w-5 h-5 text-cyan-400" />
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Focus Locked</span>
+                     </div>
+                     <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col items-center gap-2">
+                        <MapPin className="w-5 h-5 text-emerald-400" />
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Geo Fencing</span>
+                     </div>
+                  </div>
+                  <Button className="w-full bg-emerald-600 hover:bg-emerald-500 py-8 text-lg font-black rounded-2xl shadow-lg shadow-emerald-900/20" onClick={() => setStep('focus')}>
+                    Initialize Secure Portal
+                  </Button>
+               </CardContent>
+            </Card>
+          </motion.div>
         )}
 
-        <Card className="bg-slate-950/80 border-emerald-500/20 shadow-[0_0_50px_-12px_rgba(16,185,129,0.25)] rounded-3xl overflow-hidden relative">
-        {/* Anti-spoofing lock badge */}
-        <div className="absolute top-4 right-4 bg-slate-900/80 border border-slate-700 px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-medium text-slate-300 z-10 backdrop-blur-md">
-          <Lock className="w-3.5 h-3.5 text-emerald-400" /> Secure Mode Active
-        </div>
-
-        <CardHeader className="bg-slate-900/50 border-b border-slate-800 pb-6">
-          <CardTitle className="flex items-center gap-3 text-2xl text-white">
-            <ScanFace className="w-8 h-8 text-emerald-400" />
-            Live Secure Attendance
-          </CardTitle>
-          <p className="text-slate-400 text-sm mt-1">Adaptive 4-Layer Verification System</p>
-        </CardHeader>
-
-        <CardContent className="p-8">
-          <AnimatePresence mode="wait">
-            
-            {/* STEP 0: Enter SECURE MODE */}
-            {step === 0 && (
-              <motion.div 
-                key="step0"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="text-center space-y-6 py-6"
-              >
-                <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
-                  <Lock className="w-10 h-10 text-amber-400" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-white">Full-Screen Secure Mode Required</h3>
-                  <p className="text-slate-400 text-sm max-w-sm mx-auto">
-                    To prevent cheating and tab-switching, attendance can only be submitted in active Secure Mode.
-                  </p>
-                </div>
-                
-                <Button 
-                  onClick={enterFullscreen}
-                  className="w-full max-w-xs h-12 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-lg"
-                >
-                  <ScanFace className="w-5 h-5 mr-2" /> Enter Secure Mode
-                </Button>
-              </motion.div>
-            )}
-
-            {/* STEP 1: Session Code */}
-            {step === 1 && (
-              <motion.div 
-                key="step1"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="space-y-6"
-              >
-                <div className="space-y-4 text-center">
-                  <div className="mx-auto w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20 mb-4">
-                    <Fingerprint className="w-8 h-8 text-blue-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-white">Enter Session Token</h3>
-                  <p className="text-slate-400 text-sm max-w-sm mx-auto">
-                    Look at the faculty's screen to get the 6-digit dynamic session pin. This ensures you are physically present.
-                  </p>
-                </div>
-                
-                <div className="max-w-xs mx-auto space-y-4">
-                  {/* QR Scanner Placeholder */}
-                  <div id="qr-reader" className="w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mb-4"></div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">6-Digit Code</Label>
-                    <Input 
-                      value={sessionCode}
-                      onChange={(e) => setSessionCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="• • • • • •"
-                      className="text-center text-3xl tracking-[0.5em] font-mono h-16 bg-slate-900 focus:ring-emerald-500/50"
-                    />
-                  </div>
-                  <Button 
-                    onClick={startSession}
-                    disabled={sessionCode.length !== 6 || attendanceStatus === 'submitting'}
-                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-lg"
-                  >
-                    {attendanceStatus === 'submitting' ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-                    Confirm Session Code
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 2: Geo-Location Verify */}
-            {step === 2 && (
-              <motion.div 
-                key="step2"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center justify-center py-10 space-y-6"
-              >
-                <div className="relative">
-                  <MapPin className={`w-16 h-16 ${locationStatus === 'success' ? 'text-emerald-400' : 'text-cyan-400 animate-pulse'}`} />
-                  {locationStatus === 'verifying' && (
-                    <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full animate-ping" />
-                  )}
-                </div>
-                <div className="text-center space-y-2">
-                  <h3 className="text-xl font-semibold text-white">
-                    {locationStatus === 'verifying' ? 'Verifying Coordinates...' : locationStatus === 'success' ? 'Location Confirmed' : 'Location Failed'}
-                  </h3>
-                  <p className="text-slate-400 text-sm">
-                    {locationStatus === 'verifying' 
-                      ? 'Checking GPS and network topology against classroom bounds.' 
-                      : locationStatus === 'success' 
-                        ? `Secure match! You are ${distanceInfo}m from the classroom center.` 
-                        : 'You must be inside the classroom (100m radius) to proceed.'}
-                  </p>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 3: Biometric Liveness */}
-            {step === 3 && (
-              <motion.div 
-                key="step3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                <div className="text-center space-y-2">
-                  <h3 className="text-xl font-semibold text-white">Liveness Check</h3>
-                  <p className="text-emerald-400 font-medium h-6">{livenessChallenge}</p>
-                </div>
-                
-                <div className="relative mx-auto w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden border-4 border-slate-800 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-                  {/* Camera feed */}
-                  <video 
-                    ref={setVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    muted 
-                    className="w-full h-full object-cover transform -scale-x-100"
-                  />
-                  
-                  {/* Scanning overlay */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div 
-                      className="w-full h-1 bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,1)]"
-                      style={{ 
-                        transform: `translateY(${livenessProgress * 3.2}px)`,
-                      }}
-                    />
-                    {/* Face guide wireframe */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                       <div className="w-3/5 h-3/5 border-2 border-dashed border-emerald-500/50 rounded-[40%] opacity-50" />
+        {/* Step 2: Focus Introduction */}
+        {step === 'focus' && (
+          <motion.div key="focus" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-6">
+             <div className="absolute inset-0 royal-grid opacity-20 pointer-events-none" />
+            <div className="max-w-md w-full text-center space-y-10 relative z-10">
+               <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
+                  <Lock className="w-10 h-10 text-emerald-400" />
+               </div>
+               <div className="space-y-4">
+                  <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Anti-Proxy Protocol</h2>
+                  <p className="text-slate-400 leading-relaxed">System will engage Fullscreen Lock. Exiting or switching tabs will result in a <strong>Fraud Flag</strong> and instant session termination.</p>
+               </div>
+               <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl text-left space-y-4 shadow-2xl">
+                  <div className="flex gap-4">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                      <CheckSquare className="w-4 h-4 text-emerald-400" />
                     </div>
+                    <span className="text-slate-300 text-sm">System hardware locking engaged</span>
                   </div>
-                </div>
-
-                <div className="max-w-md mx-auto h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-emerald-500 transition-all duration-300"
-                    style={{ width: `${livenessProgress}%` }}
-                  />
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 4: Submit */}
-            {step === 4 && (
-              <motion.div 
-                key="step4"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center space-y-6 py-6"
-              >
-                <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
-                  <ShieldCheck className="w-10 h-10 text-emerald-400" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-white">Verification Complete</h3>
-                  <p className="text-slate-400 text-sm max-w-sm mx-auto">
-                    Geofencing, Token, and Biometric Liveness all passed. Waiting for faculty final approval.
-                  </p>
-                </div>
-                <div className="mt-8 w-full max-w-xs mx-auto">
-                  <div className="bg-slate-900 border border-slate-700/50 rounded-2xl p-4 mb-6">
-                    <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold mb-2">Verification Hash</p>
-                    <p className="font-mono text-emerald-400/70 text-[10px] break-all">
-                      Hash will be generated upon submission via blockchain trigger
-                    </p>
+                  <div className="flex gap-4">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                      <CheckSquare className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <span className="text-slate-300 text-sm">Real-time focus monitoring active</span>
                   </div>
-                  <Button 
-                    onClick={submitAttendance}
-                    disabled={attendanceStatus !== 'idle'}
-                    className={`w-full py-6 text-base font-bold transition-all ${
-                      networkStatus === 'offline' 
-                        ? 'bg-blue-600 hover:bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.3)] text-white' 
-                        : 'bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] text-white'
-                    }`}
-                  >
-                    {attendanceStatus === 'idle' ? (
-                       networkStatus === 'offline' ? (
-                         <span className="flex items-center gap-2"><Bluetooth className="w-5 h-5" /> Push via BLE Mesh</span>
-                       ) : (
-                         <span className="flex items-center gap-2"><Lock className="w-4 h-4" /> Confirm & Submit</span>
-                       )
-                    ) : attendanceStatus === 'bluetooth' ? (
-                       <span className="flex items-center gap-2 animate-pulse"><RefreshCw className="w-5 h-5 animate-spin" /> Broadcasting...</span>
-                    ) : (
-                       <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" /> Submitting...</span>
-                    )}
-                  </Button>
-                </div>
-              </motion.div>
-            )}
+                  <div className="flex gap-4">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                      <CheckSquare className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <span className="text-slate-300 text-sm">Dynamic geo-fence validation required</span>
+                  </div>
+               </div>
+               <Button className="w-full py-10 text-2xl font-black bg-emerald-600 rounded-3xl shadow-[0_20px_40px_rgba(16,185,129,0.3)] hover:scale-[1.02] transition-transform" onClick={enterFocusMode}>
+                  Acknowledge & Start
+               </Button>
+               <button onClick={() => setStep('selection')} className="text-slate-500 font-bold uppercase tracking-widest text-[10px] hover:text-white transition-colors">Abort Mission</button>
+            </div>
+          </motion.div>
+        )}
 
-            {/* STEP 5: Success */}
-            {step === 5 && (
-              <motion.div 
-                key="step5"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center space-y-6 py-8"
-              >
-                <div className="inline-block relative">
-                  <CheckCircle2 className="w-24 h-24 text-emerald-400 z-10 relative" />
-                  <div className="absolute inset-0 bg-emerald-500/30 blur-2xl rounded-full" />
+        {/* Step 3: Session Code */}
+        {step === 'session' && (
+          <motion.div key="session" initial={{ opacity: 0, scale: 0.9 }}>
+            <Card className="bg-slate-900 border-cyan-500/30 shadow-2xl rounded-3xl overflow-hidden">
+              <div className="h-2 bg-cyan-500" />
+              <CardHeader className="text-center pt-8">
+                <CardTitle className="text-cyan-400 text-xl font-bold">Dynamic Session Token</CardTitle>
+                <CardDescription className="text-slate-500">Input the private code from faculty terminal</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-10 p-8">
+                <div className="flex justify-center">
+                   <Input 
+                     autoFocus
+                     className="text-center text-6xl font-black h-32 tracking-[0.2em] bg-slate-950 border-slate-800 text-white focus:border-cyan-500 rounded-2xl shadow-inner transition-all w-full"
+                     maxLength={6}
+                     placeholder="000000"
+                     value={sessionCode}
+                     onChange={(e) => setSessionCode(e.target.value.replace(/\D/g, ''))}
+                   />
                 </div>
-                <div className="space-y-2">
-                  <h3 className="text-3xl font-bold text-white">Present Recorded</h3>
-                  <p className="text-slate-400">Your attendance has been cryptographically signed and recorded.</p>
-                </div>
-                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-left max-w-sm mx-auto font-mono text-xs text-slate-500 break-all">
-                  Hash: {verificationHash ? `0x${verificationHash.substring(0, 8)}...${verificationHash.substring(verificationHash.length - 4)}` : 'Pending...'} <br/>
-                  Timestamp: {attendanceRecord?.created_at || new Date().toISOString()} <br/>
-                  Verified by: Blockchain Oracle
-                </div>
-              </motion.div>
-            )}
+                <Button 
+                  disabled={sessionCode.length !== 6} 
+                  className="w-full py-8 bg-cyan-600 hover:bg-cyan-500 font-black text-xl rounded-2xl"
+                  onClick={validateSessionAndStart}
+                >
+                  Verify Session
+                </Button>
+                {focusViolations > 0 && (
+                   <div className="flex justify-center items-center gap-2 text-red-500 text-xs font-black uppercase tracking-[0.2em] animate-pulse">
+                      <ShieldAlert className="w-4 h-4" /> {focusViolations} Security Breach(es)
+                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
-          </AnimatePresence>
-        </CardContent>
-      </Card>
-      
-        {/* Footer Info */}
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80">
-            <MapPin className="w-5 h-5 text-cyan-500 mx-auto mb-2" />
-            <p className="text-xs font-semibold text-slate-300">Geo-Fenced</p>
-            <p className="text-[10px] text-slate-500 mt-1">±5m Precision</p>
-          </div>
-          <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80">
-            <ScanFace className="w-5 h-5 text-purple-500 mx-auto mb-2" />
-            <p className="text-xs font-semibold text-slate-300">Biometric</p>
-            <p className="text-[10px] text-slate-500 mt-1">3D Liveness</p>
-          </div>
-          <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80">
-            <Lock className="w-5 h-5 text-amber-500 mx-auto mb-2" />
-            <p className="text-xs font-semibold text-slate-300">Anti-Cheat</p>
-            <p className="text-[10px] text-slate-500 mt-1">Hardware Lock</p>
-          </div>
-        </div>
-      </div>
+        {/* Loading / Verifying states */}
+        {(step === 'loading' || step === 'verifying' || step === 'location') && (
+           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-24 space-y-8">
+              <div className="relative mx-auto w-32 h-32">
+                 <div className="absolute inset-0 rounded-full border-8 border-slate-900 shadow-inner" />
+                 <div className="absolute inset-0 rounded-full border-8 border-emerald-500 border-t-transparent animate-spin" />
+                 <Brain className="absolute inset-0 m-auto w-14 h-14 text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+              </div>
+              <div className="space-y-3">
+                <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic">{statusMsg}</h3>
+                <div className="flex items-center justify-center gap-2">
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" />
+                </div>
+              </div>
+           </motion.div>
+        )}
 
+        {/* Face Recognition */}
+        {step === 'face' && (
+          <motion.div key="face" initial={{ opacity: 0, scale: 0.9 }}>
+            <Card className="bg-slate-900 border-slate-800 shadow-2xl overflow-hidden rounded-3xl">
+               <CardHeader className="p-4 bg-slate-950 border-b border-slate-800">
+                  <div className="flex justify-between items-center">
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-none px-3 font-bold">
+                       <MapPin className="w-3 h-3 mr-1" /> GPS_VERIFIED
+                    </Badge>
+                    <Badge className="bg-cyan-500/20 text-cyan-400 border-none px-3 font-bold">
+                       TOKEN_{sessionCode}
+                    </Badge>
+                  </div>
+               </CardHeader>
+               <CardContent className="p-0 relative">
+                  <div className="aspect-[4/5] bg-black">
+                     <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover brightness-125 contrast-110" style={{ transform: 'scaleX(-1)' }} />
+                     {/* Cyber HUD Overlays */}
+                     <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
+                     <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-64 h-80 border-2 border-emerald-500/40 rounded-[4rem] shadow-[0_0_80px_rgba(16,185,129,0.2)] flex items-center justify-center">
+                            <div className="w-full h-0.5 bg-emerald-500/30 animate-[scan_3s_infinite]" />
+                        </div>
+                     </div>
+                  </div>
+                  <div className="p-8 bg-slate-950">
+                     <Button className="w-full py-10 text-2xl bg-emerald-600 hover:bg-emerald-500 font-black rounded-2xl shadow-xl shadow-emerald-900/40 transition-transform active:scale-95" onClick={startLivenessCapture}>
+                        <ScanFace className="mr-3 w-8 h-8" /> VALIDATE IDENTITY
+                     </Button>
+                     <div className="grid grid-cols-3 gap-2 mt-6">
+                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                           <div className="h-full bg-emerald-500 w-full" />
+                        </div>
+                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                           <div className="h-full bg-emerald-500 w-1/2 animate-pulse" />
+                        </div>
+                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                           <div className="h-full bg-slate-700 w-0" />
+                        </div>
+                     </div>
+                  </div>
+               </CardContent>
+            </Card>
+            <style>{`
+               @keyframes scan {
+                  0% { transform: translateY(-160px); }
+                  50% { transform: translateY(160px); }
+                  100% { transform: translateY(-160px); }
+               }
+            `}</style>
+          </motion.div>
+        )}
+
+        {/* Liveness Sequence */}
+        {step === 'liveness' && (
+           <motion.div key="liveness" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <Card className="bg-slate-950 border-emerald-500 shadow-[0_0_100px_rgba(16,185,129,0.3)] overflow-hidden rounded-3xl">
+                 <div className="aspect-[3/4] relative">
+                    <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+                    <div className="absolute inset-0 bg-emerald-900/5 backdrop-blur-[1px]" />
+                    <div className="absolute inset-x-0 bottom-0 p-10 bg-gradient-to-t from-black via-black/90 to-transparent">
+                       <div className="space-y-6 text-center">
+                          <h2 className="text-5xl font-black text-emerald-400 uppercase italic tracking-tighter animate-pulse drop-shadow-lg">{livenessInstruction}</h2>
+                          <div className="relative h-6 bg-slate-900 rounded-full p-1 border border-emerald-500/20">
+                             <motion.div 
+                               initial={{ width: 0 }}
+                               animate={{ width: `${livenessProgress}%` }}
+                               className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" 
+                             />
+                          </div>
+                          <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em]">Liveness Challenge Phase</p>
+                       </div>
+                    </div>
+                 </div>
+              </Card>
+           </motion.div>
+        )}
+
+        {/* Success HUD */}
+        {step === 'success' && result && (
+          <motion.div key="success" initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }}>
+             <Card className="bg-slate-900 border-white/10 shadow-2xl overflow-hidden rounded-[2.5rem]">
+                <div className="h-40 bg-gradient-to-br from-emerald-500 via-emerald-400 to-cyan-500 relative flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 opacity-20 royal-grid" />
+                    <motion.div 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", damping: 10, stiffness: 100 }}
+                      className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-4 border-white/40 shadow-2xl relative z-10"
+                    >
+                      <CheckCircle2 className="w-14 h-14 text-white" />
+                    </motion.div>
+                    <div className="absolute -bottom-1 left-0 right-0 h-4 bg-slate-900 rounded-t-full" />
+                </div>
+                <CardContent className="p-10 text-center space-y-10">
+                   <div className="space-y-2">
+                      <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">Presence Verified</h2>
+                      <div className="flex items-center justify-center gap-2">
+                         <span className="w-6 h-[1px] bg-slate-800" />
+                         <p className="text-emerald-400 font-mono text-[10px] font-black tracking-widest">{result.timestamp}</p>
+                         <span className="w-6 h-[1px] bg-slate-800" />
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex flex-col items-center">
+                         <p className="text-[9px] text-slate-500 uppercase font-black mb-1 letter-spacing-2">Identity match</p>
+                         <p className="text-3xl font-black text-white">{result.faceConfidence}%</p>
+                      </div>
+                      <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex flex-col items-center">
+                         <p className="text-[9px] text-slate-500 uppercase font-black mb-1 letter-spacing-2">Liveness</p>
+                         <p className="text-3xl font-black text-white">{result.livenessScore}%</p>
+                      </div>
+                      <div className="col-span-2 bg-slate-950/50 p-4 rounded-2xl border border-slate-800/50 flex justify-between items-center px-6">
+                         <div className="flex items-center gap-2">
+                             <MapPin className="w-4 h-4 text-emerald-400" />
+                             <span className="text-xs font-bold text-slate-300">Geo Fencing</span>
+                         </div>
+                         <Badge className="bg-emerald-500/10 text-emerald-400 border-none px-3 font-black">VALIDATED</Badge>
+                      </div>
+                   </div>
+                   <Button className="w-full bg-white text-slate-950 hover:bg-slate-200 py-8 rounded-3xl font-black text-xl shadow-xl transition-all" onClick={() => window.location.reload()}>
+                      Finish & Exit
+                   </Button>
+                </CardContent>
+             </Card>
+          </motion.div>
+        )}
+
+        {/* Failed HUD with high severity styling */}
+        {step === 'failed' && (
+          <motion.div key="failed" initial={{ opacity: 0, scale: 0.9 }}>
+             <Card className="bg-slate-900 border-red-500 shadow-[0_0_100px_rgba(239,68,68,0.2)] rounded-[2.5rem] overflow-hidden">
+                <div className="h-2 bg-red-500" />
+                <CardContent className="p-12 text-center space-y-8">
+                   <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border-2 border-red-500/30">
+                      <ShieldAlert className="w-12 h-12 text-red-500" />
+                   </div>
+                   <div className="space-y-3">
+                      <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase underline decoration-red-500 decoration-4 underline-offset-8">Security Alert</h2>
+                      <p className="text-red-400 font-bold text-lg pt-4">{errorMsg}</p>
+                   </div>
+                   <div className="p-6 bg-slate-950 rounded-[1.5rem] border border-slate-800 text-[10px] text-slate-500 text-left space-y-3 font-mono">
+                      <p className="flex justify-between items-center"><span className="font-black">REASON:</span> <span className="text-red-300">{errorMsg.substring(0, 20)}...</span></p>
+                      <p className="flex justify-between items-center"><span className="font-black">FOCUS_VIOLATIONS:</span> <span className="text-amber-500">{focusViolations}</span></p>
+                      <p className="flex justify-between items-center font-black text-white">SYSTEM_LOGGED: AUTOMATIC_ADMIN_ESCALATION</p>
+                   </div>
+                   <Button variant="outline" className="w-full border-slate-700 hover:bg-slate-800 py-6 rounded-2xl text-slate-300 uppercase font-black tracking-widest" onClick={() => window.location.reload()}>
+                      Retry Session
+                   </Button>
+                </CardContent>
+             </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

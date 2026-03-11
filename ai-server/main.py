@@ -64,10 +64,12 @@ app.add_middleware(
 from routes.face import router as face_router
 from routes.attendance import router as attendance_router
 from routes.analytics import router as analytics_router
+from routes.session import router as session_router
 
 app.include_router(face_router, prefix="/api/face", tags=["Face Recognition"])
 app.include_router(attendance_router, prefix="/api/attendance", tags=["Attendance"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(session_router, prefix="/api/session", tags=["Session Management"])
 
 
 @app.get("/health")

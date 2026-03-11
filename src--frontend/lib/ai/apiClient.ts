@@ -56,6 +56,8 @@ export interface VerifyFaceRequest {
   longitude?: number;
   accuracy_m?: number;
   device_fingerprint?: string;
+  session_code?: string;
+  class_id?: string;
 }
 
 export interface VerifyFaceResponse {
@@ -67,6 +69,7 @@ export interface VerifyFaceResponse {
     category: string;
     auto_approved: boolean;
     breakdown: Record<string, unknown>;
+    flags?: string[];
   };
 }
 

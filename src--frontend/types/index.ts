@@ -139,8 +139,8 @@ export interface Class {
 }
 
 // ==================== ATTENDANCE TYPES ====================
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'ON_LEAVE';
-export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC' | 'FACE' | 'FINGERPRINT';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'ON_LEAVE' | 'FLAGGED';
+export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC' | 'FACE' | 'FINGERPRINT' | 'AI_FACE_SECURE';
 
 export interface Attendance {
   id: string;

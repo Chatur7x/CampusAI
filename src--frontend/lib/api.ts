@@ -1602,3 +1602,48 @@ export const blockchainService = {
     return { valid: true };
   },
 };
+
+// =============================================================
+// ATTENDANCE SESSION SERVICE (AI SERVER)
+// =============================================================
+
+const AI_BASE_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
+
+export const sessionService = {
+  async start(params: {
+    faculty_id: string;
+    class_id: string;
+    course_id: string;
+    timetable_entry_id?: string;
+    latitude: number;
+    longitude: number;
+    radius_meters?: number;
+    duration_mins?: number;
+  }) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${AI_BASE_URL}/api/session/start`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    });
+    if (!response.ok) throw new Error('Failed to start session');
+    return response.json();
+  },
+
+  async check(class_id: string, code?: string) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${AI_BASE_URL}/api/session/check`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ class_id, code }),
+    });
+    if (!response.ok) throw new Error('Failed to check session');
+    return response.json();
+  },
+
+  async getActive(class_id: string) {
+    const response = await fetch(`${AI_BASE_URL}/api/session/active/${class_id}`);
+    if (!response.ok) throw new Error('Failed to get active session');
+    return response.json();
+  },
+};

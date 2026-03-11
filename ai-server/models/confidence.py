@@ -89,6 +89,8 @@ def compute_confidence(
     device_trust: float = 0.5,
     impossible_travel: bool = False,
     device_risk: bool = False,
+    session_mismatch: bool = False,
+    proxy_location: bool = False,
 ) -> ConfidenceResult:
     """
     Compute a weighted 4-component confidence score.
@@ -110,7 +112,14 @@ def compute_confidence(
         WEIGHTS["geo"]      * geo_accuracy +
         WEIGHTS["device"]   * device_trust
     )
-    score = round(score, 4)
+    
+    # Penalize for hard security failures
+    if session_mismatch:
+        score -= 0.4
+    if proxy_location:
+        score -= 0.5
+        
+    score = round(max(0.0, score), 4)
 
     # Category thresholds
     if score >= 0.80:
@@ -136,11 +145,15 @@ def compute_confidence(
         flags.append("IMPOSSIBLE_TRAVEL")
     if device_risk:
         flags.append("HIGH_DEVICE_RISK")
+    if session_mismatch:
+        flags.append("SESSION_CODE_MISMATCH")
+    if proxy_location:
+        flags.append("PROXY_LOCATION_DETECTION")
 
     # Auto re-verification for border-line cases
-    requires_reverification = category == "LOW" or len(flags) >= 2
+    requires_reverification = category == "LOW" or len(flags) >= 2 or session_mismatch
     # Admin alert for rejected or heavily flagged
-    admin_alert = category == "REJECTED" or len(flags) >= 3
+    admin_alert = category == "REJECTED" or len(flags) >= 3 or proxy_location
 
     return ConfidenceResult(
         score=score,

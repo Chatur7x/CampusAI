@@ -23,8 +23,8 @@ export type Json =
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'FACULTY' | 'CLASS_INCHARGE' | 'STUDENT';
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'ON_LEAVE';
-export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC' | 'FACE' | 'FINGERPRINT';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'ON_LEAVE' | 'FLAGGED';
+export type AttendanceMethod = 'AI_FACE' | 'MANUAL' | 'QR_CODE' | 'BIOMETRIC' | 'FACE' | 'FINGERPRINT' | 'AI_FACE_SECURE';
 export type LeaveType = 'SICK' | 'PERSONAL' | 'FAMILY_EMERGENCY' | 'ACADEMIC' | 'OTHER';
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -177,6 +177,8 @@ export interface Attendance {
   device_info: string | null;
   blockchain_hash: string | null;
   remarks: string | null;
+  confidence_score: number | null;
+  device_id: string | null;
   created_at: string;
   updated_at: string;
 
@@ -184,7 +186,6 @@ export interface Attendance {
   subject_id?: string | null;
   timetable_entry_id?: string | null;
   justification?: string | null;
-  confidence_score?: number | null;
 }
 
 export interface Leave {

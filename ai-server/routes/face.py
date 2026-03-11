@@ -15,13 +15,14 @@ from models.face_recognition_module import (
 )
 from models.liveness import analyse_liveness, analyse_liveness_sequence
 from models.confidence import compute_confidence, compute_device_trust
-from models.geo_validation import validate_location, detect_gps_spoof, check_impossible_travel
+from models.geo_validation import validate_location, detect_gps_spoof, check_impossible_travel, haversine
 from models.audit_logger import log_ai_decision
 from utils.db import (
     fetch_student, fetch_student_by_user, update_face_data,
     fetch_all_students_with_faces, fetch_student_embeddings,
     insert_face_embedding, log_face_verification,
-    fetch_last_geo_verification, log_geo_verification, log_security_event
+    fetch_last_geo_verification, log_geo_verification, log_security_event,
+    fetch_active_session
 )
 
 logger = logging.getLogger("campusai.routes.face")
@@ -38,6 +39,8 @@ class RegisterRequest(BaseModel):
 class VerifyRequest(BaseModel):
     user_id: str
     image: str          # base64 probe
+    class_id: str       # Current class ID for session validation
+    session_code: Optional[str] = None # Dynamic 6-digit code
     liveness_frames: Optional[List[str]] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -51,6 +54,7 @@ class VerifyRequest(BaseModel):
 class IdentifyRequest(BaseModel):
     image: str
     class_id: Optional[str] = None
+    session_code: Optional[str] = None
     liveness_frames: Optional[List[str]] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -107,10 +111,27 @@ async def verify_face_endpoint(req: VerifyRequest):
     if not student.get("faceRegistered") or not student.get("faceData"):
         raise HTTPException(400, "No face registered for this student")
 
-    # 1. Fetch multi-embeddings history
+    # 1. Anti-Proxy Session & proximity validation
+    session_mismatch = False
+    proxy_location = False
+    active_session = None
+
+    if req.class_id:
+        active_session = fetch_active_session(req.class_id, req.session_code)
+        if not active_session:
+            session_mismatch = True
+            logger.warning(f"Session mismatch or expired for class {req.class_id} with code {req.session_code}")
+        elif req.latitude is not None and req.longitude is not None:
+            # Check proximity to faculty (Dynamic Geo-fencing)
+            faculty_dist = haversine(req.latitude, req.longitude, active_session["latitude"], active_session["longitude"])
+            if faculty_dist > active_session["radius_meters"]:
+                proxy_location = True
+                logger.warning(f"Proxy location detected: Student is {faculty_dist}m away from faculty (radius: {active_session['radius_meters']}m)")
+
+    # 2. Fetch multi-embeddings history
     historical_embeddings = fetch_student_embeddings(student["id"])
     
-    # 2. Face verification
+    # 3. Face verification
     match_result = {"match": False, "similarity": 0.0, "error": "No face data"}
     
     if len(historical_embeddings) > 0:
@@ -136,9 +157,6 @@ async def verify_face_endpoint(req: VerifyRequest):
         # -- ADAPTIVE LEARNING OVER TIME --
         # If we got a highly confident match, inject this new observation back into the history
         if match_result.get("match") and match_result.get("similarity", 0) >= 0.90:
-            # We must re-extract the raw embedding to save it.
-            # verify_face doesn't return the raw embedding vector back to the route (for efficiency).
-            # But generate_embedding is heavily cached by the OS/Insightface for the exact same b64 array if called immediately again, or we can just call it here:
             probe_vector_result = generate_embedding(req.image)
             if probe_vector_result.get("embedding"):
                 insert_face_embedding(
@@ -150,10 +168,8 @@ async def verify_face_endpoint(req: VerifyRequest):
         # Fallback to legacy single-embedding if historical table is empty
         stored = json.loads(student["faceData"]) if isinstance(student["faceData"], str) else student["faceData"]
         match_result = verify_face(req.image, stored)
-        # Migrate their legacy embedding to the new system so it enables adaptive learning
         insert_face_embedding(student["id"], json.dumps(stored), confidence=1.0)
         
-        # Also run the adaptive check on the probe
         if match_result.get("match") and match_result.get("similarity", 0) >= 0.90:
             probe_vector_result = generate_embedding(req.image)
             if probe_vector_result.get("embedding"):
@@ -163,19 +179,29 @@ async def verify_face_endpoint(req: VerifyRequest):
                     confidence=match_result.get("similarity", 0)
                 )
 
-    # 3. Liveness
+    # 4. Liveness
     liveness_result = {"liveness_score": 0.5}
     if req.liveness_frames and len(req.liveness_frames) > 0:
         liveness_result = analyse_liveness_sequence(req.liveness_frames)
     else:
         liveness_result = analyse_liveness(req.image)
 
-    # 4. Geo + Impossible Travel
+    # 5. Geo + Impossible Travel
     geo_result = {"geo_accuracy": 0.5, "valid": True}
     impossible_travel_result = {"impossible": False}
     
     if req.latitude is not None and req.longitude is not None:
-        geo_result = validate_location(req.latitude, req.longitude, req.accuracy_m or 0)
+        # Use session geo-fence if available, otherwise fallback to campus defaults
+        target_lat = active_session["latitude"] if active_session else None
+        target_lon = active_session["longitude"] if active_session else None
+        target_rad = active_session["radius_meters"] if active_session else None
+        
+        geo_result = validate_location(
+            req.latitude, req.longitude, req.accuracy_m or 0,
+            campus_lat=target_lat or None, # validate_location uses defaults if None
+            campus_lon=target_lon or None,
+            radius_m=target_rad or None
+        )
         
         # Impossible Travel Check
         last_geo = fetch_last_geo_verification(student["userId"] if "userId" in student else student.get("user_id"))
@@ -190,7 +216,7 @@ async def verify_face_endpoint(req: VerifyRequest):
                     user_id=req.user_id,
                     event_type="IMPOSSIBLE_TRAVEL",
                     severity="HIGH",
-                    description=f"Impossible travel detected for user {req.user_id}. Distance: {impossible_travel_result.get('distance_km', 'N/A')}km, Time: {impossible_travel_result.get('time_diff_min', 'N/A')}min.",
+                    description=f"Impossible travel detected for user {req.user_id}. Distance: {impossible_travel_result.get('distance_km', 'N/A')}km, Time: {impossible_travel_result.get('time_delta_mins', 'N/A')}min.",
                     metadata=impossible_travel_result
                 )
             
@@ -200,11 +226,11 @@ async def verify_face_endpoint(req: VerifyRequest):
             lat=req.latitude,
             lon=req.longitude,
             is_within_campus=geo_result["valid"],
-            spoof_detected=impossible_travel_result.get("impossible", False),
-            spoof_reason="IMPOSSIBLE_TRAVEL" if impossible_travel_result.get("impossible") else None
+            spoof_detected=impossible_travel_result.get("impossible", False) or proxy_location,
+            spoof_reason="IMPOSSIBLE_TRAVEL" if impossible_travel_result.get("impossible") else ("PROXY_LOCATION" if proxy_location else None)
         )
 
-    # 5. Confidence (4-component: face + liveness + geo + device trust)
+    # 6. Confidence (4-component: face + liveness + geo + device trust)
     device_trust = compute_device_trust(
         device_fingerprint=req.device_fingerprint,
         known_devices=req.known_devices,
@@ -217,7 +243,9 @@ async def verify_face_endpoint(req: VerifyRequest):
         geo_accuracy=geo_result.get("geo_accuracy", 0),
         device_trust=device_trust,
         impossible_travel=impossible_travel_result.get("impossible", False),
-        device_risk=device_trust < 0.3 # Flag unknown/suspicious devices
+        device_risk=device_trust < 0.3,
+        session_mismatch=session_mismatch,
+        proxy_location=proxy_location
     )
 
     # Write explicit verification log for this interaction

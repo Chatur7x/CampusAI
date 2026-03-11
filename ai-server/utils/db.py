@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import time
+import datetime
 from functools import lru_cache
 from typing import Dict, Tuple, Any
 
@@ -264,3 +265,48 @@ def log_security_event(user_id: str, event_type: str, severity: str, description
         logger.info(f"Security event logged: {event_type} ({severity}) for user {user_id}")
     except Exception as e:
         logger.error(f"Failed to log security event: {e}")
+
+
+def create_attendance_session(faculty_id: str, class_id: str, course_id: str, timetable_entry_id: str | None, lat: float, lon: float, radius: int = 100, duration_mins: int = 5):
+    """Create a new 6-digit time-locked attendance session."""
+    import random
+    import datetime
+    sb = get_supabase()
+    session_code = "".join([str(random.randint(0, 9)) for _ in range(6)])
+    expires_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=duration_mins)).isoformat()
+    
+    try:
+        # Deactivate any existing active session for this class/course
+        sb.table("attendance_sessions").update({"is_active": False}).eq("class_id", class_id).eq("course_id", course_id).eq("is_active", True).execute()
+        
+        res = sb.table("attendance_sessions").insert({
+            "faculty_id": faculty_id,
+            "class_id": class_id,
+            "course_id": course_id,
+            "timetable_entry_id": timetable_entry_id,
+            "session_code": session_code,
+            "latitude": lat,
+            "longitude": lon,
+            "radius_meters": radius,
+            "expires_at": expires_at,
+            "is_active": True
+        }).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        logger.error(f"Failed to create attendance session: {e}")
+        return None
+
+
+def fetch_active_session(class_id: str, code: str | None = None) -> dict | None:
+    """Fetch an active session for a class, optionally matching a specific code."""
+    sb = get_supabase()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    try:
+        q = sb.table("attendance_sessions").select("*").eq("class_id", class_id).eq("is_active", True).gt("expires_at", now)
+        if code:
+            q = q.eq("session_code", code)
+        res = q.maybe_single().execute()
+        return res.data
+    except Exception as e:
+        logger.error(f"Failed to fetch active session: {e}")
+        return None
