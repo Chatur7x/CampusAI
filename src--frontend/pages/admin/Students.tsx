@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,12 +38,14 @@ import { studentService, departmentService, classService, auditLogService } from
 import { supabase } from '@/lib/supabase';
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<(Student & { profile?: Profile | null; department?: Department | null; class?: Class | null })[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
   const [newStudent, setNewStudent] = useState({
     firstName: '',
     lastName: '',
@@ -52,93 +56,7 @@ export default function StudentsPage() {
     batchYear: new Date().getFullYear(),
     semester: 1,
   });
-  useEffect(() => {
-    fetchStudents();
-    fetchDepartments();
-    fetchClasses();
-  }, []);
 
-  const fetchStudents = async () => {
-    try {
-      const data = await studentService.getAll();
-      setStudents(data);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      toast.error('Failed to load students');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const data = await departmentService.getAll();
-      setDepartments(data);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-    }
-  };
-
-  const fetchClasses = async () => {
-    try {
-      const data = await classService.getAll();
-      setClasses(data);
-    } catch (error) {
-      console.error('Error fetching classes:', error);
-    }
-  };
-
-  const handleAddStudent = async () => {
-    if (!newStudent.email || !newStudent.firstName || !newStudent.enrollmentId || !newStudent.departmentId || !newStudent.classId) {
-      toast.error('Fill required fields before adding');
-      return;
-    }
-    try {
-      const { data, error } = await supabase.functions.invoke('bulk-operations', {
-        body: {
-          operation: 'import_students',
-          data: [
-            {
-              email: newStudent.email.trim(),
-              firstName: newStudent.firstName.trim(),
-              lastName: newStudent.lastName.trim() || 'Student',
-              enrollmentId: newStudent.enrollmentId.trim(),
-              departmentId: newStudent.departmentId,
-              classId: newStudent.classId,
-              batchYear: newStudent.batchYear,
-              semester: newStudent.semester,
-            },
-          ],
-          options: { sendNotifications: true, skipDuplicates: true },
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.message || 'Failed to add student');
-
-      toast.success('Student added successfully');
-      auditLogService.log('CREATE', 'student', '', { newValues: { email: newStudent.email, enrollmentId: newStudent.enrollmentId } });
-      setIsAddDialogOpen(false);
-      fetchStudents();
-      setNewStudent({
-        firstName: '',
-        lastName: '',
-        email: '',
-        enrollmentId: '',
-        departmentId: '',
-        classId: '',
-        batchYear: new Date().getFullYear(),
-        semester: 1,
-      });
-    } catch (error) {
-      console.error('Error adding student:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to add student');
-    }
-  };
-
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [editForm, setEditForm] = useState({
     firstName: '',
     lastName: '',
@@ -149,36 +67,116 @@ export default function StudentsPage() {
     semester: 1,
   });
 
-  const handleEditStudent = async () => {
+  // Data Fetching with React Query
+  const { data: students = [], isLoading: isStudentsLoading } = useQuery<(Student & { profile?: Profile | null; department?: Department | null; class?: Class | null })[]>({
+    queryKey: ['students'],
+    queryFn: () => studentService.getAll(),
+  });
+
+  const { data: departments = [], isLoading: isDepartmentsLoading } = useQuery<Department[]>({
+    queryKey: ['departments'],
+    queryFn: () => departmentService.getAll(),
+  });
+
+  const { data: classes = [], isLoading: isClassesLoading } = useQuery<Class[]>({
+    queryKey: ['classes'],
+    queryFn: () => classService.getAll(),
+  });
+
+  // Mutations with React Query
+  const addStudentMutation = useMutation({
+    mutationFn: async (studentData: typeof newStudent) => {
+      const { data, error } = await supabase.functions.invoke('bulk-operations', {
+        body: {
+          operation: 'import_students',
+          data: [{
+            email: studentData.email.trim(),
+            firstName: studentData.firstName.trim(),
+            lastName: studentData.lastName.trim() || 'Student',
+            enrollmentId: studentData.enrollmentId.trim(),
+            departmentId: studentData.departmentId,
+            classId: studentData.classId,
+            batchYear: studentData.batchYear,
+            semester: studentData.semester,
+          }],
+          options: { sendNotifications: true, skipDuplicates: true },
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.message || 'Failed to add student');
+      return studentData;
+    },
+    onSuccess: (data) => {
+      toast.success('Student added successfully');
+      auditLogService.log('CREATE', 'student', '', { newValues: { email: data.email, enrollmentId: data.enrollmentId } });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setIsAddDialogOpen(false);
+      setNewStudent({
+        firstName: '', lastName: '', email: '', enrollmentId: '',
+        departmentId: '', classId: '', batchYear: new Date().getFullYear(), semester: 1,
+      });
+    },
+    onError: (error) => {
+      console.error('Error adding student:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to add student');
+    }
+  });
+
+  const updateStudentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: any }) => {
+      return studentService.update(id, data);
+    },
+    onSuccess: (_, variables) => {
+      toast.success('Student updated successfully');
+      auditLogService.log('UPDATE', 'student', variables.id, { newValues: variables.data });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setIsEditDialogOpen(false);
+    },
+    onError: () => {
+      toast.error('Failed to update student');
+    }
+  });
+
+  const deleteStudentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return studentService.delete(id);
+    },
+    onSuccess: (_, id) => {
+      toast.success('Student removed successfully');
+      auditLogService.log('DELETE', 'student', id, {});
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setIsDeleteDialogOpen(false);
+      setSelectedStudent(null);
+    },
+    onError: () => {
+      toast.error('Failed to remove student');
+    }
+  });
+
+  const handleAddStudent = () => {
+    if (!newStudent.email || !newStudent.firstName || !newStudent.enrollmentId || !newStudent.departmentId || !newStudent.classId) {
+      toast.error('Fill required fields before adding');
+      return;
+    }
+    addStudentMutation.mutate(newStudent);
+  };
+
+  const handleEditStudent = () => {
     if (!selectedStudent) return;
-    try {
-      await studentService.update(selectedStudent.id, {
+    updateStudentMutation.mutate({
+      id: selectedStudent.id,
+      data: {
         enrollment_id: editForm.enrollmentId,
         department_id: editForm.departmentId,
         class_id: editForm.classId,
         semester: editForm.semester,
-      });
-      toast.success('Student updated successfully');
-      auditLogService.log('UPDATE', 'student', selectedStudent.id, { newValues: editForm });
-      setIsEditDialogOpen(false);
-      fetchStudents();
-    } catch (error) {
-      toast.error('Failed to update student');
-    }
+      }
+    });
   };
 
-  const handleDeleteStudent = async () => {
+  const handleDeleteStudent = () => {
     if (!selectedStudent) return;
-    try {
-      await studentService.delete(selectedStudent.id);
-      toast.success('Student removed successfully');
-      auditLogService.log('DELETE', 'student', selectedStudent.id, {});
-      setIsDeleteDialogOpen(false);
-      setSelectedStudent(null);
-      fetchStudents();
-    } catch (error) {
-      toast.error('Failed to remove student');
-    }
+    deleteStudentMutation.mutate(selectedStudent.id);
   };
 
   const openEditDialog = (student: Student & { profile?: Profile | null; department?: Department | null; class?: Class | null }) => {
@@ -251,7 +249,14 @@ export default function StudentsPage() {
     }
   };
 
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  // Virtualization Setup
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredStudents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64, // Estimated row height in pixels
+    overscan: 10,
+  });
 
   const renderStudentForm = (formValues: any, setFormValues: any, onSubmit: () => void, submitLabel: string) => (
     <div className="grid gap-4 py-4">
@@ -448,85 +453,99 @@ export default function StudentsPage() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-400">Student</TableHead>
-                <TableHead className="text-slate-400">Enrollment ID</TableHead>
-                <TableHead className="text-slate-400">Department</TableHead>
-                <TableHead className="text-slate-400">Class</TableHead>
-                <TableHead className="text-slate-400">Semester</TableHead>
-                <TableHead className="text-slate-400">Face Registered</TableHead>
-                <TableHead className="text-slate-400 text-right">Actions</TableHead>
+              <TableRow className="border-slate-800 hover:bg-transparent flex w-full">
+                <TableHead className="text-slate-400 w-[20%]">Student</TableHead>
+                <TableHead className="text-slate-400 w-[15%]">Enrollment ID</TableHead>
+                <TableHead className="text-slate-400 w-[15%]">Department</TableHead>
+                <TableHead className="text-slate-400 w-[15%]">Class</TableHead>
+                <TableHead className="text-slate-400 w-[10%]">Semester</TableHead>
+                <TableHead className="text-slate-400 w-[15%]">Face Registered</TableHead>
+                <TableHead className="text-slate-400 text-right w-[10%]">Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : filteredStudents.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">
-                    No students found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredStudents.map((student) => (
-                  <TableRow key={student.id} className="border-slate-800">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className="bg-violet-500/20 text-violet-400 text-xs">
-                            {getInitials(
-                              (student.profile?.first_name || '') +
-                                ' ' +
-                                (student.profile?.last_name || '')
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium text-white">
-                            {student.profile?.first_name} {student.profile?.last_name}
-                          </p>
-                          <p className="text-xs text-slate-400">{student.profile?.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-slate-300">{student.enrollment_id}</TableCell>
-                    <TableCell className="text-slate-300">{student.department?.name}</TableCell>
-                    <TableCell className="text-slate-300">
-                      {student.class?.name} - {student.class?.section}
-                    </TableCell>
-                    <TableCell className="text-slate-300">{student.semester}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={student.face_registered ? 'default' : 'secondary'}
-                        className={
-                          student.face_registered
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-slate-700 text-slate-400'
-                        }
-                      >
-                        {student.face_registered ? 'Yes' : 'No'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="text-violet-400 hover:text-violet-300 px-2 h-8" onClick={() => { setSelectedStudent(student); setIsDetailsOpen(true); }}>View</Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEditDialog(student)}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={() => { setSelectedStudent(student); setIsDeleteDialogOpen(true); }}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+          </Table>
+          
+          <div ref={parentRef} className="h-[600px] overflow-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 transparent' }}>
+            <Table>
+              <TableBody style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                {isStudentsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 border-b-0">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto" />
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : filteredStudents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-slate-500 border-b-0">
+                      No students found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const student = filteredStudents[virtualRow.index];
+                    return (
+                    <TableRow 
+                      key={student.id} 
+                      className="border-slate-800 flex w-full absolute top-0 left-0 transition-colors"
+                      style={{
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <TableCell className="w-[20%]">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-violet-500/20 text-violet-400 text-xs">
+                              {getInitials(
+                                (student.profile?.first_name || '') +
+                                  ' ' +
+                                  (student.profile?.last_name || '')
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-medium text-white truncate max-w-[150px]">
+                              {student.profile?.first_name} {student.profile?.last_name}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate max-w-[150px]">{student.profile?.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-slate-300 w-[15%] truncate">{student.enrollment_id}</TableCell>
+                      <TableCell className="text-slate-300 w-[15%] truncate">{student.department?.name}</TableCell>
+                      <TableCell className="text-slate-300 w-[15%] truncate">
+                        {student.class?.name} - {student.class?.section}
+                      </TableCell>
+                      <TableCell className="text-slate-300 w-[10%]">{student.semester}</TableCell>
+                      <TableCell className="w-[15%]">
+                        <Badge
+                          variant={student.face_registered ? 'default' : 'secondary'}
+                          className={
+                            student.face_registered
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : 'bg-slate-700 text-slate-400'
+                          }
+                        >
+                          {student.face_registered ? 'Yes' : 'No'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right w-[10%]">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" className="text-violet-400 hover:text-violet-300 px-2 h-8" onClick={() => { setSelectedStudent(student); setIsDetailsOpen(true); }}>View</Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => openEditDialog(student)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" onClick={() => { setSelectedStudent(student); setIsDeleteDialogOpen(true); }}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )})
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

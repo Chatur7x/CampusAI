@@ -4,6 +4,9 @@ import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthCon
 import { ThemeProvider } from "@/context/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 
 // We lazy-load EVERYTHING including LoginPage to prevent large library blocking on boot
 const LoginPage = React.lazy(() => import("@/pages/LoginPage"));
@@ -215,14 +218,16 @@ function AppRoutes() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <SupabaseAuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-          <Toaster richColors position="top-right" />
-        </BrowserRouter>
-      </SupabaseAuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <SupabaseAuthProvider>
+          <BrowserRouter>
+            <AppRoutes />
+            <Toaster richColors position="top-right" />
+          </BrowserRouter>
+        </SupabaseAuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 
