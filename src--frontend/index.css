@@ -26,6 +26,15 @@
     --input: 232 45% 16%;
     --ring: 226 85% 60%;
     --radius: 0.75rem;
+
+    /* Responsive Font Sizes */
+    --font-xs: clamp(0.7rem, 0.65rem + 0.25vw, 0.85rem);
+    --font-sm: clamp(0.8rem, 0.75rem + 0.25vw, 0.95rem);
+    --font-base: clamp(0.9rem, 0.85rem + 0.25vw, 1.05rem);
+    --font-md: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);
+    --font-lg: clamp(1.2rem, 1.1rem + 0.5vw, 1.5rem);
+    --font-xl: clamp(1.5rem, 1.3rem + 1vw, 2.2rem);
+    --font-2xl: clamp(2rem, 1.5rem + 2.5vw, 3.5rem);
   }
 
   .dark {

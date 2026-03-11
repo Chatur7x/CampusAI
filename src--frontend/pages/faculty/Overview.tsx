@@ -157,72 +157,84 @@ export default function FacultyOverview() {
   }, [todayDow, todayIso, user?.faculty?.id]);
 
   return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-r from-slate-900 via-slate-900/60 to-cyan-900/30 p-6 shadow-[0_25px_60px_rgba(0,0,0,0.45)]">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_80%_40%,rgba(59,130,246,0.1),transparent_35%)]" />
-        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="relative flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[220px]">
-            <h1 className="text-3xl font-semibold text-white">Faculty Portal</h1>
-            <p className="text-slate-300">Live classes, attendance, and alerts.</p>
+    <div className="space-y-8 max-w-[1600px] mx-auto">
+      <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 glass-premium p-8 shadow-[0_25px_80px_rgba(0,0,0,0.5)] group">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-slate-900/40 to-cyan-500/10 opacity-50" />
+        <div className="absolute top-0 right-0 p-8 flex gap-3">
+           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+           <div className="w-2 h-2 rounded-full bg-emerald-500/40" />
+           <div className="w-2 h-2 rounded-full bg-emerald-500/20" />
+        </div>
+        <div className="relative flex flex-wrap items-center justify-between gap-6">
+          <div className="space-y-3">
+            <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-2xl">
+              Command <span className="text-emerald-400">Center</span>
+            </h1>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Faculty Analytics & Operations Portal</p>
           </div>
-          <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/30">Smart routing</Badge>
-          <Badge className="bg-cyan-500/15 text-cyan-200 border-cyan-500/30">Realtime sync</Badge>
+          <div className="flex gap-4">
+            <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-6 py-2 font-black text-[10px] tracking-widest uppercase rounded-full">Secure Node: Online</Badge>
+            <Badge className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-6 py-2 font-black text-[10px] tracking-widest uppercase rounded-full">Sync Status: Active</Badge>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-slate-400">Low Attendance Students</p>
-                <p className="text-2xl font-bold text-white">{loading ? '—' : atRiskStudents.length}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="glass-premium border-white/5 rounded-[2rem] shadow-2xl hover:scale-[1.02] transition-all group overflow-hidden">
+          <CardContent className="p-8">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-cyan-400 transition-colors">Risk Monitoring</p>
+                <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : atRiskStudents.length}</p>
+                <p className="text-[10px] text-slate-400 font-bold">At-Risk Students</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                <Users className="w-6 h-6 text-cyan-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-slate-400">Today's Classes</p>
-                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.todaySchedule}</p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-violet-400" />
+              <div className="w-16 h-16 rounded-2xl bg-cyan-500/5 border border-cyan-500/10 flex items-center justify-center group-hover:border-cyan-500/30 transition-all">
+                <Users className="w-8 h-8 text-cyan-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-950/70 border border-emerald-500/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-slate-400">Avg Attendance</p>
-                <p className="text-2xl font-bold text-white">{loading ? '—' : `${stats.avgAttendance}%`}</p>
+        <Card className="glass-premium border-white/5 rounded-[2rem] shadow-2xl hover:scale-[1.02] transition-all group overflow-hidden">
+          <CardContent className="p-8">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-violet-400 transition-colors">Daily Deployment</p>
+                <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : stats.todaySchedule}</p>
+                <p className="text-[10px] text-slate-400 font-bold">Sessions Scheduled</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-emerald-400" />
+              <div className="w-16 h-16 rounded-2xl bg-violet-500/5 border border-violet-500/10 flex items-center justify-center group-hover:border-violet-500/30 transition-all">
+                <Calendar className="w-8 h-8 text-violet-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-950/70 border border-amber-400/15 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-slate-400">Pending Leaves</p>
-                <p className="text-2xl font-bold text-white">{loading ? '—' : stats.pendingLeaves}</p>
+        <Card className="glass-premium border-white/5 rounded-[2rem] shadow-2xl hover:scale-[1.02] transition-all group overflow-hidden">
+          <CardContent className="p-8">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-emerald-400 transition-colors">Integrity Score</p>
+                <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : `${stats.avgAttendance}%`}</p>
+                <p className="text-[10px] text-slate-400 font-bold">Global Average</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-amber-400" />
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex items-center justify-center group-hover:border-emerald-500/30 transition-all">
+                <TrendingUp className="w-8 h-8 text-emerald-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-premium border-amber-500/10 rounded-[2rem] shadow-2xl hover:scale-[1.02] transition-all group overflow-hidden">
+          <CardContent className="p-8">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-amber-400 transition-colors">Logistics Alert</p>
+                <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : stats.pendingLeaves}</p>
+                <p className="text-[10px] text-slate-400 font-bold">Pending Leaves</p>
+              </div>
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex items-center justify-center group-hover:border-amber-500/30 transition-all">
+                <AlertCircle className="w-8 h-8 text-amber-400" />
               </div>
             </div>
           </CardContent>

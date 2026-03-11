@@ -10,10 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
-  CheckCircle2, AlertTriangle, ScanFace, Shield,
-  Loader2, MapPin, Lock, Eye, ShieldAlert,
-  Maximize, Brain, CheckSquare,
-} from 'lucide-react';
+    CheckCircle2, AlertTriangle, ScanFace, Shield,
+    Loader2, MapPin, Lock, Eye, ShieldAlert,
+    Maximize, Brain, CheckSquare, Clock3,
+  } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
@@ -305,139 +305,169 @@ export default function SecureAttendanceStudent() {
   };
 
   return (
-    <div className="max-w-xl mx-auto p-4 pt-12">
+    <div className="max-w-xl mx-auto p-4 pt-12 relative min-h-screen">
+      {/* HUD Scanning Line Effect */}
+      {(step === 'face' || step === 'liveness') && <div className="scanning-line" />}
+
       <AnimatePresence mode="wait">
         {/* Step 1: Class Selection */}
         {step === 'selection' && (
-          <motion.div key="selection" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <Card className="bg-slate-900 border-emerald-500/20 shadow-2xl overflow-hidden rounded-3xl">
-               <div className="h-2 bg-gradient-to-r from-emerald-500 to-cyan-500" />
-               <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-2xl font-bold">
-                    <Shield className="w-8 h-8 text-emerald-400" /> Secure Marking
-                  </CardTitle>
-                  <CardDescription className="text-slate-400">Multi-layer anti-proxy identity verification</CardDescription>
+          <motion.div key="selection" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }}>
+            <div className="glass-premium hud-border overflow-hidden rounded-[2.5rem] relative">
+               <div className="h-2 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 animate-shimmer" />
+               <CardHeader className="p-8">
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                      <Shield className="w-8 h-8 text-emerald-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-fluid-md font-black italic tracking-tighter uppercase text-white">Identity Portal</CardTitle>
+                      <CardDescription className="text-slate-500 font-bold uppercase text-[9px] tracking-[0.2em]">Biometric Verification v4.0</CardDescription>
+                    </div>
+                  </div>
                </CardHeader>
-               <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-slate-400 uppercase text-[10px] font-bold tracking-widest">Target Session</Label>
-                    <select 
-                      className="w-full bg-slate-800 border-slate-700 rounded-xl p-4 text-white font-medium focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
-                      value={selectedClassId}
-                      onChange={(e) => setSelectedClassId(e.target.value)}
-                    >
-                      {availableClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+               <CardContent className="space-y-8 p-8 pt-0">
+                  <div className="space-y-3">
+                    <Label className="text-slate-500 uppercase text-[10px] font-black tracking-[0.3em] ml-1">Classroom Link</Label>
+                    <div className="relative group">
+                      <select 
+                        className="w-full glass-premium border-white/10 rounded-2xl p-5 text-white font-black tracking-tight focus:border-emerald-500 outline-none appearance-none transition-all cursor-pointer group-hover:bg-white/[0.05]"
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
+                      >
+                        {availableClasses.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.name}</option>)}
+                      </select>
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                        <Eye className="w-5 h-5" />
+                      </div>
+                    </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
-                     <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col items-center gap-2">
-                        <Maximize className="w-5 h-5 text-cyan-400" />
-                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Focus Locked</span>
+                     <div className="glass-premium p-5 rounded-2xl border border-white/5 flex flex-col items-center gap-2 group hover:border-cyan-500/30 transition-all">
+                        <Maximize className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform" />
+                        <span className="text-[9px] uppercase font-black text-slate-500 tracking-widest">Focus Locked</span>
                      </div>
-                     <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col items-center gap-2">
-                        <MapPin className="w-5 h-5 text-emerald-400" />
-                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Geo Fencing</span>
+                     <div className="glass-premium p-5 rounded-2xl border border-white/5 flex flex-col items-center gap-2 group hover:border-emerald-500/30 transition-all">
+                        <MapPin className="w-6 h-6 text-emerald-400 group-hover:scale-110 transition-transform" />
+                        <span className="text-[9px] uppercase font-black text-slate-500 tracking-widest">Geo Fencing</span>
                      </div>
                   </div>
-                  <Button className="w-full bg-emerald-600 hover:bg-emerald-500 py-8 text-lg font-black rounded-2xl shadow-lg shadow-emerald-900/20" onClick={() => setStep('focus')}>
-                    Initialize Secure Portal
+
+                  <Button 
+                    className="w-full glass-premium bg-emerald-600 hover:bg-emerald-500 py-10 text-fluid-sm font-black rounded-3xl shadow-[0_15px_40px_rgba(16,185,129,0.3)] hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-[0.2em]" 
+                    onClick={() => setStep('focus')}
+                  >
+                    Engage Secure Portal
                   </Button>
                </CardContent>
-            </Card>
+            </div>
           </motion.div>
         )}
 
         {/* Step 2: Focus Introduction */}
         {step === 'focus' && (
-          <motion.div key="focus" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-6">
-             <div className="absolute inset-0 royal-grid opacity-20 pointer-events-none" />
-            <div className="max-w-md w-full text-center space-y-10 relative z-10">
-               <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
-                  <Lock className="w-10 h-10 text-emerald-400" />
-               </div>
+          <motion.div key="focus" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-8">
+            <div className="absolute inset-0 cyber-grid opacity-10 pointer-events-none" />
+            <div className="max-w-md w-full text-center space-y-12 relative z-10">
+               <motion.div 
+                 animate={{ scale: [1, 1.1, 1] }} 
+                 transition={{ repeat: Infinity, duration: 3 }}
+                 className="w-28 h-28 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto border-2 border-emerald-500/20 shadow-[0_0_50px_rgba(16,185,129,0.2)]"
+               >
+                  <Lock className="w-12 h-12 text-emerald-400" />
+               </motion.div>
                <div className="space-y-4">
-                  <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Anti-Proxy Protocol</h2>
-                  <p className="text-slate-400 leading-relaxed">System will engage Fullscreen Lock. Exiting or switching tabs will result in a <strong>Fraud Flag</strong> and instant session termination.</p>
+                  <h2 className="text-fluid-lg font-black text-white italic tracking-tighter uppercase underline decoration-emerald-500 decoration-8 underline-offset-8">Focus Protocol</h2>
+                  <p className="text-slate-400 font-medium leading-relaxed pt-2">System will engage Hardware Lock. Exiting or switching tabs will trigger a <strong className="text-red-400 uppercase">Fraud Alert</strong> and instant termination.</p>
                </div>
-               <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl text-left space-y-4 shadow-2xl">
-                  <div className="flex gap-4">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+               <div className="glass-premium hud-border p-8 rounded-[2rem] text-left space-y-5 shadow-2xl backdrop-blur-3xl">
+                  <div className="flex gap-4 items-center">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20">
                       <CheckSquare className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <span className="text-slate-300 text-sm">System hardware locking engaged</span>
+                    <span className="text-slate-300 font-bold text-sm tracking-tight">OS-Level Hardware Lock Engaged</span>
                   </div>
-                  <div className="flex gap-4">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <div className="flex gap-4 items-center">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20">
                       <CheckSquare className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <span className="text-slate-300 text-sm">Real-time focus monitoring active</span>
+                    <span className="text-slate-300 font-bold text-sm tracking-tight">Real-time Iris & Focus Monitor Active</span>
                   </div>
-                  <div className="flex gap-4">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <div className="flex gap-4 items-center">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20">
                       <CheckSquare className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <span className="text-slate-300 text-sm">Dynamic geo-fence validation required</span>
+                    <span className="text-slate-300 font-bold text-sm tracking-tight">Dynamic Geo-Fence Handshake Required</span>
                   </div>
                </div>
-               <Button className="w-full py-10 text-2xl font-black bg-emerald-600 rounded-3xl shadow-[0_20px_40px_rgba(16,185,129,0.3)] hover:scale-[1.02] transition-transform" onClick={enterFocusMode}>
-                  Acknowledge & Start
+               <Button className="w-full py-12 text-fluid-sm font-black bg-emerald-600 rounded-[2rem] shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:scale-[1.02] transition-all uppercase tracking-[0.3em]" onClick={enterFocusMode}>
+                  Acknowledge & Sync
                </Button>
-               <button onClick={() => setStep('selection')} className="text-slate-500 font-bold uppercase tracking-widest text-[10px] hover:text-white transition-colors">Abort Mission</button>
+               <button onClick={() => setStep('selection')} className="text-slate-600 font-black uppercase tracking-[0.4em] text-[10px] hover:text-white transition-colors">Abort System Initialisation</button>
             </div>
           </motion.div>
         )}
 
         {/* Step 3: Session Code */}
         {step === 'session' && (
-          <motion.div key="session" initial={{ opacity: 0, scale: 0.9 }}>
-            <Card className="bg-slate-900 border-cyan-500/30 shadow-2xl rounded-3xl overflow-hidden">
-              <div className="h-2 bg-cyan-500" />
-              <CardHeader className="text-center pt-8">
-                <CardTitle className="text-cyan-400 text-xl font-bold">Dynamic Session Token</CardTitle>
-                <CardDescription className="text-slate-500">Input the private code from faculty terminal</CardDescription>
+          <motion.div key="session" initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}>
+            <div className="glass-premium hud-border shadow-2xl rounded-[3rem] overflow-hidden relative p-10">
+              <div className="absolute top-0 right-0 p-6 flex gap-2">
+                 <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                 <div className="w-2 h-2 rounded-full bg-cyan-500/40" />
+                 <div className="w-2 h-2 rounded-full bg-cyan-500/20" />
+              </div>
+              <CardHeader className="text-center pt-8 space-y-2">
+                <p className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.5em]">Protocol Alpha</p>
+                <CardTitle className="text-white text-3xl font-black italic tracking-tighter uppercase">Broadcast Token</CardTitle>
+                <CardDescription className="text-slate-500 font-medium">Input the dynamic 6-digit key from command terminal</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-10 p-8">
-                <div className="flex justify-center">
+              <CardContent className="space-y-12 mt-8">
+                <div className="relative group">
                    <Input 
                      autoFocus
-                     className="text-center text-6xl font-black h-32 tracking-[0.2em] bg-slate-950 border-slate-800 text-white focus:border-cyan-500 rounded-2xl shadow-inner transition-all w-full"
+                     className="text-center text-6xl md:text-7xl font-black h-36 tracking-[0.2em] glass-premium bg-white/[0.02] border-white/10 text-white focus:border-cyan-500 rounded-3xl shadow-inner transition-all w-full leading-none p-0 flex items-center justify-center"
                      maxLength={6}
                      placeholder="000000"
                      value={sessionCode}
                      onChange={(e) => setSessionCode(e.target.value.replace(/\D/g, ''))}
                    />
+                   <div className="absolute inset-0 pointer-events-none border-2 border-white/5 rounded-3xl group-focus-within:border-cyan-500/40 transition-all scale-[1.05] group-focus-within:scale-100 opacity-0 group-focus-within:opacity-100" />
                 </div>
                 <Button 
                   disabled={sessionCode.length !== 6} 
-                  className="w-full py-8 bg-cyan-600 hover:bg-cyan-500 font-black text-xl rounded-2xl"
+                  className="w-full py-10 bg-cyan-600 hover:bg-cyan-500 font-black text-2xl rounded-[2rem] shadow-xl shadow-cyan-900/30 transition-all uppercase tracking-[0.2em]"
                   onClick={validateSessionAndStart}
                 >
-                  Verify Session
+                  Confirm Token
                 </Button>
                 {focusViolations > 0 && (
-                   <div className="flex justify-center items-center gap-2 text-red-500 text-xs font-black uppercase tracking-[0.2em] animate-pulse">
-                      <ShieldAlert className="w-4 h-4" /> {focusViolations} Security Breach(es)
+                   <div className="flex justify-center items-center gap-2 text-red-500 text-xs font-black uppercase tracking-[0.3em] bg-red-500/10 py-3 rounded-xl border border-red-500/20 animate-pulse">
+                      <ShieldAlert className="w-5 h-5" /> {focusViolations} Security Breaches Logged
                    </div>
                 )}
               </CardContent>
-            </Card>
+            </div>
           </motion.div>
         )}
 
-        {/* Loading / Verifying states */}
+        {/* Processing States */}
         {(step === 'loading' || step === 'verifying' || step === 'location') && (
-           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-24 space-y-8">
-              <div className="relative mx-auto w-32 h-32">
-                 <div className="absolute inset-0 rounded-full border-8 border-slate-900 shadow-inner" />
-                 <div className="absolute inset-0 rounded-full border-8 border-emerald-500 border-t-transparent animate-spin" />
-                 <Brain className="absolute inset-0 m-auto w-14 h-14 text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-32 space-y-12 relative z-10">
+              <div className="relative mx-auto w-40 h-40 flex items-center justify-center">
+                 <div className="absolute inset-0 rounded-full border-[12px] border-white/5" />
+                 <div className="absolute inset-0 rounded-full border-[12px] border-emerald-500 border-t-transparent animate-spin" />
+                 <div className="absolute inset-0 rounded-full border-[1px] border-emerald-500/20 scale-[1.2] animate-pulse-emerald" />
+                 <Brain className="w-16 h-16 text-emerald-400 drop-shadow-[0_0_20px_rgba(16,185,129,0.8)]" />
               </div>
-              <div className="space-y-3">
-                <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic">{statusMsg}</h3>
-                <div className="flex items-center justify-center gap-2">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" />
+              <div className="space-y-4">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.6em] animate-pulse">Neural Handshake In Progress</p>
+                <h3 className="text-4xl font-black text-white tracking-tighter uppercase italic">{statusMsg}</h3>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" />
                 </div>
               </div>
            </motion.div>
@@ -445,156 +475,186 @@ export default function SecureAttendanceStudent() {
 
         {/* Face Recognition */}
         {step === 'face' && (
-          <motion.div key="face" initial={{ opacity: 0, scale: 0.9 }}>
-            <Card className="bg-slate-900 border-slate-800 shadow-2xl overflow-hidden rounded-3xl">
-               <CardHeader className="p-4 bg-slate-950 border-b border-slate-800">
-                  <div className="flex justify-between items-center">
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-none px-3 font-bold">
-                       <MapPin className="w-3 h-3 mr-1" /> GPS_VERIFIED
+          <motion.div key="face" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+            <div className="glass-premium hud-border shadow-2xl overflow-hidden rounded-[3rem] p-4 relative">
+               <CardHeader className="p-4 pt-2 bg-transparent flex flex-row justify-between items-center mb-2">
+                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-1.5 font-black text-[9px] tracking-widest uppercase">
+                       <MapPin className="w-3 h-3 mr-2" /> GPS_LOCKED
                     </Badge>
-                    <Badge className="bg-cyan-500/20 text-cyan-400 border-none px-3 font-bold">
-                       TOKEN_{sessionCode}
+                    <Badge className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-4 py-1.5 font-black text-[9px] tracking-widest uppercase">
+                       SESSION_{sessionCode}
                     </Badge>
-                  </div>
                </CardHeader>
-               <CardContent className="p-0 relative">
-                  <div className="aspect-[4/5] bg-black">
-                     <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover brightness-125 contrast-110" style={{ transform: 'scaleX(-1)' }} />
-                     {/* Cyber HUD Overlays */}
-                     <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
-                     <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
-                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-64 h-80 border-2 border-emerald-500/40 rounded-[4rem] shadow-[0_0_80px_rgba(16,185,129,0.2)] flex items-center justify-center">
-                            <div className="w-full h-0.5 bg-emerald-500/30 animate-[scan_3s_infinite]" />
-                        </div>
+               
+               <div className="aspect-[3/4] bg-slate-950 rounded-[2rem] overflow-hidden relative group">
+                  <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover grayscale brightness-110 group-hover:grayscale-0 transition-all duration-700" style={{ transform: 'scaleX(-1)' }} />
+                  
+                  {/* HUD Elements */}
+                  <div className="absolute inset-0 pointer-events-none">
+                     <div className="absolute top-8 left-8 w-12 h-12 border-t-2 border-l-2 border-emerald-500 shadow-[-5px_-5px_15px_rgba(16,185,129,0.3)]" />
+                     <div className="absolute top-8 right-8 w-12 h-12 border-t-2 border-r-2 border-emerald-500 shadow-[5px_-5px_15px_rgba(16,185,129,0.3)]" />
+                     <div className="absolute bottom-8 left-8 w-12 h-12 border-b-2 border-l-2 border-emerald-500 shadow-[-5px_5px_15px_rgba(16,185,129,0.3)]" />
+                     <div className="absolute bottom-8 right-8 w-12 h-12 border-b-2 border-r-2 border-emerald-500 shadow-[5px_5px_15px_rgba(16,185,129,0.3)]" />
+                     
+                     <div className="absolute inset-x-12 top-1/2 -translate-y-1/2 border-y border-emerald-500/20 h-96 flex items-center justify-center">
+                        <div className="w-full h-[2px] bg-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.6)] animate-[hud-scan_4s_infinite]" />
                      </div>
                   </div>
-                  <div className="p-8 bg-slate-950">
-                     <Button className="w-full py-10 text-2xl bg-emerald-600 hover:bg-emerald-500 font-black rounded-2xl shadow-xl shadow-emerald-900/40 transition-transform active:scale-95" onClick={startLivenessCapture}>
-                        <ScanFace className="mr-3 w-8 h-8" /> VALIDATE IDENTITY
+                  
+                  <div className="absolute inset-x-0 bottom-0 p-8 pt-20 bg-gradient-to-t from-black via-black/60 to-transparent">
+                     <Button 
+                       className="w-full py-12 text-2xl bg-emerald-600 hover:bg-emerald-500 font-black rounded-[2rem] shadow-[0_20px_40px_rgba(16,185,129,0.4)] active:scale-95 transition-all uppercase tracking-[0.2em]" 
+                       onClick={startLivenessCapture}
+                     >
+                        <ScanFace className="mr-4 w-10 h-10" /> Initialize Scan
                      </Button>
-                     <div className="grid grid-cols-3 gap-2 mt-6">
-                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                           <div className="h-full bg-emerald-500 w-full" />
-                        </div>
-                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                           <div className="h-full bg-emerald-500 w-1/2 animate-pulse" />
-                        </div>
-                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                           <div className="h-full bg-slate-700 w-0" />
-                        </div>
-                     </div>
+                     <p className="text-center text-slate-500 text-[9px] font-black uppercase tracking-[0.5em] mt-6">Position face within biometric guide</p>
                   </div>
-               </CardContent>
-            </Card>
+               </div>
+            </div>
             <style>{`
-               @keyframes scan {
-                  0% { transform: translateY(-160px); }
-                  50% { transform: translateY(160px); }
-                  100% { transform: translateY(-160px); }
+               @keyframes hud-scan {
+                  0%, 100% { transform: translateY(-160px); opacity: 0.2; }
+                  50% { transform: translateY(160px); opacity: 1; }
                }
             `}</style>
           </motion.div>
         )}
 
-        {/* Liveness Sequence */}
+        {/* Liveness Immersive UI */}
         {step === 'liveness' && (
-           <motion.div key="liveness" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <Card className="bg-slate-950 border-emerald-500 shadow-[0_0_100px_rgba(16,185,129,0.3)] overflow-hidden rounded-3xl">
-                 <div className="aspect-[3/4] relative">
-                    <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
-                    <div className="absolute inset-0 bg-emerald-900/5 backdrop-blur-[1px]" />
-                    <div className="absolute inset-x-0 bottom-0 p-10 bg-gradient-to-t from-black via-black/90 to-transparent">
-                       <div className="space-y-6 text-center">
-                          <h2 className="text-5xl font-black text-emerald-400 uppercase italic tracking-tighter animate-pulse drop-shadow-lg">{livenessInstruction}</h2>
-                          <div className="relative h-6 bg-slate-900 rounded-full p-1 border border-emerald-500/20">
-                             <motion.div 
-                               initial={{ width: 0 }}
-                               animate={{ width: `${livenessProgress}%` }}
-                               className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" 
-                             />
-                          </div>
-                          <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em]">Liveness Challenge Phase</p>
-                       </div>
+           <motion.div key="liveness" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] bg-black">
+              <div className="absolute inset-0 cyber-grid opacity-20 pointer-events-none" />
+              <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover opacity-80" style={{ transform: 'scaleX(-1)' }} />
+              
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
+                 <div className="w-80 h-96 border-4 border-emerald-500/20 rounded-[5rem] relative overflow-hidden flex flex-col items-center justify-center">
+                    <div className="absolute inset-0 bg-emerald-500/5 backdrop-blur-[2px]" />
+                    <motion.div 
+                       initial={{ y: -200 }} 
+                       animate={{ y: 0 }} 
+                       className="text-fluid-lg font-black text-white uppercase italic tracking-tighter drop-shadow-[0_0_20px_rgba(16,185,129,0.8)] mb-4"
+                    >
+                       {livenessInstruction}
+                    </motion.div>
+                    <div className="text-[10px] font-black text-emerald-400 bg-emerald-500/20 px-4 py-1.5 rounded-full border border-emerald-500/30 uppercase tracking-[0.3em]">
+                       Auth Phase {Math.floor(livenessProgress/20)}
                     </div>
                  </div>
-              </Card>
+                 
+                 <div className="w-full max-w-sm mt-12 space-y-4">
+                    <div className="h-4 glass-premium bg-white/5 rounded-full overflow-hidden p-1 border border-white/10">
+                       <motion.div 
+                         initial={{ width: 0 }}
+                         animate={{ width: `${livenessProgress}%` }}
+                         className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-cyan-500 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)]" 
+                       />
+                    </div>
+                    <div className="flex justify-between items-center px-2">
+                       <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Biometric Integrity</span>
+                       <span className="text-fluid-xs font-black text-white">{Math.round(livenessProgress)}%</span>
+                    </div>
+                 </div>
+              </div>
+              
+              <div className="absolute top-12 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 backdrop-blur-3xl px-8 py-3 rounded-full border border-white/10">
+                 <Shield className="w-5 h-5 text-emerald-400" />
+                 <span className="text-white text-[10px] font-black uppercase tracking-[0.4em]">Advanced Anti-Spoofing Engaged</span>
+              </div>
            </motion.div>
         )}
 
         {/* Success HUD */}
         {step === 'success' && result && (
           <motion.div key="success" initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }}>
-             <Card className="bg-slate-900 border-white/10 shadow-2xl overflow-hidden rounded-[2.5rem]">
-                <div className="h-40 bg-gradient-to-br from-emerald-500 via-emerald-400 to-cyan-500 relative flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 opacity-20 royal-grid" />
+             <div className="glass-premium hud-border shadow-[0_0_100px_rgba(16,185,129,0.2)] overflow-hidden rounded-[3rem] p-1 relative">
+                <div className="h-48 bg-gradient-to-br from-emerald-500 via-emerald-400 to-cyan-500 relative flex flex-col items-center justify-center rounded-t-[2.8rem] overflow-hidden">
+                    <div className="absolute inset-0 cyber-grid opacity-30" />
                     <motion.div 
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", damping: 10, stiffness: 100 }}
-                      className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-4 border-white/40 shadow-2xl relative z-10"
+                      initial={{ scale: 0, rotate: -45 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: "spring", damping: 12, stiffness: 120 }}
+                      className="w-28 h-28 bg-white/10 backdrop-blur-2xl rounded-[2rem] flex items-center justify-center border-2 border-white/40 shadow-2xl relative z-10"
                     >
-                      <CheckCircle2 className="w-14 h-14 text-white" />
+                      <CheckCircle2 className="w-16 h-16 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" />
                     </motion.div>
-                    <div className="absolute -bottom-1 left-0 right-0 h-4 bg-slate-900 rounded-t-full" />
+                    <div className="absolute -bottom-1 left-0 right-0 h-8 bg-slate-900 rounded-t-[2.8rem]" />
                 </div>
-                <CardContent className="p-10 text-center space-y-10">
+                
+                <CardContent className="p-10 pt-4 text-center space-y-12">
                    <div className="space-y-2">
-                      <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">Presence Verified</h2>
-                      <div className="flex items-center justify-center gap-2">
-                         <span className="w-6 h-[1px] bg-slate-800" />
-                         <p className="text-emerald-400 font-mono text-[10px] font-black tracking-widest">{result.timestamp}</p>
-                         <span className="w-6 h-[1px] bg-slate-800" />
-                      </div>
-                   </div>
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex flex-col items-center">
-                         <p className="text-[9px] text-slate-500 uppercase font-black mb-1 letter-spacing-2">Identity match</p>
-                         <p className="text-3xl font-black text-white">{result.faceConfidence}%</p>
-                      </div>
-                      <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex flex-col items-center">
-                         <p className="text-[9px] text-slate-500 uppercase font-black mb-1 letter-spacing-2">Liveness</p>
-                         <p className="text-3xl font-black text-white">{result.livenessScore}%</p>
-                      </div>
-                      <div className="col-span-2 bg-slate-950/50 p-4 rounded-2xl border border-slate-800/50 flex justify-between items-center px-6">
-                         <div className="flex items-center gap-2">
-                             <MapPin className="w-4 h-4 text-emerald-400" />
-                             <span className="text-xs font-bold text-slate-300">Geo Fencing</span>
+                      <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.5em] animate-pulse">Identity Logged Successfully</p>
+                      <h2 className="text-fluid-lg font-black text-white uppercase italic tracking-tighter">Presence Verified</h2>
+                      <div className="flex justify-center pt-2">
+                         <div className="glass-premium border-white/10 px-6 py-2 rounded-full flex items-center gap-3">
+                            <Clock3 className="w-4 h-4 text-slate-500" />
+                            <p className="text-white font-mono text-xs font-bold leading-none">{new Date().toLocaleTimeString()}</p>
                          </div>
-                         <Badge className="bg-emerald-500/10 text-emerald-400 border-none px-3 font-black">VALIDATED</Badge>
                       </div>
                    </div>
-                   <Button className="w-full bg-white text-slate-950 hover:bg-slate-200 py-8 rounded-3xl font-black text-xl shadow-xl transition-all" onClick={() => window.location.reload()}>
-                      Finish & Exit
+                   
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="glass-premium p-6 rounded-[2rem] border border-white/10 flex flex-col items-center group transition-all">
+                         <p className="text-[9px] text-slate-500 uppercase font-black mb-2 tracking-widest group-hover:text-emerald-400">Iris Match</p>
+                         <p className="text-fluid-md font-black text-white">{result.faceConfidence}%</p>
+                      </div>
+                      <div className="glass-premium p-6 rounded-[2rem] border border-white/10 flex flex-col items-center group transition-all">
+                         <p className="text-[9px] text-slate-500 uppercase font-black mb-2 tracking-widest group-hover:text-cyan-400">Vital Score</p>
+                         <p className="text-fluid-md font-black text-white">{result.livenessScore}%</p>
+                      </div>
+                      <div className="col-span-2 glass-premium/50 p-5 rounded-[2rem] border border-white/5 flex justify-between items-center px-10">
+                         <div className="flex items-center gap-3">
+                             <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+                             <span className="text-xs font-black text-white uppercase tracking-widest">Geo-Fence</span>
+                         </div>
+                         <Badge className="bg-emerald-500/20 text-emerald-400 border-none px-5 py-1.5 font-black uppercase text-[9px] tracking-widest">AUTHENTICATED</Badge>
+                      </div>
+                   </div>
+                   
+                   <Button 
+                     className="w-full glass-premium bg-white text-slate-950 hover:bg-slate-200 py-10 rounded-[2rem] font-black text-xl shadow-[0_15px_40px_rgba(255,255,255,0.1)] transition-all hover:scale-[1.03] uppercase tracking-[0.2em]" 
+                     onClick={() => window.location.reload()}
+                   >
+                      Terminate Link
                    </Button>
                 </CardContent>
-             </Card>
+             </div>
           </motion.div>
         )}
 
-        {/* Failed HUD with high severity styling */}
+        {/* Failed HUD */}
         {step === 'failed' && (
           <motion.div key="failed" initial={{ opacity: 0, scale: 0.9 }}>
-             <Card className="bg-slate-900 border-red-500 shadow-[0_0_100px_rgba(239,68,68,0.2)] rounded-[2.5rem] overflow-hidden">
-                <div className="h-2 bg-red-500" />
-                <CardContent className="p-12 text-center space-y-8">
-                   <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border-2 border-red-500/30">
-                      <ShieldAlert className="w-12 h-12 text-red-500" />
+             <div className="glass-premium border-red-500 shadow-[0_0_120px_rgba(239,68,68,0.3)] rounded-[3rem] overflow-hidden relative">
+                <div className="h-2 bg-red-500 animate-pulse" />
+                <CardContent className="p-12 text-center space-y-10">
+                   <motion.div 
+                     animate={{ rotate: [-5, 5, -5] }} 
+                     transition={{ repeat: Infinity, duration: 0.5 }}
+                     className="w-28 h-28 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border-2 border-red-500/30 shadow-[0_0_40px_rgba(239,68,68,0.2)]"
+                   >
+                      <ShieldAlert className="w-14 h-14 text-red-500" />
+                   </motion.div>
+                   <div className="space-y-4">
+                      <p className="text-[10px] font-black text-red-500 uppercase tracking-[0.6em]">Security Protocol Breach</p>
+                      <h2 className="text-fluid-lg font-black text-white italic tracking-tighter uppercase leading-none">Access Denied</h2>
+                      <p className="text-red-400/80 font-bold text-lg leading-relaxed px-4">{errorMsg}</p>
                    </div>
-                   <div className="space-y-3">
-                      <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase underline decoration-red-500 decoration-4 underline-offset-8">Security Alert</h2>
-                      <p className="text-red-400 font-bold text-lg pt-4">{errorMsg}</p>
+                   <div className="p-8 glass-premium bg-slate-950/40 rounded-[2rem] border border-white/5 text-[10px] text-slate-500 text-left space-y-4 font-mono">
+                      <p className="flex justify-between items-center"><span className="text-slate-400 font-black">LOG_ID:</span> <span className="text-white">#{Math.random().toString(36).substring(7).toUpperCase()}</span></p>
+                      <p className="flex justify-between items-center"><span className="text-slate-400 font-black">FOCUS_VIOLATIONS:</span> <span className="text-amber-500 font-black">{focusViolations}</span></p>
+                      <div className="w-full h-[1px] bg-white/5" />
+                      <p className="text-center font-black text-red-500/60 tracking-widest uppercase">System Escalate to Administrator</p>
                    </div>
-                   <div className="p-6 bg-slate-950 rounded-[1.5rem] border border-slate-800 text-[10px] text-slate-500 text-left space-y-3 font-mono">
-                      <p className="flex justify-between items-center"><span className="font-black">REASON:</span> <span className="text-red-300">{errorMsg.substring(0, 20)}...</span></p>
-                      <p className="flex justify-between items-center"><span className="font-black">FOCUS_VIOLATIONS:</span> <span className="text-amber-500">{focusViolations}</span></p>
-                      <p className="flex justify-between items-center font-black text-white">SYSTEM_LOGGED: AUTOMATIC_ADMIN_ESCALATION</p>
-                   </div>
-                   <Button variant="outline" className="w-full border-slate-700 hover:bg-slate-800 py-6 rounded-2xl text-slate-300 uppercase font-black tracking-widest" onClick={() => window.location.reload()}>
-                      Retry Session
+                   <Button 
+                     variant="outline" 
+                     className="w-full glass-premium border-white/10 hover:bg-white/5 py-8 rounded-[2rem] text-white uppercase font-black tracking-[0.4em] transition-all" 
+                     onClick={() => window.location.reload()}
+                   >
+                      Retry Authenticator
                    </Button>
                 </CardContent>
-             </Card>
+             </div>
           </motion.div>
         )}
       </AnimatePresence>

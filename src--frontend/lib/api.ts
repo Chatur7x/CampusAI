@@ -1284,7 +1284,16 @@ export const timetableService = {
       console.warn('timetable_with_relations view missing, falling back');
       const { data: fallback, error: fError } = await supabase
         .from('timetable_entries')
-        .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
+        .select(`
+          *,
+          subject:subjects(
+            id, 
+            name, 
+            code,
+            course:courses(id, name, code)
+          ),
+          class:classes(id, name, section)
+        `)
         .eq('class_id', classId)
         .eq('is_active', true)
         .order('day_of_week')
@@ -1317,7 +1326,16 @@ export const timetableService = {
     if (error) {
       const { data: fallback, error: fError } = await supabase
         .from('timetable_entries')
-        .select(`*, course:courses(id, name, code), class:classes(id, name, section)`)
+        .select(`
+          *,
+          subject:subjects(
+            id, 
+            name, 
+            code,
+            course:courses(id, name, code)
+          ),
+          class:classes(id, name, section)
+        `)
         .eq('faculty_id', facultyId)
         .eq('is_active', true)
         .order('day_of_week')

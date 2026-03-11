@@ -324,20 +324,22 @@ export default function AdminOverview() {
 
   return (
     <div className="space-y-6">
-      {/* Optimized Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-blue-500/20 bg-gradient-to-r from-[rgba(2,6,23,0.8)] via-[rgba(15,23,42,0.8)] to-[rgba(6,78,59,0.3)] p-8 shadow-[0_0_40px_rgba(59,130,246,0.15)] flex-1 backdrop-blur-xl">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.15),transparent_50%)]" />
-        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-[80px]" />
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-300 via-white to-emerald-300 bg-clip-text text-transparent drop-shadow-lg">
-              Admin Portal
+      <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 glass-premium p-10 shadow-[0_25px_80px_rgba(0,0,0,0.5)] group">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-slate-900/40 to-emerald-500/10 opacity-50" />
+        <div className="absolute top-0 right-0 p-10 flex gap-3">
+           <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+           <div className="w-2.5 h-2.5 rounded-full bg-blue-500/40" />
+           <div className="w-2.5 h-2.5 rounded-full bg-blue-500/20" />
+        </div>
+        <div className="relative flex flex-wrap items-center justify-between gap-6">
+          <div className="space-y-4">
+            <h1 className="text-5xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-2xl">
+              System <span className="text-blue-400">Directorate</span>
             </h1>
-            <p className="text-blue-100/70 text-lg tracking-wide font-medium">Live campus control: students, faculty, security.</p>
+            <p className="text-slate-400 font-bold uppercase text-xs tracking-[0.5em]">Enterprise Campus Governance & Intelligence</p>
           </div>
-          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-300 border-emerald-500/30 px-4 py-2 text-sm w-fit shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-            <Link2 className="w-4 h-4 mr-2" />
-            Blockchain Verified
+          <Badge className="bg-blue-500/10 text-blue-300 border border-blue-500/20 px-8 py-3 font-black text-xs tracking-[0.2em] rounded-full shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+            <Link2 className="w-4 h-4 mr-3" /> BLOCKCHAIN_VERIFIED_NODE
           </Badge>
         </div>
       </div>

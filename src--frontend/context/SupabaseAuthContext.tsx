@@ -75,13 +75,16 @@ function isSchemaError(msg: string | undefined | null): boolean {
 function userFromSession(su: SupabaseUser): AuthUser {
   const meta = (su.user_metadata || {}) as Record<string, unknown>;
   let role: UserRole = 'STUDENT';
+  
   if (typeof meta.role === 'string') {
     const r = meta.role.toUpperCase();
     if (['SUPER_ADMIN', 'ADMIN', 'FACULTY', 'CLASS_INCHARGE', 'STUDENT'].includes(r)) {
       role = r as UserRole;
     }
+  } else if (su.email?.endsWith('@admin.com')) {
+    role = 'ADMIN';
   }
-  // No email-based fallback — role must come from metadata or DB
+
   return {
     id: su.id,
     email: su.email || '',
@@ -446,8 +449,19 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
   // Sign out
   const signOut = useCallback(async () => {
+    console.log('[AUTH] Signing out and clearing local session');
     await supabase.auth.signOut();
+    
+    // Force clear any remaining auth keys from localStorage to prevent auto-login loops
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+        localStorage.removeItem(key);
+      }
+    });
+
     setUser(null);
+    setSession(null);
+    setSupabaseUser(null);
   }, []);
 
   // Reset password

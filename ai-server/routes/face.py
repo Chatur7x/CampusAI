@@ -77,7 +77,12 @@ async def register_face(req: RegisterRequest):
     """Multi-image face enrollment."""
     student = fetch_student_by_user(req.user_id)
     if not student:
-        raise HTTPException(404, "Student not found for this user")
+        # Log this for debugging
+        print(f"[ERROR] Registration failed: Student not found for user_id {req.user_id}")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Registration Blocked: No student record found for user {req.user_id}. Please contact admin to ensure your student profile is initialized."
+        )
 
     result = generate_multi_embedding(req.images)
     if not result.get("face_detected"):

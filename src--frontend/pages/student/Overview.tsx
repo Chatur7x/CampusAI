@@ -296,22 +296,24 @@ export default function StudentOverview() {
         : "#ef4444";
 
   return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-r from-slate-900 via-slate-900/60 to-emerald-900/30 p-6 shadow-[0_25px_60px_rgba(0,0,0,0.45)]">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_80%_40%,rgba(59,130,246,0.1),transparent_35%)]" />
-        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="relative flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-white">Student Portal</h1>
-          <p className="text-slate-300">
-            Live attendance, schedule, and notices.
-          </p>
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/30">
-              Live tracking
-            </Badge>
-            <Badge className="bg-cyan-500/15 text-cyan-200 border-cyan-500/30">
-              Adaptive routing
-            </Badge>
+    <div className="space-y-8 max-w-[1600px] mx-auto">
+      <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 glass-premium p-8 shadow-[0_25px_80px_rgba(0,0,0,0.5)] group">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-slate-900/40 to-cyan-500/10 opacity-50" />
+        <div className="absolute top-0 right-0 p-8 flex gap-3">
+           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+           <div className="w-2 h-2 rounded-full bg-emerald-500/40" />
+           <div className="w-2 h-2 rounded-full bg-emerald-500/20" />
+        </div>
+        <div className="relative flex flex-wrap items-center justify-between gap-6">
+          <div className="space-y-3">
+            <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-2xl">
+              Neural <span className="text-emerald-400">Terminal</span>
+            </h1>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Personal Academic Integrity Dashboard</p>
+          </div>
+          <div className="flex gap-4">
+            <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-6 py-2 font-black text-[10px] tracking-widest uppercase rounded-full">Entity Status: Student</Badge>
+            <Badge className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-6 py-2 font-black text-[10px] tracking-widest uppercase rounded-full">Secure Sync: Online</Badge>
           </div>
         </div>
       </div>

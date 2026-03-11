@@ -228,24 +228,39 @@ export default function AttendanceSessionPage() {
   }, [absentCount, presentCount, flaggedCount]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-white italic truncate tracking-tighter uppercase">Attendance Session</h1>
-          <p className="text-slate-500 text-sm font-medium">
+    <div className="space-y-6 relative">
+      {/* HUD Scanning Line Effect */}
+      {isSessionActive && <div className="scanning-line" />}
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 relative z-10">
+        <div className="space-y-1">
+          <h1 className="text-fluid-xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
+            <span className="w-2 h-8 bg-emerald-500 rounded-full animate-pulse" />
+            Command Center
+          </h1>
+          <p className="text-slate-400 text-sm font-medium flex items-center gap-2">
+            <span className="text-emerald-500 font-mono">[LIVE_PROTOCOLS_ACTIVE]</span> 
             {selectedEntry
               ? `${selectedEntry.course?.name || 'Subject'} • ${selectedEntry.class?.name || 'Class'}`
-              : 'Secure Verification Portal'}
+              : 'Verifying Identity Systems...'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {!isSessionActive ? (
-            <Button onClick={startSession} className="bg-emerald-600 hover:bg-emerald-500 py-6 px-8 rounded-2xl shadow-lg shadow-emerald-900/20 font-bold" disabled={isLoadingData || !selectedEntry}>
+            <Button 
+              onClick={startSession} 
+              className="bg-emerald-600 hover:bg-emerald-500 py-7 px-10 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.3)] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all"
+              disabled={isLoadingData || !selectedEntry}
+            >
               <Camera className="w-5 h-5 mr-3" />
               Initialize Portal
             </Button>
           ) : (
-            <Button onClick={endSession} variant="destructive" className="py-6 px-8 rounded-2xl shadow-lg shadow-red-900/20 font-bold">
+            <Button 
+              onClick={endSession} 
+              variant="destructive" 
+              className="py-7 px-10 rounded-2xl shadow-[0_10px_30px_rgba(239,68,68,0.3)] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all"
+            >
               Finalize & Lock
             </Button>
           )}
@@ -254,191 +269,235 @@ export default function AttendanceSessionPage() {
 
       <AnimatePresence>
         {isSessionActive && sessionCode && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-            <Card className="bg-slate-900 border-cyan-500/20 overflow-hidden relative rounded-3xl group">
+          <motion.div 
+            initial={{ height: 0, opacity: 0, scale: 0.95 }} 
+            animate={{ height: 'auto', opacity: 1, scale: 1 }} 
+            exit={{ height: 0, opacity: 0, scale: 0.95 }}
+            className="relative z-10"
+          >
+            <div className="glass-premium hud-border overflow-hidden relative rounded-3xl p-8 mb-8">
               <div className="absolute top-0 right-0 p-4">
-                <Badge className="bg-cyan-500/10 text-cyan-400 border-none animate-pulse">LIVE GEO-FENCING</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-none animate-pulse-emerald flex items-center gap-2 px-4 py-1.5 font-black uppercase tracking-widest">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                  Live Geo-Fencing
+                </Badge>
               </div>
-              <CardContent className="p-8 flex flex-col md:flex-row items-center justify-between gap-10">
-                <div className="space-y-2">
-                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">Access Protocol</h3>
-                   <p className="text-2xl font-bold text-white tracking-tight">Broadcast Session Token</p>
+              
+              <div className="flex flex-col md:flex-row items-center justify-between gap-12">
+                <div className="space-y-3">
+                   <h3 className="text-fluid-xs font-black text-slate-500 uppercase tracking-[0.4em]">Broadcast Session Token</h3>
+                   <p className="text-fluid-lg font-bold text-white tracking-tight">Active Authenticator</p>
                 </div>
+                
                 <div className="flex items-center gap-4">
                   {sessionCode.split('').map((char, i) => (
                     <motion.div 
                       key={i} 
-                      whileHover={{ scale: 1.1, rotate: 2 }}
-                      className="w-16 h-20 bg-slate-950 border-2 border-slate-800 rounded-2xl flex items-center justify-center text-5xl font-black text-cyan-400 shadow-2xl"
+                      whileHover={{ scale: 1.1, y: -5 }}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="w-14 sm:w-16 md:w-20 h-20 md:h-24 glass-premium border-emerald-500/30 rounded-2xl flex items-center justify-center text-4xl md:text-5xl font-black text-white shadow-[0_10px_40px_rgba(16,185,129,0.15)] relative overflow-hidden group"
                     >
+                      <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/10 to-transparent group-hover:from-emerald-500/20" />
                       {char}
                     </motion.div>
                   ))}
                 </div>
+                
                 <div className="hidden lg:block text-right">
-                   <p className="text-[10px] font-black text-slate-600 uppercase mb-2">Security Hash</p>
-                   <p className="text-xs font-mono text-slate-400">{activeSession?.id.substring(0, 16)}...</p>
+                   <p className="text-[10px] font-black text-slate-600 uppercase mb-2 tracking-[0.3em]">Security SHA-256 Hash</p>
+                   <p className="text-[10px] font-mono text-emerald-500/60 bg-emerald-500/5 px-2 py-1 rounded-md">{activeSession?.id.replace(/-/g, '')}</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
         {[
-          { label: 'Verified', val: presentCount, color: 'text-emerald-400', icon: CheckCircle },
-          { label: 'Flagged', val: flaggedCount, color: 'text-amber-400', icon: ShieldAlert },
-          { label: 'Absent', val: absentCount, color: 'text-red-400', icon: XCircle },
-          { label: 'Live %', val: `${stats.currentPct}%`, color: 'text-white', icon: Users },
+          { label: 'Verified', val: presentCount, color: 'text-emerald-400', icon: CheckCircle, bg: 'bg-emerald-500/5' },
+          { label: 'Flagged', val: flaggedCount, color: 'text-amber-400', icon: ShieldAlert, bg: 'bg-amber-500/5' },
+          { label: 'Absent', val: absentCount, color: 'text-red-400', icon: XCircle, bg: 'bg-red-500/5' },
+          { label: 'Live %', val: `${stats.currentPct}%`, color: 'text-white', icon: Users, bg: 'bg-white/5' },
         ].map((s, i) => (
-          <Card key={i} className="bg-slate-900/50 border-slate-800/50 rounded-2xl">
-            <CardContent className="p-5 flex items-center justify-between">
-              <div>
+          <Card key={i} className={`${s.bg} border-slate-800/50 rounded-2xl overflow-hidden glass-premium group hover:border-emerald-500/30 transition-all duration-300`}>
+            <CardContent className="p-6 flex items-center justify-between">
+              <div className="space-y-1">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{s.label}</p>
-                <p className={`text-3xl font-black mt-1 ${s.color}`}>{s.val}</p>
+                <div className="flex items-baseline gap-1">
+                  <p className={`text-fluid-md font-black ${s.color}`}>{s.val}</p>
+                  {i < 3 && <span className="text-[10px] text-slate-600 font-mono">/ {roster.length}</span>}
+                </div>
               </div>
-              <s.icon className={`w-8 h-8 ${s.color} opacity-20`} />
+              <div className={`p-3 rounded-xl ${s.bg} border border-white/5 group-hover:scale-110 transition-transform`}>
+                <s.icon className={`w-6 h-6 ${s.color}`} />
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Tabs defaultValue="live" className="w-full">
-        <TabsList className="bg-slate-900 border border-slate-800 p-1 h-auto rounded-2xl">
-          <TabsTrigger value="live" className="rounded-xl px-6 py-3 font-bold data-[state=active]:bg-cyan-600">Verification Feed</TabsTrigger>
-          <TabsTrigger value="flagged" className="rounded-xl px-6 py-3 font-bold data-[state=active]:bg-amber-600">Review Required <Badge className="ml-2 bg-white/20">{flaggedCount}</Badge></TabsTrigger>
-          <TabsTrigger value="all" className="rounded-xl px-6 py-3 font-bold">Comprehensive Roster</TabsTrigger>
-        </TabsList>
+      <div className="relative z-10">
+        <Tabs defaultValue="live" className="w-full">
+          <TabsList className="bg-slate-900/50 backdrop-blur-md border border-slate-800 p-1.5 h-auto rounded-2xl flex w-fit gap-1">
+            <TabsTrigger value="live" className="rounded-xl px-8 py-3.5 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-emerald-600 transition-all">Verification Feed</TabsTrigger>
+            <TabsTrigger value="flagged" className="rounded-xl px-8 py-3.5 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-amber-600 transition-all">
+              Security Flags <Badge className="ml-2 bg-white/20 border-none px-2">{flaggedCount}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="all" className="rounded-xl px-8 py-3.5 font-black uppercase text-[10px] tracking-widest transition-all">Full Roster</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="flagged" className="space-y-4 mt-6">
-           {flaggedStudents.length === 0 ? (
-             <Card className="bg-slate-900/30 border-dashed border-slate-800 py-20 text-center">
-                <CheckCircle className="w-12 h-12 text-emerald-500/20 mx-auto mb-4" />
-                <p className="text-slate-500 font-bold uppercase tracking-widest">No Security Flags Detected</p>
-             </Card>
-           ) : (
-             <div className="grid grid-cols-1 gap-3">
-                {flaggedStudents.map(student => (
-                   <Card key={student.id} className="bg-slate-900/80 border-amber-500/20 rounded-2xl overflow-hidden">
-                      <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                         <div className="flex items-center gap-4">
-                            <Avatar className="w-12 h-12 border-2 border-amber-500/30">
-                               <AvatarFallback className="bg-amber-500/10 text-amber-400 font-bold">{student.name[0]}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                               <p className="font-black text-white">{student.name}</p>
-                               <div className="flex items-center gap-2 mt-1">
-                                  <Badge variant="outline" className="text-[9px] text-amber-500 border-amber-500/30">{student.remarks || 'SUSPICIOUS_IDENTITY'}</Badge>
-                                  <span className="text-[10px] text-slate-500 font-mono">CONF: {(student.confidence || 0 * 100).toFixed(0)}%</span>
+          <TabsContent value="flagged" className="space-y-4 mt-8">
+             {flaggedStudents.length === 0 ? (
+               <Card className="bg-slate-900/20 border-dashed border-slate-800 py-24 text-center rounded-3xl">
+                  <div className="mx-auto w-16 h-16 bg-emerald-500/5 rounded-full flex items-center justify-center border border-emerald-500/10 mb-6">
+                    <CheckCircle className="w-8 h-8 text-emerald-500/30" />
+                  </div>
+                  <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px]">No Security Anomalies Detected</p>
+               </Card>
+             ) : (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {flaggedStudents.map(student => (
+                     <Card key={student.id} className="glass-premium border-amber-500/30 rounded-3xl overflow-hidden group hover:border-amber-500/50 transition-all">
+                        <CardContent className="p-6">
+                           <div className="flex items-center justify-between mb-6">
+                              <div className="flex items-center gap-4">
+                                <div className="relative">
+                                  <Avatar className="w-14 h-14 border-2 border-amber-500/30 rounded-2xl">
+                                     <AvatarFallback className="bg-amber-500/10 text-amber-400 font-black text-xl">{student.name[0]}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-slate-900 animate-pulse" />
+                                </div>
+                                <div className="space-y-1">
+                                   <p className="font-black text-white text-lg tracking-tight">{student.name}</p>
+                                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">ID: {student.enrollmentId}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                 <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 px-3 py-1 font-black bg-amber-500/5 mb-2">
+                                    {student.remarks || 'PROXY_SUSPECTED'}
+                                 </Badge>
+                                 <p className="text-[10px] text-slate-500 font-mono">CONFIDENCE: <span className="text-white">{(student.confidence || 0 * 100).toFixed(0)}%</span></p>
+                              </div>
+                           </div>
+                           <div className="grid grid-cols-2 gap-3">
+                              <Button size="lg" className="bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => markAttendance(student.id, 'PRESENT', student.recordId)}>
+                                Override & Approve
+                              </Button>
+                              <Button size="lg" variant="destructive" className="rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => markAttendance(student.id, 'ABSENT', student.recordId)}>
+                                Confirm Fraud
+                              </Button>
+                           </div>
+                        </CardContent>
+                     </Card>
+                  ))}
+               </div>
+             )}
+          </TabsContent>
+
+          <TabsContent value="live" className="mt-8">
+             <Card className="glass-premium hud-border rounded-3xl overflow-hidden relative">
+                <div className="bg-white/5 p-4 border-b border-white/10 flex justify-between items-center px-8 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-emerald-500/5 shimmer" />
+                  <CardTitle className="text-fluid-xs font-black text-white italic uppercase tracking-widest relative z-10 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                    Live Biometric Stream
+                  </CardTitle>
+                  <div className="flex items-center gap-3 relative z-10">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocol Sync</span>
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-none font-black px-4">ENCRYPTED</Badge>
+                  </div>
+                </div>
+                <CardContent className="p-0">
+                   <div className="divide-y divide-white/5 max-h-[600px] overflow-y-auto custom-scrollbar">
+                      {mergedStudents.filter(s => s.status !== 'PENDING').sort((a,b) => (a.status === 'FLAGGED' ? -1 : 1)).map(student => (
+                         <div key={student.id} className="p-5 flex items-center justify-between hover:bg-white/[0.03] transition-colors group">
+                            <div className="flex items-center gap-5">
+                               <div className={`w-1.5 h-12 rounded-full ${student.status === 'PRESENT' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]'}`} />
+                               <div className="space-y-1">
+                                  <p className="font-black text-white text-base tracking-tight">{student.name}</p>
+                                  <div className="flex items-center gap-3">
+                                    <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">ID: {student.enrollmentId.substring(0,8)}</p>
+                                    <span className="w-1 h-1 bg-white/10 rounded-full" />
+                                    <p className="text-[10px] text-emerald-500/70 font-mono">METHOD_{student.method || 'AI_V2'}</p>
+                                  </div>
                                </div>
                             </div>
+                            <div className="flex items-center gap-8">
+                               <div className="text-right space-y-1">
+                                  <p className={`text-xs font-black uppercase tracking-widest ${student.status === 'PRESENT' ? 'text-emerald-400' : 'text-amber-400'}`}>{student.status}</p>
+                                  <p className="text-[10px] font-mono text-slate-600">AUTH_LEVEL: <span className="text-white">{(student.confidence || 0.9 * 100).toFixed(0)}%</span></p>
+                               </div>
+                               <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl" onClick={() => markAttendance(student.id, 'ABSENT', student.recordId)}>
+                                  <XCircle className="w-5 h-5" />
+                                </Button>
+                            </div>
                          </div>
-                         <div className="flex gap-2">
-                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500 rounded-xl" onClick={() => markAttendance(student.id, 'PRESENT', student.recordId)}>
-                               Approve Manually
-                            </Button>
-                            <Button size="sm" variant="destructive" className="rounded-xl" onClick={() => markAttendance(student.id, 'ABSENT', student.recordId)}>
-                               Confirm Fraud
-                            </Button>
+                      ))}
+                      {mergedStudents.filter(s => s.status !== 'PENDING').length === 0 && (
+                         <div className="py-24 text-center">
+                            <Brain className="w-12 h-12 text-slate-800 mx-auto mb-6 opacity-20" />
+                            <p className="text-slate-600 uppercase text-[10px] font-black tracking-[0.5em] animate-pulse">Initializing Intelligent Scan Feed...</p>
                          </div>
-                      </CardContent>
-                   </Card>
-                ))}
-             </div>
-           )}
-        </TabsContent>
+                      )}
+                   </div>
+                </CardContent>
+             </Card>
+          </TabsContent>
 
-        <TabsContent value="live" className="mt-6">
-           <Card className="bg-slate-900/50 border-slate-800 rounded-3xl overflow-hidden">
-              <CardHeader className="bg-slate-900/80 p-6 border-b border-slate-800">
-                 <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-black text-white italic uppercase tracking-wider">Verification Stream</CardTitle>
-                    <Badge className="bg-blue-500/10 text-blue-400">REAL-TIME SYNC</Badge>
-                 </div>
-              </CardHeader>
+          <TabsContent value="all" className="mt-8">
+            <Card className="glass-premium rounded-3xl overflow-hidden border-white/5">
               <CardContent className="p-0">
-                 <div className="divide-y divide-slate-800">
-                    {mergedStudents.filter(s => s.status !== 'PENDING').sort((a,b) => (a.status === 'FLAGGED' ? -1 : 1)).map(student => (
-                       <div key={student.id} className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
-                          <div className="flex items-center gap-4">
-                             <div className={`w-2 h-10 rounded-full ${student.status === 'PRESENT' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                             <div>
-                                <p className="font-bold text-white text-sm">{student.name}</p>
-                                <p className="text-[10px] text-slate-500 tracking-wider">METHOD: {student.method || 'AI_FACE'}</p>
-                             </div>
-                          </div>
-                          <div className="flex items-center gap-6">
-                             <div className="text-right">
-                                <p className={`text-xs font-black ${student.status === 'PRESENT' ? 'text-emerald-400' : 'text-amber-400'}`}>{student.status}</p>
-                                <p className="text-[10px] font-mono text-slate-600">ACCURACY: {(student.confidence || 0.9 * 100).toFixed(0)}%</p>
-                             </div>
-                             <Button variant="ghost" size="sm" className="text-slate-500" onClick={() => markAttendance(student.id, 'ABSENT', student.recordId)}>
-                                <XCircle className="w-4 h-4" />
-                             </Button>
-                          </div>
-                       </div>
-                    ))}
-                    {mergedStudents.filter(s => s.status !== 'PENDING').length === 0 && (
-                       <div className="py-20 text-center text-slate-600 uppercase text-[10px] font-black tracking-[0.4em]">
-                          Awaiting scan entries...
-                       </div>
-                    )}
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                       <thead>
+                          <tr className="bg-white/5 border-b border-white/10">
+                             <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Profile</th>
+                             <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Identity Status</th>
+                             <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Emergency Override</th>
+                          </tr>
+                       </thead>
+                       <tbody className="divide-y divide-white/[0.03]">
+                          {mergedStudents.map(student => (
+                             <tr key={student.id} className="group hover:bg-white/[0.02] transition-colors">
+                                <td className="p-6">
+                                   <div className="flex items-center gap-4">
+                                      <Avatar className="w-10 h-10 rounded-xl border border-white/10 group-hover:border-emerald-500/30 transition-all">
+                                         <AvatarFallback className="bg-slate-800 text-slate-400 text-xs font-black">{student.name[0]}</AvatarFallback>
+                                      </Avatar>
+                                      <div className="space-y-0.5">
+                                         <p className="text-base font-black text-white tracking-tight">{student.name}</p>
+                                         <p className="text-[10px] text-slate-600 font-mono tracking-widest">{student.enrollmentId}</p>
+                                      </div>
+                                   </div>
+                                </td>
+                                <td className="p-6 text-center">
+                                   <Badge className={`${getStatusColor(student.status)} border-none text-[10px] px-4 py-1.5 rounded-full font-black uppercase tracking-widest`}>
+                                      {student.status}
+                                   </Badge>
+                                </td>
+                                <td className="p-6 text-right">
+                                   <div className="flex justify-end gap-3 opacity-20 group-hover:opacity-100 transition-all">
+                                      <Button size="icon" variant="ghost" className="h-10 w-10 text-emerald-500 hover:bg-emerald-500/10 rounded-xl" onClick={() => markAttendance(student.id, 'PRESENT', student.recordId)}>
+                                         <CheckCircle className="h-5 w-5" />
+                                      </Button>
+                                      <Button size="icon" variant="ghost" className="h-10 w-10 text-red-500 hover:bg-red-500/10 rounded-xl" onClick={() => markAttendance(student.id, 'ABSENT', student.recordId)}>
+                                         <XCircle className="h-5 w-5" />
+                                      </Button>
+                                   </div>
+                                </td>
+                             </tr>
+                          ))}
+                       </tbody>
+                    </table>
                  </div>
               </CardContent>
-           </Card>
-        </TabsContent>
-
-        <TabsContent value="all" className="mt-6">
-          <Card className="bg-slate-900/50 border-slate-800 rounded-3xl overflow-hidden">
-            <CardContent className="p-0">
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                     <thead className="bg-slate-900/80 border-b border-slate-800">
-                        <tr>
-                           <th className="p-5 text-[10px] font-black text-slate-500 uppercase">Student</th>
-                           <th className="p-5 text-[10px] font-black text-slate-500 uppercase">Status</th>
-                           <th className="p-5 text-[10px] font-black text-slate-500 uppercase text-right">Actions</th>
-                        </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-800/50">
-                        {mergedStudents.map(student => (
-                           <tr key={student.id} className="group hover:bg-slate-800/20 transition-colors">
-                              <td className="p-5">
-                                 <div className="flex items-center gap-3">
-                                    <Avatar className="w-8 h-8 rounded-lg">
-                                       <AvatarFallback className="bg-slate-800 text-slate-400 text-[10px]">{student.name[0]}</AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                       <p className="text-sm font-bold text-white">{student.name}</p>
-                                       <p className="text-[10px] text-slate-600">{student.enrollmentId}</p>
-                                    </div>
-                                 </div>
-                              </td>
-                              <td className="p-5">
-                                 <Badge className={`${getStatusColor(student.status)} border-none text-[9px] px-2 font-black`}>
-                                    {student.status}
-                                 </Badge>
-                              </td>
-                              <td className="p-5 text-right">
-                                 <div className="flex justify-end gap-1 opacity-10 group-hover:opacity-100 transition-opacity">
-                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-400" onClick={() => markAttendance(student.id, 'PRESENT', student.recordId)}>
-                                       <CheckCircle className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400" onClick={() => markAttendance(student.id, 'ABSENT', student.recordId)}>
-                                       <XCircle className="h-4 w-4" />
-                                    </Button>
-                                 </div>
-                              </td>
-                           </tr>
-                        ))}
-                     </tbody>
-                  </table>
-               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
