@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { auditLogService } from '@/lib/api';
 import { toast } from 'sonner';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { captureFrame, verifyFace } from '@/lib/ai/apiClient';
 
 // Anurag University campus coordinates
 const CAMPUS_LAT = 17.5023;
@@ -32,6 +33,8 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
   const [livenessProgress, setLivenessProgress] = useState(0);
   const [attendanceStatus, setAttendanceStatus] = useState<'idle'|'submitting'|'success'|'bluetooth'>('idle');
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [probeImage, setProbeImage] = useState<string>('');
+  const [livenessFrames, setLivenessFrames] = useState<string[]>([]);
   const [verificationHash, setVerificationHash] = useState('');
   const [attendanceRecord, setAttendanceRecord] = useState<any>(null);
   
@@ -218,6 +221,15 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
     );
   };
 
+  const setVideoRef = (element: HTMLVideoElement | null) => {
+    (videoRef as any).current = element;
+    if (element && streamRef.current && element.srcObject !== streamRef.current) {
+      element.srcObject = streamRef.current;
+      element.play().catch(console.error);
+    }
+  };
+  const streamRef = useRef<MediaStream | null>(null);
+
   const startCamera = async () => {
     try {
       // Lowering resolution request to consume less RAM and increase FPS
@@ -229,6 +241,8 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
           frameRate: { ideal: 30 } // Cap FPS to steady rates instead of maxing CPU
         } 
       });
+      streamRef.current = stream;
+      // If ref is already bound (very likely since we transition step before calling)
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -239,52 +253,53 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
   };
 
   const runLivenessChecks = () => {
-    // Array of potential randomized tasks
-    const tasksPool = [
-      "Blink 3 times",
+    if (!videoRef.current) return;
+    
+    // 1. Capture main probe image immediately once stream stabilizes
+    setTimeout(() => {
+        if (videoRef.current) {
+           const probe = captureFrame(videoRef.current, 0.85);
+           setProbeImage(probe);
+        }
+    }, 1000); // 1-second grace period for camera exposure
+
+    const LIVENESS_FRAMES = 5;
+    const instructions = [
+      "Blink naturally",
       "Turn head slightly left",
       "Turn head slightly right",
       "Smile widely",
-      "Look up at the ceiling",
-      "Nod your head up and down"
+      "Look straight ahead"
     ];
 
-    // Shuffle and pick 2 random challenges
-    const randomlySelected = tasksPool.sort(() => 0.5 - Math.random()).slice(0, 2);
+    let idx = 0;
+    const frames: string[] = [];
+    setLivenessChallenge(instructions[0]);
+    setLivenessProgress(0);
 
-    const challenges = [
-      { text: `Task 1: ${randomlySelected[0]}`, delay: 3000 },
-      { text: `Task 2: ${randomlySelected[1]}`, delay: 7000 },
-      { text: "Analyzing 3D micro-expressions...", delay: 11000 },
-      { text: "Face & Liveness Verified!", delay: 13000 }
-    ];
-
-    challenges.forEach((c) => {
-      setTimeout(() => {
-        setLivenessChallenge(c.text);
-        if (c.text.includes("Verified")) {
-          setStep(4);
-        }
-      }, c.delay);
-    });
-
-    // Progress bar animation
-    let prog = 0;
     const interval = setInterval(() => {
-      prog += 1;
-      setLivenessProgress(prog);
-      if (prog >= 100) clearInterval(interval);
-    }, 130);
+      if (!videoRef.current || videoRef.current.readyState < 4) return;
+      frames.push(captureFrame(videoRef.current, 0.7));
+      idx++;
+      setLivenessChallenge(instructions[Math.min(idx, instructions.length - 1)]);
+      setLivenessProgress(Math.round((idx / LIVENESS_FRAMES) * 100));
+
+      if (idx >= LIVENESS_FRAMES) {
+        clearInterval(interval);
+        setLivenessFrames(frames);
+        setLivenessChallenge("Liveness Frames Captured!");
+        setTimeout(() => setStep(4), 1000);
+      }
+    }, 1500); // giving user 1.5s per action
   };
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      const tracks = stream.getTracks();
-      tracks.forEach(track => {
-        track.stop();
-      });
-      videoRef.current.srcObject = null;
+    if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+    }
+    if (videoRef.current) {
+        videoRef.current.srcObject = null;
     }
   };
 
@@ -307,6 +322,31 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
     setAttendanceStatus('submitting');
     try {
       const studentId = user?.student?.id || user?.id || '';
+      
+      // 1. Python AI Verification (Connecting the Real Algorithm)
+      const verificationResponse = await verifyFace({
+          user_id: studentId,
+          image: probeImage,
+          liveness_frames: livenessFrames,
+          latitude: CAMPUS_LAT,
+          longitude: CAMPUS_LNG,
+          accuracy_m: 10,
+      });
+
+      const { match, similarity } = verificationResponse.match;
+      const livenessScore = verificationResponse.liveness.liveness_score ?? verificationResponse.liveness.avg_liveness_score ?? 0;
+      const livenessPass = verificationResponse.liveness.is_live;
+      const confScore = verificationResponse.confidence.score;
+
+      // 2. Reject Spoofs or Non-Matches strictly
+      if (!match) {
+          throw new Error(`Face does not match registered profile. Similarity: ${Math.round(similarity * 100)}%`);
+      }
+      if (!livenessPass) {
+          throw new Error(`Liveness check failed (Spoof detection triggered). Score: ${Math.round(livenessScore * 100)}%`);
+      }
+
+      // 3. Database Insert
       const { data, error } = await supabase
         .from('attendance')
         .insert({
@@ -316,7 +356,8 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
           date: new Date().toISOString().split('T')[0],
           status: 'PRESENT',
           method: 'AI_FACE',
-          confidence_score: 0.95,
+          confidence_score: confScore, // Using real AI confidence metric
+          face_similarity_score: similarity, // Optionally store the final face similarity
           device_info: navigator.userAgent.substring(0, 100),
         })
         .select('id, blockchain_hash, created_at')
@@ -517,7 +558,7 @@ export default function SecureAttendanceStudent({ subjectId, timetableEntryId }:
                 <div className="relative mx-auto w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden border-4 border-slate-800 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
                   {/* Camera feed */}
                   <video 
-                    ref={videoRef} 
+                    ref={setVideoRef} 
                     autoPlay 
                     playsInline 
                     muted 

@@ -95,13 +95,14 @@ export default function FaceAttendance() {
     return () => stopCamera();
   }, []);
 
-  // New Effect: Attach stream when video element becomes available (step changes)
-  useEffect(() => {
-    if ((step === 'face' || step === 'liveness') && videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(console.error);
+  // Callback ref: Attach stream instantly when video element mounts despite AnimatePresence delays
+  const setVideoRef = (element: HTMLVideoElement | null) => {
+    (videoRef as any).current = element;
+    if (element && streamRef.current && element.srcObject !== streamRef.current) {
+      element.srcObject = streamRef.current;
+      element.play().catch(console.error);
     }
-  }, [step]);
+  };
 
   const startVisibilityCheck = () => {
     intervalRef.current = setInterval(() => {
@@ -371,7 +372,7 @@ export default function FaceAttendance() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+                  <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className={`w-48 h-64 border-2 rounded-[50%] ${faceVisible ? 'border-green-500' : 'border-white/50'}`} />
                   </div>
@@ -394,7 +395,7 @@ export default function FaceAttendance() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+                  <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
                 </div>
                 <div className="space-y-2">
                   <div className="bg-primary/10 rounded-lg p-3 text-center">

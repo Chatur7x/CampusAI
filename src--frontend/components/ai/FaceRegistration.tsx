@@ -73,13 +73,14 @@ export default function FaceRegistration() {
     return () => stopCamera();
   }, []);
 
-  // New Effect: Attach stream when video element becomes available (step changes)
-  useEffect(() => {
-    if ((step === 'capture' || step === 'liveness') && videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(console.error);
+  // Callback ref: Attach stream instantly when video element mounts despite AnimatePresence delays
+  const setVideoRef = (element: HTMLVideoElement | null) => {
+    (videoRef as any).current = element;
+    if (element && streamRef.current && element.srcObject !== streamRef.current) {
+      element.srcObject = streamRef.current;
+      element.play().catch(console.error);
     }
-  }, [step]);
+  };
 
   // Simple face-visibility heuristic (brightness in center region)
   const startVisibilityCheck = () => {
@@ -252,7 +253,7 @@ export default function FaceRegistration() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+                  <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
                   <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ transform: 'scaleX(-1)' }} />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className={`w-48 h-64 border-2 rounded-[50%] transition-colors ${faceVisible ? 'border-green-500' : 'border-white/50'}`} />
@@ -288,7 +289,7 @@ export default function FaceRegistration() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+                  <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
                 </div>
                 <div className="space-y-2">
                   <div className="bg-primary/10 rounded-lg p-4 text-center">
