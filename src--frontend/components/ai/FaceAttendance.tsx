@@ -72,13 +72,16 @@ export default function FaceAttendance() {
   // ── Camera ──
 
   const startCamera = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' },
-    });
-    streamRef.current = stream;
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' },
+      });
+      streamRef.current = stream;
+      // We do NOT attach to videoRef here because the `<video>` element
+      // is only rendered when step is 'face' or 'liveness'.
+      // The stream will be attached via another useEffect when the step changes.
+    } catch (err) {
+      throw err;
     }
   };
 
@@ -88,7 +91,17 @@ export default function FaceAttendance() {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
   };
 
-  useEffect(() => () => stopCamera(), []);
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  // New Effect: Attach stream when video element becomes available (step changes)
+  useEffect(() => {
+    if ((step === 'face' || step === 'liveness') && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(console.error);
+    }
+  }, [step]);
 
   const startVisibilityCheck = () => {
     intervalRef.current = setInterval(() => {
