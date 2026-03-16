@@ -74,14 +74,73 @@ class AgingUpdateRequest(BaseModel):
 
 @router.post("/register")
 async def register_face(req: RegisterRequest):
-    """Multi-image face enrollment."""
-    student = fetch_student_by_user(req.user_id)
-    if not student:
+    """
+    Register a new face profile with multi-angle capture and liveness.
+    """
+    try:
+        # 1. Verify student exists first (Prevent 404 later)
+        student = fetch_student_by_user(req.user_id) # Kept existing fetch_student_by_user
+        if not student:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": f"Registration Blocked: No student record found for user {req.user_id}. Action Required: Please ensure an admin has created your student entry before enrolling biometrics."}
+            )
+
+        # 2. Liveness verification on sequence
+        liveness = analyse_liveness_sequence(req.liveness_frames, req.challenge_type)
+        if not liveness["is_live"]:
+            log_ai_decision(
+                decision_type="FACE_REGISTER_LIVENESS_FAIL",
+                student_id=student["id"],
+                user_id=req.user_id,
+                result={"success": False, "details": liveness},
+            )
+            return {"success": False, "error": "Liveness check failed", "details": liveness}
+
+        # 3. Generate multi-embedding from photos
+        # Extract base64 images from the list of photo dictionaries
+        images_base64 = [p["imageData"] for p in req.photos if "imageData" in p]
+        result = generate_multi_embedding(images_base64) # Changed to use images_base64 from photos
+
+        if not result.get("face_detected"):
+            log_ai_decision(
+                decision_type="FACE_REGISTER_NO_FACE",
+                student_id=student["id"],
+                user_id=req.user_id,
+                result={"success": False, "errors": result.get('errors')},
+            )
+            raise HTTPException(400, f"Face not detected: {result.get('errors')}")
+
+        embedding_json = json.dumps(result["embedding"])
+        update_face_data(student["id"], embedding_json)
+
+        # Audit log
+        log_ai_decision(
+            decision_type="FACE_REGISTER",
+            student_id=student["id"],
+            user_id=req.user_id,
+            result={"success": True, "images_processed": result["count"], "liveness_details": liveness},
+        )
+
+        return {
+            "success": True,
+            "student_id": student["id"],
+            "images_processed": result["count"],
+            "errors": result.get("errors"),
+            "liveness_details": liveness,
+        }
+    except Exception as e:
+        logger.error(f"Registration failed for user {req.user_id}: {e}", exc_info=True)
         # Log this for debugging
-        print(f"[ERROR] Registration failed: Student not found for user_id {req.user_id}")
+        error_detail = (
+            f"Registration Blocked: An unexpected error occurred during registration for user {req.user_id}. "
+            f"Error: {e}"
+        )
+        # The original code had a specific 404 for student not found, which is now handled by JSONResponse.
+        # This HTTPException is for other general errors.
         raise HTTPException(
-            status_code=404, 
-            detail=f"Registration Blocked: No student record found for user {req.user_id}. AI Server cannot enroll faces for uninitialized profiles. Please ensure an admin has created your student entry in the database (Students Management page)."
+            status_code=500,
+            detail=error_detail
         )
 
     result = generate_multi_embedding(req.images)
@@ -298,24 +357,13 @@ async def verify_face_endpoint(req: VerifyRequest):
 
 @router.post("/identify")
 async def identify_face_endpoint(req: IdentifyRequest):
-    """1:N face identification across enrolled students."""
-    students = fetch_all_students_with_faces(req.class_id)
-    if not students:
-        raise HTTPException(404, "No enrolled faces found")
-
-    candidates = []
-    for s in students:
-        try:
-            emb = json.loads(s["faceData"]) if isinstance(s["faceData"], str) else s["faceData"]
-            if emb:
-                candidates.append({"student_id": s["id"], "embedding": emb})
-        except Exception:
-            continue
-
-    if not candidates:
-        raise HTTPException(404, "No valid face embeddings")
-
-    result = identify_face(req.image, candidates)
+    """
+    Bio-Net v4: 1:N face identification across enrolled students.
+    Native HNSW Vector search.
+    """
+    # Bio-Net v4: No longer pulling all candidates into memory.
+    # The database handles the 512-D vector search via match_face_v4.
+    result = identify_face(req.image)
 
     # Audit log
     log_ai_decision(
@@ -335,6 +383,13 @@ async def identify_face_endpoint(req: IdentifyRequest):
         result["geo"] = validate_location(req.latitude, req.longitude)
 
     return result
+
+
+@router.post("/challenge")
+async def get_liveness_challenge():
+    """Generate a random liveness challenge."""
+    from models.liveness import generate_challenge
+    return generate_challenge()
 
 
 @router.post("/liveness")

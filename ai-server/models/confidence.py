@@ -94,71 +94,61 @@ def compute_confidence(
     shared_device: bool = False,
 ) -> ConfidenceResult:
     """
-    Compute a weighted 4-component confidence score.
-
-    Args:
-        face_similarity: 0..1 cosine similarity
-        liveness_score:  0..1 from anti-spoof pipeline
-        geo_accuracy:    0..1 (1 = on campus)
-        device_trust:    0..1 (1 = known device + IP)
+    Bio-Net v4: Multi-Factor Probabilistic Collapse.
+    Uses a non-linear approach: if any security pillar fails, the total confidence
+    collapses exponentially rather than decreasing linearly.
     """
-    face_similarity = max(0.0, min(1.0, face_similarity))
-    liveness_score  = max(0.0, min(1.0, liveness_score))
-    geo_accuracy    = max(0.0, min(1.0, geo_accuracy))
-    device_trust    = max(0.0, min(1.0, device_trust))
-
-    score = (
-        WEIGHTS["face"]     * face_similarity +
-        WEIGHTS["liveness"] * liveness_score +
-        WEIGHTS["geo"]      * geo_accuracy +
-        WEIGHTS["device"]   * device_trust
-    )
+    import math
     
-    # Penalize for hard security failures
-    if session_mismatch:
-        score -= 0.4
-    if proxy_location:
-        score -= 0.5
-    if shared_device:
-        score -= 0.3
-        
-    score = round(max(0.0, score), 4)
+    # 1. Base components
+    f = max(0.01, face_similarity)
+    l = max(0.01, liveness_score)
+    g = max(0.01, geo_accuracy)
+    d = max(0.01, device_trust)
+    
+    # 2. Probability product (Geometric Mean based logic)
+    # High confidence requires ALL factors to be high simultaneously
+    base_prob = (f ** 0.5) * (l ** 0.2) * (g ** 0.15) * (d ** 0.15)
+    
+    # 3. Apply Multi-Factor penalties (Exponential Collapse)
+    penalties = 1.0
+    if session_mismatch: penalties *= 0.3
+    if proxy_location: penalties *= 0.2
+    if shared_device: penalties *= 0.7
+    if impossible_travel: penalties *= 0.1
+    
+    score = base_prob * penalties
+    
+    # Sigmoid sharpening: accentuate the difference between 'good' and 'suspicious'
+    # Centered at 0.6, alpha = 8
+    score = 1.0 / (1.0 + math.exp(-8 * (score - 0.6)))
+    score = round(max(0.0, min(1.0, score)), 4)
 
     # Category thresholds
-    if score >= 0.80:
+    if score >= 0.85:
         category = "HIGH"
-    elif score >= 0.60:
+    elif score >= 0.65:
         category = "MEDIUM"
-    elif score >= 0.40:
+    elif score >= 0.45:
         category = "LOW"
     else:
         category = "REJECTED"
 
     # Suspicious flags
     flags: list[str] = []
-    if face_similarity < 0.5:
-        flags.append("LOW_FACE_SIMILARITY")
-    if liveness_score < 0.4:
-        flags.append("LIVENESS_CONCERN")
-    if geo_accuracy < 0.3:
-        flags.append("OUTSIDE_CAMPUS")
-    if device_trust < 0.3:
-        flags.append("UNKNOWN_DEVICE")
-    if impossible_travel:
-        flags.append("IMPOSSIBLE_TRAVEL")
-    if device_risk:
-        flags.append("HIGH_DEVICE_RISK")
-    if session_mismatch:
-        flags.append("SESSION_CODE_MISMATCH")
-    if proxy_location:
-        flags.append("PROXY_LOCATION_DETECTION")
-    if shared_device:
-        flags.append("SHARED_DEVICE_DETECTED")
+    if face_similarity < 0.55: flags.append("LOW_FACE_SIMILARITY")
+    if liveness_score < 0.5: flags.append("LIVENESS_CONCERN")
+    if geo_accuracy < 0.4: flags.append("OUTSIDE_CAMPUS")
+    if device_trust < 0.4: flags.append("UNKNOWN_DEVICE")
+    if impossible_travel: flags.append("IMPOSSIBLE_TRAVEL")
+    if device_risk: flags.append("HIGH_DEVICE_RISK")
+    if session_mismatch: flags.append("SESSION_CODE_MISMATCH")
+    if proxy_location: flags.append("PROXY_LOCATION_DETECTION")
+    if shared_device: flags.append("SHARED_DEVICE_DETECTED")
 
-    # Auto re-verification for border-line cases
+    # Auto re-verification
     requires_reverification = category == "LOW" or len(flags) >= 2 or session_mismatch
-    # Admin alert for rejected or heavily flagged
-    admin_alert = category == "REJECTED" or len(flags) >= 3 or proxy_location
+    admin_alert = category == "REJECTED" or len(flags) >= 3 or proxy_location or impossible_travel
 
     return ConfidenceResult(
         score=score,
@@ -168,7 +158,7 @@ def compute_confidence(
             "liveness_score": round(liveness_score, 4),
             "geo_accuracy": round(geo_accuracy, 4),
             "device_trust": round(device_trust, 4),
-            "weights": WEIGHTS,
+            "weights": "Non-Linear Sigmoid (v4)",
         },
         auto_approved=category in ("HIGH", "MEDIUM") and len(flags) == 0,
         flags=flags,

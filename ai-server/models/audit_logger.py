@@ -121,13 +121,44 @@ def log_ai_decision(
     # Store in memory
     _recent_logs.append(entry)
 
-    # Write to file
+    # Persist to Database (Supabase) via utils.db
+    try:
+        from utils.db import log_security_event, log_face_verification
+        
+        # 1. Log to generic security events if high risk
+        if fraud_flags or not approved or (confidence_score is not None and confidence_score < 0.7):
+            severity = "HIGH" if fraud_flags else "MEDIUM"
+            description = f"AI {decision_type} Decision: {decision_type} {'Approved' if approved else 'Rejected'}"
+            if fraud_flags:
+                description += f" | Flags: {', '.join(fraud_flags)}"
+            
+            log_security_event(
+                user_id=user_id or "system",
+                event_type=f"AI_{decision_type}",
+                severity=severity,
+                description=description,
+                metadata=entry
+            )
+            
+        # 2. Log to specific specialized tables if type-specific
+        if decision_type == "FACE_VERIFY" and student_id:
+            log_face_verification(
+                student_id=student_id,
+                similarity_score=similarity_score or 0.0,
+                device_id=device_fingerprint,
+                metadata={"confidence": confidence_score, "liveness": entry.get("liveness")}
+            )
+            
+    except Exception as e:
+        logger.warning(f"Database audit logging failed: {e}")
+
+    # Write to local file (redundancy)
     try:
         _ensure_log_dir()
         with open(_log_file_path(), "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
     except Exception as e:
-        logger.warning(f"Audit log write failed: {e}")
+        logger.warning(f"Audit log file write failed: {e}")
 
     return {"logged": True, "decision_id": f"d_{int(entry['epoch'] * 1000)}"}
 

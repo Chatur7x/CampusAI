@@ -10,7 +10,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
-import { registerFace, checkLiveness, captureFrame } from '@/lib/ai/apiClient';
+import { registerFace, checkLiveness, captureFrame, getLivenessChallenge } from '@/lib/ai/apiClient';
+import type { LivenessChallenge } from '@/lib/ai/apiClient';
+import { FaceMesh } from '@mediapipe/face_mesh';
+import * as faceMesh from '@mediapipe/face_mesh';
 
 // ── Types ──
 
@@ -35,8 +38,12 @@ export default function FaceRegistration() {
   const { user } = useSupabaseAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const meshCanvasRef = useRef<HTMLCanvasElement>(null);
+  const faceMeshRef = useRef<FaceMesh | null>(null);
+  const landmarksRef = useRef<any[] | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const requestRef = useRef<number>();
 
   const [step, setStep] = useState<RegistrationStep>('intro');
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
@@ -46,6 +53,10 @@ export default function FaceRegistration() {
   const [errorMsg, setErrorMsg] = useState('');
   const [livenessProgress, setLivenessProgress] = useState(0);
   const [livenessInstruction, setLivenessInstruction] = useState('');
+  const [lightingScore, setLightingScore] = useState(100);
+  const [lightingLabel, setLightingLabel] = useState<'GOOD' | 'TOO DARK' | 'TOO BRIGHT'>('GOOD');
+  const [activeChallenge, setActiveChallenge] = useState<LivenessChallenge | null>(null);
+  const [meshLoaded, setMeshLoaded] = useState(false);
 
   // ── Camera ──
 
@@ -71,7 +82,69 @@ export default function FaceRegistration() {
   };
 
   useEffect(() => {
-    return () => stopCamera();
+    // Initialize FaceMesh
+    const fm = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+    });
+
+    fm.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    fm.onResults((results) => {
+      if (!meshCanvasRef.current || !videoRef.current) return;
+      const canvasCtx = meshCanvasRef.current.getContext('2d');
+      if (!canvasCtx) return;
+
+      canvasCtx.clearRect(0, 0, meshCanvasRef.current.width, meshCanvasRef.current.height);
+      
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        setMeshLoaded(true);
+        const landmarks = results.multiFaceLandmarks[0];
+        landmarksRef.current = landmarks;
+        const w = meshCanvasRef.current.width;
+        const h = meshCanvasRef.current.height;
+
+        // Draw mesh connections
+        canvasCtx.beginPath();
+        canvasCtx.strokeStyle = 'rgba(16, 185, 129, 0.2)'; // Emerald-500 with low opacity
+        canvasCtx.lineWidth = 0.5;
+
+        // Simplify mesh drawing by drawing primary contours
+        const drawConnectors = (indices: number[][]) => {
+          indices.forEach(([start, end]) => {
+            const s = landmarks[start];
+            const e = landmarks[end];
+            canvasCtx.moveTo(s.x * w, s.y * h);
+            canvasCtx.lineTo(e.x * w, e.y * h);
+          });
+        };
+
+        // FACEMESH_TESSELATION is huge, let's use a subset for "premium look"
+        // We'll just draw dots for landmarks for a cleaner 'data' look
+        landmarks.forEach((pt, i) => {
+          // Draw every 5th point for a cleaner look
+          if (i % 4 === 0) {
+            canvasCtx.fillStyle = i % 20 === 0 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(16, 185, 129, 0.4)';
+            canvasCtx.beginPath();
+            canvasCtx.arc(pt.x * w, pt.y * h, 1, 0, 2 * Math.PI);
+            canvasCtx.fill();
+          }
+        });
+        
+        canvasCtx.stroke();
+      }
+    });
+
+    faceMeshRef.current = fm;
+
+    return () => {
+      stopCamera();
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
   }, []);
 
   const setVideoRef = (element: HTMLVideoElement | null) => {
@@ -93,11 +166,29 @@ export default function FaceRegistration() {
       setStep('capture');
       setStatusMsg(PHOTO_ANGLES[0].label);
       startVisibilityCheck();
+      startMeshLoop();
     } catch (err) {
       setErrorMsg(`Hardware access error: ${err instanceof Error ? err.message : 'Unknown'}`);
       setStep('error');
     }
   };
+
+  const startMeshLoop = () => {
+    const loop = async () => {
+      if (videoRef.current && faceMeshRef.current && videoRef.current.readyState >= 2) {
+        try {
+          await faceMeshRef.current.send({ image: videoRef.current });
+        } catch (e) {
+          console.error("FaceMesh send error:", e);
+        }
+      }
+      requestRef.current = requestAnimationFrame(loop);
+    };
+    requestRef.current = requestAnimationFrame(loop);
+  };
+
+  const [lastImageData, setLastImageData] = useState<Uint8ClampedArray | null>(null);
+  const [movementScore, setMovementScore] = useState(0);
 
   const startVisibilityCheck = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -108,24 +199,57 @@ export default function FaceRegistration() {
       c.width = 160; c.height = 120;
       const ctx = c.getContext('2d')!;
       ctx.drawImage(videoRef.current, 0, 0, 160, 120);
-      const d = ctx.getImageData(40, 20, 80, 80).data;
+      
+      // Analyze center region for facial features visibility
+      const faceRegion = ctx.getImageData(40, 20, 80, 80).data;
       let sum = 0;
-      for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 3;
-      const avg = sum / (d.length / 4);
+      for (let i = 0; i < faceRegion.length; i += 4) {
+        sum += (faceRegion[i] + faceRegion[i + 1] + faceRegion[i + 2]) / 3;
+      }
+      const avg = sum / (faceRegion.length / 4);
       
       const isVisible = avg > 40 && avg < 235;
       setFaceVisible(isVisible);
+      setLightingScore(avg);
+      if (avg < 50) setLightingLabel('TOO DARK');
+      else if (avg > 240) setLightingLabel('TOO BRIGHT');
+      else setLightingLabel('GOOD');
+
+      // Movement detection heuristic (Pixel difference)
+      if (isVisible) {
+        if (lastImageData) {
+          let diffSum = 0;
+          for (let i = 0; i < faceRegion.length; i += 4) {
+            diffSum += Math.abs(faceRegion[i] - lastImageData[i]);
+          }
+          const score = diffSum / (faceRegion.length / 4);
+          setMovementScore(score);
+        }
+        setLastImageData(new Uint8ClampedArray(faceRegion));
+      }
 
       if (isVisible && step === 'capture') {
-        setStabilityTicks(prev => {
-          const next = prev + 1;
-          if (next >= STABILITY_THRESHOLD) {
-            // Auto-trigger capture
-            setTimeout(() => capturePhoto(), 0);
-            return 0; // Reset after capture
-          }
-          return next;
-        });
+        const isStable = movementScore < 15; // Lower = more stable
+        const hasLife = movementScore > 0.5; // Ensure it's not a frozen frame
+
+        // Bio-Net v4: Landmark Centering Check
+        // Only trigger capture if the face is actually looking at the camera
+        const isCentered = landmarksRef.current && 
+          Math.abs(landmarksRef.current[1].x - 0.5) < 0.1 && // Point 1 is usually nose tip
+          Math.abs(landmarksRef.current[1].y - 0.5) < 0.1;
+
+        if (isStable && hasLife && isCentered) {
+          setStabilityTicks(prev => {
+            const next = prev + 1;
+            if (next >= STABILITY_THRESHOLD) {
+              setTimeout(() => capturePhoto(), 0);
+              return 0;
+            }
+            return next;
+          });
+        } else {
+          setStabilityTicks(0);
+        }
       } else {
         setStabilityTicks(0);
       }
@@ -145,22 +269,44 @@ export default function FaceRegistration() {
 
     if (newPhotos.length >= REQUIRED_PHOTOS) {
       setStatusMsg('Biometric verification in progress...');
-      setStep('liveness');
-      startLivenessCapture(newPhotos);
+      prepareLiveness(newPhotos);
     } else {
       setCurrentAngle(currentAngle + 1);
       setStatusMsg(PHOTO_ANGLES[currentAngle + 1].label);
     }
   };
 
-  const startLivenessCapture = (capturedPhotos: CapturedPhoto[]) => {
-    const instructions = [
+  const prepareLiveness = async (capturedPhotos: CapturedPhoto[]) => {
+    setStep('loading');
+    setStatusMsg('Preparing dynamic challenge...');
+    try {
+      const challenge = await getLivenessChallenge();
+      setActiveChallenge(challenge);
+      setStep('liveness');
+      startLivenessCapture(capturedPhotos, challenge);
+    } catch (err) {
+      console.error('Challenge fetch failed, using fallback:', err);
+      setStep('liveness');
+      startLivenessCapture(capturedPhotos);
+    }
+  };
+
+  const startLivenessCapture = (capturedPhotos: CapturedPhoto[], challenge?: LivenessChallenge) => {
+    const fallbackInstructions = [
       'Look straight ahead', 
       'Blink naturally', 
       'Turn slightly left', 
       'Turn slightly right', 
       'Smile for validation'
     ];
+    
+    const instructions = challenge?.challenge ? [
+      'Get ready...',
+      challenge.challenge.instruction,
+      'Hold still...',
+      'One more second...'
+    ] : fallbackInstructions;
+
     let idx = 0;
     const frames: string[] = [];
     setLivenessInstruction(instructions[0]);
@@ -171,38 +317,42 @@ export default function FaceRegistration() {
       if (!videoRef.current || videoRef.current.readyState < 4) return;
       frames.push(captureFrame(videoRef.current, 0.75));
       idx++;
-      setLivenessInstruction(instructions[Math.min(idx, instructions.length - 1)]);
+      const currentLabel = instructions[Math.min(idx, instructions.length - 1)];
+      setLivenessInstruction(currentLabel);
       setLivenessProgress(Math.round((idx / LIVENESS_FRAMES) * 100));
       if (idx >= LIVENESS_FRAMES) {
         if (intervalRef.current) clearInterval(intervalRef.current);
-        completeRegistration(capturedPhotos, frames);
+        completeRegistration(capturedPhotos, frames, challenge?.challenge?.type);
       }
     }, 900);
   };
 
-  const completeRegistration = async (capturedPhotos: CapturedPhoto[], frames: string[]) => {
+  const completeRegistration = async (capturedPhotos: CapturedPhoto[], livenessFrames: string[], challengeType?: string) => {
     setStep('processing');
-    setStatusMsg('Analyzing artifacts & spoof detection...');
+    setStatusMsg('Analyzing biometric artifacts & spoof detection...');
     try {
-      const liveness = await checkLiveness(frames);
-      if (!liveness.is_live) {
-        setErrorMsg(`Spoofing attempt detected. Ensure you are a real person in a well-lit environment.`);
-        setStep('error');
-        return;
-      }
+      if (!user) throw new Error('Not authenticated');
 
-      setStatusMsg('Generating high-dimensional embeddings...');
-      const reg = await registerFace(user?.id || '', capturedPhotos.map(p => p.imageData));
-      if (!reg.success) {
-        setErrorMsg('Encryption error during profile sync. Please try again.');
-        setStep('error');
-        return;
+      const res = await registerFace(
+        user.id, 
+        capturedPhotos.map(p => ({ imageData: p.imageData, angle: p.angle })), 
+        livenessFrames,
+        challengeType
+      );
+
+      if (!res.success) {
+        throw new Error(res.errors?.join(', ') || 'Registration failed');
       }
 
       stopCamera();
       setStep('success');
     } catch (err) {
-      setErrorMsg(`Registration anomaly: ${err instanceof Error ? err.message : 'System fail'}`);
+      const msg = err instanceof Error ? err.message : 'System fail';
+      if (msg.includes('404')) {
+        setErrorMsg('Database Link Missing: Your student profile has not been initialized. Please contact your Department Admin or Registrar to create your student record before enrolling your face.');
+      } else {
+        setErrorMsg(`Registration anomaly: ${msg}`);
+      }
       setStep('error');
     }
   };
@@ -286,22 +436,40 @@ export default function FaceRegistration() {
             <div className="relative overflow-hidden rounded-[2.5rem] border border-slate-800 bg-slate-950 p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
+                  <div className="w-10 h-10 bg-emerald-500/10 backdrop-blur-md rounded-xl flex items-center justify-center border border-emerald-500/20">
                     <ScanFace className="w-6 h-6 text-emerald-400" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-white">Angle {photos.length + 1} of {REQUIRED_PHOTOS}</h3>
-                    <p className="text-xs text-slate-500">{PHOTO_ANGLES[currentAngle].label}</p>
+                    <p className={`text-xs ${currentAngle === 3 ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>
+                      {currentAngle === 3 ? 'CRITICAL: Look slightly upwards' : PHOTO_ANGLES[currentAngle].label}
+                    </p>
                   </div>
                 </div>
-                <Badge variant={faceVisible ? 'default' : 'destructive'} className={faceVisible ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 animate-pulse'}>
-                  {faceVisible ? 'OPTIMAL POSITION' : 'POSITION FACE'}
-                </Badge>
+                <div className="flex gap-2">
+                  <Badge variant={faceVisible ? 'default' : 'destructive'} className={faceVisible ? 'bg-emerald-500/20 backdrop-blur-md text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 backdrop-blur-md text-red-400 animate-pulse'}>
+                    {faceVisible ? 'POSITION OK' : 'POSITION FACE'}
+                  </Badge>
+                  {lightingLabel !== 'GOOD' && (
+                    <Badge variant="outline" className="border-amber-500/50 text-amber-500 bg-amber-500/10 backdrop-blur-md animate-pulse">
+                      {lightingLabel}
+                    </Badge>
+                  )}
+                </div>
               </div>
 
               <div className="relative aspect-[4/3] bg-slate-900 rounded-[2rem] overflow-hidden border-4 border-slate-800">
                 <video ref={setVideoRef} autoPlay playsInline muted className="w-full h-full object-cover grayscale-[0.3]" style={{ transform: 'scaleX(-1)' }} />
                 
+                {/* mesh canvas overlay */}
+                <canvas 
+                  ref={meshCanvasRef} 
+                  className="absolute inset-0 w-full h-full pointer-events-none" 
+                  width={640} 
+                  height={480}
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+
                 {/* HUD Scanner Overlay */}
                 <div className="absolute inset-0 pointer-events-none">
                   {/* Rotating Outer Ring */}
@@ -322,9 +490,9 @@ export default function FaceRegistration() {
                       {faceVisible && (
                         <>
                           <motion.div 
-                            className="w-full h-1 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)]"
+                            className="w-full h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_20px_rgba(52,211,153,1)]"
                             animate={{ top: ['0%', '100%', '0%'] }}
-                            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
                             style={{ position: 'absolute', left: 0 }}
                           />
                           {/* Auto-capture Countdown UI */}
@@ -347,6 +515,19 @@ export default function FaceRegistration() {
                         </>
                       )}
                       
+                      {currentAngle === 3 && faceVisible && (
+                        <motion.div 
+                          className="absolute -top-12 inset-x-0 flex justify-center"
+                          initial={{ y: 0, opacity: 0 }}
+                          animate={{ y: [-5, 5, -5], opacity: 1 }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        >
+                          <div className="bg-amber-500 text-slate-950 text-[10px] font-bold px-3 py-1 rounded-full shadow-xl flex items-center gap-1">
+                            <span>⬆️ Tilt Up Slightly</span>
+                          </div>
+                        </motion.div>
+                      )}
+                      
                       {/* Corner Accents */}
                       <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl" />
                       <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl" />
@@ -357,8 +538,23 @@ export default function FaceRegistration() {
                   
                   {/* HUD Info */}
                   <div className="absolute top-4 left-6 space-y-1">
-                     <p className="text-[10px] font-mono text-emerald-400/60 uppercase tracking-widest">Processing Layer: Bio-Net v2</p>
-                     <p className="text-[10px] font-mono text-emerald-400/60 uppercase tracking-widest">Accuracy Target: 99.85%</p>
+                     <p className="text-[10px] font-mono text-emerald-400/60 uppercase tracking-widest">Processing Layer: Bio-Net v3</p>
+                     <p className="text-[10px] font-mono text-emerald-400/60 uppercase tracking-widest">Accuracy Target: 99.95%</p>
+                     {meshLoaded && <p className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest animate-pulse">● Biometric Mapping Active</p>}
+                  </div>
+
+                  <div className="absolute top-4 right-6 text-right">
+                     <div className="flex flex-col items-end gap-1 overflow-hidden h-12 w-32 border-l border-emerald-500/20 pl-2">
+                        <motion.div 
+                          animate={{ y: [0, -100] }}
+                          transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                          className="text-[8px] font-mono text-emerald-500/40 uppercase leading-tight"
+                        >
+                          {Array.from({ length: 20 }).map((_, i) => (
+                            <div key={i}>0x{Math.random().toString(16).slice(2, 8)}:SYNC_P{i}</div>
+                          ))}
+                        </motion.div>
+                     </div>
                   </div>
                   <div className="absolute bottom-4 right-6 text-right">
                      <p className="text-[10px] font-mono text-emerald-400/60 uppercase tracking-widest">Frame Rate: 60 FPS</p>

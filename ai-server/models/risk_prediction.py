@@ -60,12 +60,24 @@ FEATURE_NAMES = ["attendance_pct", "consecutive_absences", "late_count", "monthl
 
 
 def _extract_features(record: dict) -> np.ndarray:
+    """
+    Bio-Net v4: Feature Extraction with Temporal Context.
+    Subtracts the 30-day average from the current rate to detect sudden drops.
+    """
+    pct = record.get("attendance_pct", 75)
+    hist_avg = record.get("historical_avg", pct)
+    shift = pct - hist_avg # Negative = declining
+    
     return np.array([
-        record.get("attendance_pct", 75),
+        pct,
         record.get("consecutive_absences", 0),
         record.get("late_count", 0),
         record.get("monthly_trend", 0),
+        shift, # v4 behavioral shift feature
     ], dtype=np.float64).reshape(1, -1)
+
+
+FEATURE_NAMES = ["attendance_pct", "consecutive_absences", "late_count", "monthly_trend", "behavioral_shift"]
 
 
 # ── Isolation Forest (unsupervised) ──────────────────────────
@@ -204,13 +216,20 @@ def predict_risk_ensemble(record: dict) -> dict:
         return _heuristic_risk(record)
 
     avg_risk = float(np.mean(predictions))
+    
+    # v4 Sigmoid Sharpening for Risk
+    # We want to be very certain before flagging a student as CRITICAL
+    sharpened_risk = 1.0 / (1.0 + np.exp(-10 * (avg_risk - 0.6)))
+    sharpened_risk = round(float(np.clip(sharpened_risk, 0, 1)), 4)
 
     return {
-        "risk_score": round(avg_risk, 4),
-        "method": "ensemble",
+        "risk_score": sharpened_risk,
+        "raw_avg_score": round(avg_risk, 4),
+        "method": "ensemble_v4",
         "models_used": methods,
         "individual_scores": {m: round(s, 4) for m, s in zip(methods, predictions)},
-        "category": _cat(avg_risk),
+        "category": _cat(sharpened_risk),
+        "intervention_needed": sharpened_risk > 0.65
     }
 
 

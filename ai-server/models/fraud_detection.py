@@ -268,10 +268,39 @@ def _heuristic_fraud(record: dict) -> float:
     return min(score, 1.0)
 
 
+def _extract_fingerprint_entropy(fp: str) -> float:
+    """
+    Analyze the complexity of a fingerprint hash.
+    Simple or repetitive hashes might indicate manual injection.
+    """
+    if not fp: return 0.0
+    from collections import Counter
+    counts = Counter(fp)
+    # Shannon entropy of the string
+    probs = [c / len(fp) for c in counts.values()]
+    entropy = -sum(p * math.log2(p) for p in probs)
+    return entropy
+
+
+def validate_fingerprint_v4(fp: str) -> dict:
+    """
+    Bio-Net v4: Deep Fingerprint Validation.
+    Checks for spoofed or too-simple hashes.
+    """
+    import math
+    entropy = _extract_fingerprint_entropy(fp)
+    is_suspicious = entropy < 3.0 or len(set(fp)) < 8
+    return {
+        "entropy": round(entropy, 2),
+        "is_suspicious": is_suspicious,
+        "flag": "FINGERPRINT_LOW_ENTROPY" if is_suspicious else None
+    }
+
+
 def generate_device_fingerprint(user_agent: str, ip: str, screen_res: str = "") -> str:
-    """Create a deterministic device hash."""
-    raw = f"{user_agent}|{ip}|{screen_res}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    """Create a high-entropy deterministic device hash."""
+    raw = f"{user_agent}|{ip}|{screen_res}|BIO_SALT_V4"
+    return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
 def get_fraud_dashboard() -> dict:

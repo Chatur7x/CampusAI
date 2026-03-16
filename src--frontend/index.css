@@ -159,6 +159,18 @@
   .tilt:hover {
     transform: perspective(800px) rotateX(6deg) rotateY(-6deg) scale(1.01);
   }
+
+  .glass-premium {
+    @apply bg-slate-950/40 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)];
+  }
+
+  .text-glow {
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  
+  .text-glow-emerald {
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.5), 0 0 20px rgba(16, 185, 129, 0.3);
+  }
 }
 
 @keyframes animate-in {

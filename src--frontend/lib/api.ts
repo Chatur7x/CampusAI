@@ -1299,7 +1299,21 @@ export const timetableService = {
         .order('day_of_week')
         .order('start_time');
       if (fError && fError.code !== 'PGRST116') handleError(fError);
-      return (fallback || []) as any;
+      
+      // Map direct query results to match view-style structure
+      return (fallback || []).map((row: any) => ({
+        ...row,
+        course: { 
+          id: row.subject?.course?.id || row.course_id, 
+          name: row.subject?.name || 'Unknown', 
+          code: row.subject?.code || '' 
+        },
+        class: { 
+          id: row.class_id, 
+          name: row.class?.name || 'Class', 
+          section: row.class?.section || '' 
+        }
+      })) as any;
     }
     
     // Map view columns back to object structure expected by UI
@@ -1341,7 +1355,21 @@ export const timetableService = {
         .order('day_of_week')
         .order('start_time');
       if (fError && fError.code !== 'PGRST116') handleError(fError);
-      return (fallback || []) as any;
+      
+       // Map direct query results to match view-style structure
+       return (fallback || []).map((row: any) => ({
+        ...row,
+        course: { 
+          id: row.subject?.course?.id || row.course_id, 
+          name: row.subject?.name || 'Unknown', 
+          code: row.subject?.code || '' 
+        },
+        class: { 
+          id: row.class_id, 
+          name: row.class?.name || 'Class', 
+          section: row.class?.section || '' 
+        }
+      })) as any;
     }
     
     return (data || []).map((row: any) => ({

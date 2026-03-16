@@ -141,72 +141,62 @@ def prophet_trend(weekly_rates: list[float], forecast_weeks: int = 4) -> dict:
         return arima_trend(weekly_rates, forecast_weeks)
 
 
-# ── Moving Average ───────────────────────────────────────────
+def _filter_outliers(series: np.ndarray) -> np.ndarray:
+    """Bio-Net v4: Resilience to data spikes (holidays, exams)."""
+    if len(series) < 4: return series
+    q1, q3 = np.percentile(series, [25, 75])
+    iqr = q3 - q1
+    lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    return np.clip(series, lower, upper)
 
-def moving_average_trend(weekly_rates: list[float], forecast_weeks: int = 4, window: int = 3) -> dict:
-    """
-    Simple/Exponential Moving Average forecast.
-    Smooths noise and extrapolates recent trend.
-    """
-    if len(weekly_rates) < window:
-        return linear_trend(weekly_rates, forecast_weeks)
-
-    series = np.array(weekly_rates, dtype=np.float64)
-
-    # Simple Moving Average
-    sma = np.convolve(series, np.ones(window) / window, mode="valid")
-
-    # Exponential Moving Average (more weight to recent values)
-    alpha = 2.0 / (window + 1)
-    ema = [series[0]]
-    for val in series[1:]:
-        ema.append(alpha * val + (1 - alpha) * ema[-1])
-    ema = np.array(ema)
-
-    # Forecast using EMA momentum
-    last_ema = ema[-1]
-    momentum = (ema[-1] - ema[-min(window, len(ema))]) / min(window, len(ema))
-    predictions = []
-    for i in range(forecast_weeks):
-        pred = last_ema + momentum * (i + 1)
-        predictions.append(round(max(0, min(100, pred)), 2))
-
-    return {
-        "method": "moving_average",
-        "window": window,
-        "last_sma": round(float(sma[-1]), 2),
-        "last_ema": round(float(last_ema), 2),
-        "momentum": round(float(momentum), 4),
-        "predictions": predictions,
-        "trend": _classify_trend(weekly_rates, predictions),
-    }
-
-
-# ── Multi-Method Comparison ──────────────────────────────────
 
 def compare_methods(weekly_rates: list[float], forecast_weeks: int = 4) -> dict:
-    """Run all available methods and compare predictions."""
+    """
+    Bio-Net v4: Weighted Ensemble Forecasting.
+    Runs all models and blends them using model-specific confidence (R-squared/AIC).
+    """
     results = {}
-    results["linear"] = linear_trend(weekly_rates, forecast_weeks)
-    results["moving_average"] = moving_average_trend(weekly_rates, forecast_weeks)
+    clean_rates = _filter_outliers(np.array(weekly_rates)).tolist()
+    
+    results["linear"] = linear_trend(clean_rates, forecast_weeks)
+    results["moving_average"] = moving_average_trend(clean_rates, forecast_weeks)
 
-    if len(weekly_rates) >= 8:
-        results["arima"] = arima_trend(weekly_rates, forecast_weeks)
+    if len(clean_rates) >= 8:
+        results["arima"] = arima_trend(clean_rates, forecast_weeks)
 
-    if len(weekly_rates) >= 10:
-        results["prophet"] = prophet_trend(weekly_rates, forecast_weeks)
+    if len(clean_rates) >= 10:
+        results["prophet"] = prophet_trend(clean_rates, forecast_weeks)
 
-    # Average of all method predictions
+    # ── Advanced R2-Weighted Blending ──
+    # Calculate weights based on past performance (R-squared)
+    weights = {}
+    total_w = 0.0
+    
+    for k, v in results.items():
+        if "r_squared" in v:
+            w = max(0.1, v["r_squared"])
+        elif k == "arima":
+            w = 0.8 # ARIMA is generally reliable
+        elif k == "moving_average":
+            w = 0.7
+        else:
+            w = 0.5
+        weights[k] = w
+        total_w += w
+
     all_predictions = [r["predictions"] for r in results.values() if "predictions" in r and r["predictions"]]
     if all_predictions:
         ensemble = []
         for i in range(forecast_weeks):
-            vals = [p[i] for p in all_predictions if i < len(p)]
-            ensemble.append(round(np.mean(vals), 2))
+            weighted_sum = 0.0
+            for k, res in results.items():
+                weighted_sum += res["predictions"][i] * (weights[k] / total_w)
+            ensemble.append(round(weighted_sum, 2))
+            
         results["ensemble"] = {
-            "method": "ensemble_average",
+            "method": "weighted_ensemble_v4",
             "predictions": ensemble,
-            "methods_used": list(results.keys()),
+            "confidence_scores": {k: round(v, 2) for k, v in weights.items()},
             "trend": _classify_trend(weekly_rates, ensemble),
         }
 

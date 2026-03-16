@@ -30,6 +30,8 @@ Advanced Security:
   ✔ Texture analysis
   ✔ Deepfake detection (frequency domain)
   ✔ CNN spoof classifier
+  ✔ Sigmoid confidence blending
+  ✔ Temporal consistency checks (video injection detection)
 """
 from __future__ import annotations
 
@@ -308,6 +310,33 @@ def _cnn_spoof_score(img_rgb: np.ndarray) -> float:
 
 
 # ═══════════════════════════════════════════════════════════════
+# Layer 6: Mouth Aspect Ratio (MAR) & Smile Detection
+# ═══════════════════════════════════════════════════════════════
+MOUTH_INNER_TOP = 13
+MOUTH_INNER_BOTTOM = 14
+MOUTH_INNER_LEFT = 78
+MOUTH_INNER_RIGHT = 308
+
+
+def _mar(lm, w, h) -> float:
+    """
+    MAR = ||p13-p14|| / ||p78-p308||
+    Higher value means mouth is open or wide.
+    """
+    p_top = (lm[MOUTH_INNER_TOP].x * w, lm[MOUTH_INNER_TOP].y * h)
+    p_bot = (lm[MOUTH_INNER_BOTTOM].x * w, lm[MOUTH_INNER_BOTTOM].y * h)
+    p_left = (lm[MOUTH_INNER_LEFT].x * w, lm[MOUTH_INNER_LEFT].y * h)
+    p_right = (lm[MOUTH_INNER_RIGHT].x * w, lm[MOUTH_INNER_RIGHT].y * h)
+
+    vertical = _distance(p_top, p_bot)
+    horizontal = _distance(p_left, p_right)
+
+    if horizontal == 0:
+        return 0.0
+    return vertical / horizontal
+
+
+# ═══════════════════════════════════════════════════════════════
 # Random Challenge System
 # ═══════════════════════════════════════════════════════════════
 
@@ -336,25 +365,28 @@ def generate_challenge() -> dict:
 def verify_challenge(challenge_type: str, frames: list[dict]) -> dict:
     """Verify that a challenge was completed based on frame analysis results."""
     if challenge_type == "blink":
-        blinks = sum(1 for f in frames if f.get("blink_detected"))
-        return {"passed": blinks >= 1, "blinks": blinks}
+        # Detect a sharp drop then rise in EAR
+        ears = [f.get("avg_ear", 0.3) for f in frames]
+        blinked = any(e < EAR_BLINK_THRESHOLD for e in ears)
+        return {"passed": blinked, "note": f"Blink detected in {len(frames)} frames"}
 
     if challenge_type in ("head_left", "head_right"):
         target_yaw = -HEAD_TURN_THRESHOLD if "left" in challenge_type else HEAD_TURN_THRESHOLD
-        detected = any(
-            (f.get("head_pose", {}).get("yaw", 0) < -HEAD_TURN_THRESHOLD if "left" in challenge_type
-             else f.get("head_pose", {}).get("yaw", 0) > HEAD_TURN_THRESHOLD)
-            for f in frames
-        )
-        return {"passed": detected, "target_direction": challenge_type}
+        yaws = [f.get("head_pose", {}).get("yaw", 0) for f in frames]
+        detected = any((y < -HEAD_TURN_THRESHOLD if "left" in challenge_type else y > HEAD_TURN_THRESHOLD) for y in yaws)
+        return {"passed": detected, "max_yaw": round(max(yaws) if "right" in challenge_type else min(yaws), 2)}
 
     if challenge_type == "head_up":
-        detected = any(f.get("head_pose", {}).get("pitch", 0) > HEAD_TURN_THRESHOLD for f in frames)
-        return {"passed": detected}
+        pitches = [f.get("head_pose", {}).get("pitch", 0) for f in frames]
+        detected = any(p > HEAD_TURN_THRESHOLD for p in pitches)
+        return {"passed": detected, "max_pitch": round(max(pitches), 2)}
 
     if challenge_type == "smile":
-        # Detect smile via mouth aspect ratio change
-        return {"passed": True, "note": "smile check heuristic"}
+        mars = [f.get("mar", 0) for f in frames]
+        # A smile typically increases MAR if mouth opens slightly, or we can look for variance
+        # For simplicity, we check if MAR > 0.1 (slight mouth open/smile)
+        detected = any(m > 0.15 for m in mars)
+        return {"passed": detected, "max_mar": round(max(mars), 4)}
 
     return {"passed": False, "error": f"Unknown challenge: {challenge_type}"}
 
@@ -366,7 +398,7 @@ def verify_challenge(challenge_type: str, frames: list[dict]) -> dict:
 def analyse_liveness(image_b64: str) -> dict:
     """
     Full 5-layer liveness analysis on a single frame.
-    Pipeline: EAR → Head Pose → Texture → Reflection → Deepfake → CNN
+    Pipeline: EAR → Head Pose → Texture → Reflection → Deepfake → CNN → MAR
     """
     start = time.time()
     img_rgb = _b64_to_rgb(image_b64)
@@ -401,17 +433,34 @@ def analyse_liveness(image_b64: str) -> dict:
     deepfake = _frequency_analysis(img_rgb) if DEEPFAKE_DETECTION_ENABLED else {"frequency_score": 0.5}
     cnn_score = _cnn_spoof_score(img_rgb)
 
-    # ── Composite score (weighted 6-factor) ──
-    score = 0.0
-    score += 0.15 * min(avg_ear / 0.3, 1.0)                    # EAR presence
-    score += 0.25 * min(tex / 200.0, 1.0)                       # Texture
-    pose_variety = min((abs(pose["yaw"]) + abs(pose["pitch"])) / 30.0, 1.0)
-    score += 0.15 * pose_variety                                 # Head motion
-    score += 0.15 * reflection.get("reflection_score", 0.5)     # Reflection
-    score += 0.15 * deepfake.get("frequency_score", 0.5)        # Deepfake
-    score += 0.15 * cnn_score                                    # CNN spoof
+    # Layer 6: MAR (Mouth Aspect Ratio)
+    mar = _mar(lm, w, h)
 
-    score = max(0.0, min(1.0, score))
+    # ── Bio-Net v4 Advanced Sigmoid Blending ──
+    # Instead of linear weighting, use a non-linear confidence model
+    
+    def _sigmoid(x, alpha=10, beta=0.5):
+        return 1 / (1 + math.exp(-alpha * (x - beta)))
+
+    # Compute individual confidences
+    c_tex = _sigmoid(tex / 180.0, 8, 0.4) 
+    c_pose = _sigmoid(min((abs(pose["yaw"]) + abs(pose["pitch"])) / 25.0, 1.0), 6, 0.3)
+    c_refl = _sigmoid(reflection.get("reflection_score", 0.5), 8, 0.5)
+    c_freq = _sigmoid(deepfake.get("frequency_score", 0.5), 7, 0.45)
+    c_cnn = _sigmoid(cnn_score, 10, 0.5)
+    
+    # Weighted ensemble with primary layers having higher 'veto' power
+    # If any score is critically low, it drags the result down non-linearly
+    combined_score = (
+        0.20 * c_tex + 
+        0.15 * c_pose + 
+        0.20 * c_refl + 
+        0.15 * c_freq + 
+        0.20 * c_cnn + 
+        0.10 * min(mar / 0.15, 1.0)
+    )
+
+    score = combined_score
 
     # Anti-spoof flags
     spoof_flags: list[str] = []
@@ -421,12 +470,14 @@ def analyse_liveness(image_b64: str) -> dict:
         spoof_flags.append("DEEPFAKE_SUSPECTED")
     if tex < 30:
         spoof_flags.append("LOW_TEXTURE")
+    if cnn_score < 0.2 and not any(spoof_flags): # Only flag if score is very low
+        spoof_flags.append("CNN_SPOOF_RISK")
 
     return {
         "is_live": score >= 0.45 and len(spoof_flags) == 0,
         "liveness_score": round(score, 4),
-        "ear_left": round(ear_l, 4),
-        "ear_right": round(ear_r, 4),
+        "avg_ear": round(avg_ear, 4),
+        "mar": round(mar, 4),
         "blink_detected": blink,
         "head_pose": {k: round(v, 2) for k, v in pose.items()},
         "texture_score": round(tex, 2),
@@ -435,42 +486,51 @@ def analyse_liveness(image_b64: str) -> dict:
         "cnn_spoof_score": round(cnn_score, 4),
         "spoof_flags": spoof_flags,
         "inference_ms": round((time.time() - start) * 1000, 1),
-        "layers": ["EAR", "HeadPose_PnP", "Texture_Laplacian", "Reflection", "FFT_Deepfake", "CNN_Spoof"],
+        "layers": ["EAR", "HeadPose_PnP", "Texture_Laplacian", "Reflection", "FFT_Deepfake", "CNN_Spoof", "MAR"],
     }
 
 
-def analyse_liveness_sequence(images_b64: list[str]) -> dict:
+def analyse_liveness_sequence(images_b64: list[str], challenge_type: Optional[str] = None) -> dict:
     """
     Analyse a sequence of frames for blink/head-turn challenge.
     Aggregates per-frame scores and detects temporal patterns.
     """
     frames = [analyse_liveness(b) for b in images_b64]
-    blink_count = sum(1 for f in frames if f.get("blink_detected"))
+    
+    # Challenge Verification
+    challenge_result = {"passed": True}
+    if challenge_type:
+        challenge_result = verify_challenge(challenge_type, frames)
+
     avg_score = np.mean([f.get("liveness_score", 0) for f in frames]) if frames else 0
-    any_head_move = any(
-        abs(f.get("head_pose", {}).get("yaw", 0)) > HEAD_TURN_THRESHOLD
-        for f in frames
-    )
     any_spoof_flags = any(len(f.get("spoof_flags", [])) > 0 for f in frames)
 
-    # Temporal consistency check: scores should vary naturally
+    # Temporal consistency check: scores and pixels should vary naturally
     scores = [f.get("liveness_score", 0) for f in frames]
     score_variance = float(np.var(scores)) if len(scores) > 1 else 0
-    too_consistent = score_variance < 0.001 and len(scores) > 3  # Suspiciously identical
+    
+    # Advanced Anti-Injection: Check for excessive pixel stability
+    # Synthetic/Replay attacks often show suspiciously low variance in background
+    pixel_stabilities = [f.get("texture_score", 0) for f in frames]
+    tex_variance = float(np.var(pixel_stabilities)) if len(pixel_stabilities) > 1 else 0
+    
+    too_consistent = (score_variance < 0.0001 or tex_variance < 0.01) and len(frames) > 3 
 
+    # Final decision: challenge MUST pass if provided
     is_live = (
-        float(avg_score) >= 0.4
-        and (blink_count > 0 or any_head_move)
+        float(avg_score) >= 0.45 # Raised threshold for v4
+        and challenge_result.get("passed", False)
         and not any_spoof_flags
         and not too_consistent
+        and tex_variance > 0.005 # Ensure some natural sensor noise exists
     )
 
     return {
         "is_live": is_live,
         "avg_liveness_score": round(float(avg_score), 4),
         "liveness_score": round(float(avg_score), 4),
-        "blink_count": blink_count,
-        "head_movement_detected": any_head_move,
+        "challenge_passed": challenge_result.get("passed", False),
+        "challenge_details": challenge_result,
         "any_spoof_flags": any_spoof_flags,
         "temporal_consistency": round(score_variance, 6),
         "frame_count": len(frames),

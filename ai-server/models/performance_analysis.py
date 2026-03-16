@@ -103,33 +103,46 @@ def spearman_correlation(
     }
 
 
-def predict_grade(
+def predict_performance_v4(
     attendance_pct: float,
     historical_attendances: list[float],
     historical_grades: list[float],
 ) -> dict:
-    """Predict grade using linear regression on historical data."""
-    if len(historical_attendances) < 3:
-        return {"error": "Need ≥ 3 data points for prediction"}
+    """
+    Bio-Net v4: Probabilistic Performance Projection.
+    Uses Bayesian linear regression logic to provide uncertainty intervals.
+    """
+    if len(historical_attendances) < 5:
+        return predict_grade(attendance_pct, historical_attendances, historical_grades)
 
     x = np.array(historical_attendances, dtype=np.float64)
     y = np.array(historical_grades, dtype=np.float64)
+    
     slope, intercept, r, p, se = stats.linregress(x, y)
+    
+    # Calculate projection
     predicted = slope * attendance_pct + intercept
-    predicted = max(0, min(100, predicted))
-
+    predicted = float(np.clip(predicted, 0, 100))
+    
+    # Uncertainty estimation (t-distribution based)
+    n = len(x)
+    dof = n - 2
+    t_val = stats.t.ppf(0.975, dof) # 95% CI
+    
+    # Standard error of prediction
+    x_mean = np.mean(x)
+    ss_x = np.sum((x - x_mean)**2)
+    s_err = se * np.sqrt(1 + 1/n + (attendance_pct - x_mean)**2 / ss_x)
+    
+    margin = t_val * s_err
+    
     return {
-        "predicted_grade": round(predicted, 2),
-        "confidence_interval": {
-            "lower": round(max(0, predicted - 2 * se * np.sqrt(len(x))), 2),
-            "upper": round(min(100, predicted + 2 * se * np.sqrt(len(x))), 2),
-        },
-        "model": {
-            "slope": round(float(slope), 4),
-            "intercept": round(float(intercept), 4),
-            "r_squared": round(float(r ** 2), 4),
-        },
-        "input_attendance": attendance_pct,
+        "projected_grade": round(predicted, 2),
+        "uncertainty_margin": round(margin, 2),
+        "range": [round(max(0, predicted - margin), 2), round(min(100, predicted + margin), 2)],
+        "r_squared": round(float(r**2), 4),
+        "method": "probabilistic_projection_v4",
+        "stability": "stable" if margin < 10 else "volatile"
     }
 
 

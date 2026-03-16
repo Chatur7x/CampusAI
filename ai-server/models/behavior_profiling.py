@@ -18,6 +18,8 @@ from typing import Optional
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
 
 logger = logging.getLogger("campusai.behavior")
 
@@ -38,31 +40,51 @@ def _extract_features(record: dict) -> np.ndarray:
     ], dtype=np.float64).reshape(1, -1)
 
 
-def train_profiles(records: list[dict], n_clusters: int = 3) -> dict:
+def train_profiles(records: list[dict], max_clusters: int = 5) -> dict:
     """
-    Train KMeans on student behaviour records.
-    Returns cluster centres and labels.
+    Bio-Net v4: Self-Optimizing behavior clustering.
+    Uses Silhouette Score to find optimal K and PCA for feature fusion.
     """
     global _kmeans, _scaler, _cluster_labels
 
-    if len(records) < n_clusters:
-        return {"error": f"Need ≥ {n_clusters} records"}
+    if len(records) < 5:
+        return {"error": "Need ≥ 5 records for self-optimization"}
 
     X = np.vstack([_extract_features(r) for r in records])
     _scaler = StandardScaler().fit(X)
     Xs = _scaler.transform(X)
 
-    _kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    _kmeans.fit(Xs)
+    # v4: PCA Feature Fusion (reduce noise/redundancy)
+    pca = PCA(n_components=0.95) # Retain 95% variance
+    Xp = pca.fit_transform(Xs)
 
-    # Label clusters by centroid attendance_pct (first feature after inverse transform)
-    centres = _scaler.inverse_transform(_kmeans.cluster_centers_)
-    sorted_idx = np.argsort(-centres[:, 0])  # descending by attendance_pct
+    # v4: Find optimal clusters (Silhouette Score)
+    best_k = 2
+    best_score = -1
+    
+    for k in range(2, min(max_clusters + 1, len(records))):
+        km = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = km.fit_predict(Xp)
+        score = silhouette_score(Xp, labels)
+        if score > best_score:
+            best_score = score
+            best_k = k
+
+    _kmeans = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+    _kmeans.fit(Xp)
+
+    # Inverse transform centroids back to original feature space
+    centres_p = _kmeans.cluster_centers_
+    # centroids in scaled space: Centres_p -> centroids in Xs space -> inverse_transform to X space
+    centres_s = pca.inverse_transform(centres_p)
+    centres = _scaler.inverse_transform(centres_s)
+
+    sorted_idx = np.argsort(-centres[:, 0])
     _cluster_labels = {}
     for rank, idx in enumerate(sorted_idx):
         _cluster_labels[int(idx)] = PROFILE_NAMES[min(rank, len(PROFILE_NAMES) - 1)]
 
-    logger.info(f"KMeans trained: {_cluster_labels}")
+    logger.info(f"Bio-Net v4 KMeans optimized: K={best_k}, score={best_score:.4f}")
 
     return {
         "n_clusters": n_clusters,

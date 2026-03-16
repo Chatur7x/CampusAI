@@ -152,3 +152,21 @@ def check_impossible_travel(
         "time_delta_mins": round(delta_s / 60.0, 2)
     }
 
+def get_geo_confidence(lat: float, lon: float, accuracy_m: float, spoof_result: dict) -> float:
+    """
+    Bio-Net v4: Probabilistic Geo-Confidence.
+    Calculates the probability [0..1] that the user is physically present on campus.
+    """
+    loc = validate_location(lat, lon, accuracy_m)
+    confidence = loc["geo_accuracy"]
+    
+    # Severe penalties for spoofing indicators
+    if spoof_result.get("spoofing_suspected"):
+        penalty = 0.5 if "MOCK_LOCATION" in spoof_result["flags"] else 0.3
+        confidence *= (1.0 - penalty)
+        
+    # Accuracy penalty (non-linear)
+    if accuracy_m > 50:
+        confidence *= math.exp(-0.01 * (accuracy_m - 50))
+        
+    return round(max(0.0, min(1.0, confidence)), 4)

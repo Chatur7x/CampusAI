@@ -155,7 +155,55 @@ def get_all_models_health() -> list[dict]:
     return [get_model_health(m) for m in sorted(model_names)]
 
 
-def should_retrain(model_name: str) -> bool:
-    """Simple trigger: retrain if accuracy drift detected."""
-    drift = check_drift(model_name)
-    return drift.get("drift_detected", False)
+def jensen_shannon_divergence(p: np.ndarray, q: np.ndarray) -> float:
+    """
+    Bio-Net v4: Advanced Drift Metric (JSD).
+    Symmetric and smoother than KL Divergence.
+    """
+    m = 0.5 * (p + q)
+    return 0.5 * (stats.entropy(p, m) + stats.entropy(q, m))
+
+
+def check_advanced_drift(model_name: str, baseline: list[float], current: list[float]) -> dict:
+    """
+    Bio-Net v4: JSD-based drift detection.
+    """
+    from scipy import stats # imported here if not global
+    
+    # Normalize to probability distributions
+    hist_b, bin_edges = np.histogram(baseline, bins=10, density=True)
+    hist_c, _ = np.histogram(current, bins=bin_edges, density=True)
+    
+    # Add epsilon to avoid log(0)
+    hist_b += 1e-10
+    hist_c += 1e-10
+    
+    jsd_val = jensen_shannon_divergence(hist_b, hist_c)
+    
+    return {
+        "jsd_score": round(float(jsd_val), 4),
+        "drift_detected": jsd_val > 0.05,
+        "severity": "CRITICAL" if jsd_val > 0.1 else ("MODERATE" if jsd_val > 0.05 else "LOW"),
+        "timestamp": time.time()
+    }
+
+
+def get_system_health_hud() -> dict:
+    """
+    Bio-Net v4: Unified Model Health HUD.
+    Aggregates metrics across all optimized modules.
+    """
+    health = get_all_models_health()
+    status = "OPTIMAL"
+    
+    for m in health:
+        if m["status"] == "degraded":
+            status = "ATTENTION_REQUIRED"
+            break
+            
+    return {
+        "system_status": status,
+        "model_reports": health,
+        "last_audit": time.time(),
+        "engine": "Bio-Net v4 Autonomous Overseer"
+    }

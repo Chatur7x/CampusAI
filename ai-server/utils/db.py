@@ -138,12 +138,16 @@ def insert_face_embedding(student_id: str, embedding_json: str, confidence: floa
     sb = get_supabase()
     invalidate_cache(f"embeddings_{student_id}")
     try:
+        # v4: Construct vector string for pgvector format
+        vector_str = str(embedding_json) if isinstance(embedding_json, list) else embedding_json
+        
         sb.table("face_embeddings").insert({
             "student_id": student_id,
             "embedding_vector": embedding_json,
+            "embedding_v4": vector_str,
             "confidence": confidence,
         }).execute()
-        logger.info(f"Inserted new historical embedding for student {student_id}")
+        logger.info(f"Inserted new Bio-Net v4 embedding for student {student_id}")
     except Exception as e:
         logger.error(f"Failed to insert into face_embeddings: {e}")
 
@@ -162,6 +166,24 @@ def fetch_student_embeddings(student_id: str) -> list[dict]:
         return data
     except Exception as e:
         logger.error(f"Failed to fetch face_embeddings: {e}")
+        return []
+
+
+def search_similar_faces(probe: list[float], threshold: float = 0.5, limit: int = 5) -> list[dict]:
+    """
+    Bio-Net v4: Perform 1:N search directly in the database using match_face_v4 RPC.
+    Returns matched students with similarity scores.
+    """
+    sb = get_supabase()
+    try:
+        res = sb.rpc("match_face_v4", {
+            "probe_embedding": str(probe),
+            "match_threshold": threshold,
+            "match_count": limit
+        }).execute()
+        return res.data or []
+    except Exception as e:
+        logger.error(f"RPC match_face_v4 failed: {e}")
         return []
 
 

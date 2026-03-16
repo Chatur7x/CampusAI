@@ -44,8 +44,13 @@ export interface RegisterFaceResponse {
   errors?: string[];
 }
 
-export async function registerFace(userId: string, images: string[]): Promise<RegisterFaceResponse> {
-  return post('/api/face/register', { user_id: userId, images });
+export async function registerFace(
+  userId: string,
+  photos: { imageData: string; angle: string }[],
+  livenessFrames: string[],
+  challengeType?: string
+): Promise<RegisterFaceResponse> {
+  return post('/api/face/register', { user_id: userId, photos, liveness_frames: livenessFrames, challenge_type: challengeType });
 }
 
 export interface VerifyFaceRequest {
@@ -116,6 +121,16 @@ export interface LivenessResponse {
 
 export async function checkLiveness(frames: string[]): Promise<LivenessResponse> {
   return post('/api/face/liveness', { frames });
+}
+
+export interface LivenessChallenge {
+  challenge: { type: string; instruction: string; timeout_s: number } | null;
+  required: boolean;
+  challenge_id?: string;
+}
+
+export async function getLivenessChallenge(): Promise<LivenessChallenge> {
+  return post('/api/face/challenge', {});
 }
 
 // =====================================================================
