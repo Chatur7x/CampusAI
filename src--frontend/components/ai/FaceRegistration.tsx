@@ -84,10 +84,11 @@ export default function FaceRegistration() {
     // Initialize FaceMesh robustly for Vite/ESM environments
     const FaceMeshConstructor = (faceMeshModule as any).FaceMesh || 
                               (faceMeshModule as any).default?.FaceMesh || 
-                              (faceMeshModule as any).default;
+                              (faceMeshModule as any).default ||
+                              (window as any).FaceMesh;
 
-    if (!FaceMeshConstructor) {
-      console.error('FaceMesh constructor not found in module', faceMeshModule);
+    if (!FaceMeshConstructor || typeof FaceMeshConstructor !== 'function') {
+      console.error('FaceMesh constructor not found in module or window', faceMeshModule);
       setErrorMsg('Failed to initialize biometric engine: FaceMesh module error.');
       setStep('error');
       return;
