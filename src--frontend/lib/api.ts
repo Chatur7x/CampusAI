@@ -172,6 +172,29 @@ export const authService = {
     if (error) handleError(error);
     return data;
   },
+
+  async sendMFAOTP(email: string) {
+    // Custom backend call to send OTP
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'DUMMY_PASSWORD_MFA_REQUEST' }), // The backend login sends OTP if user exists
+    });
+    // Note: This is an architectural hack to reuse the backend's OTP logic.
+    // Transition to a dedicated /auth/send-otp endpoint is recommended.
+    return response.json();
+  },
+
+  async verifyMFA(userId: string, otp: string) {
+    const response = await fetch('/api/auth/verify-mfa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, otp }),
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.message || 'MFA Verification failed');
+    return data;
+  },
 };
 
 // =============================================================
@@ -1416,6 +1439,9 @@ export const timetableService = {
 // ANALYTICS SERVICE
 // =============================================================
 
+const AI_BASE_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
 export const analyticsService = {
   async getAdminDashboard() {
     try {
@@ -1492,6 +1518,22 @@ export const analyticsService = {
     } catch {
       return [];
     }
+  },
+
+  async getStudentPredictions(studentId: string) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/analytics/predictions/${studentId}`, { headers });
+    if (!response.ok) throw new Error('Failed to fetch attendance predictions');
+    const result = await response.json();
+    return result.data;
+  },
+
+  async getDepartmentAnalytics(departmentId: string) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/analytics/department/${departmentId}`, { headers });
+    if (!response.ok) throw new Error('Failed to fetch department analytics');
+    const result = await response.json();
+    return result.data;
   },
 };
 
@@ -1653,7 +1695,66 @@ export const blockchainService = {
 // ATTENDANCE SESSION SERVICE (AI SERVER)
 // =============================================================
 
-const AI_BASE_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
+export const chatService = {
+  async getConversations() {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/conversations`, { headers });
+    if (!response.ok) throw new Error('Failed to fetch conversations');
+    const result = await response.json();
+    return result.data;
+  },
+
+  async getMessages(userId: string, page = 1, limit = 50) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(
+      `${BACKEND_URL}/api/chat/messages/${userId}?page=${page}&limit=${limit}`,
+      { headers }
+    );
+    if (!response.ok) throw new Error('Failed to fetch messages');
+    const result = await response.json();
+    return result.data;
+  },
+
+  async sendMessage(receiverId: string, content: string, attachments: string[] = []) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/messages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ receiverId, content, attachments }),
+    });
+    if (!response.ok) throw new Error('Failed to send message');
+    const result = await response.json();
+    return result.data;
+  },
+
+  async markAsRead(userId: string) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/messages/read/${userId}`, {
+      method: 'PUT',
+      headers,
+    });
+    if (!response.ok) throw new Error('Failed to mark messages as read');
+    return response.json();
+  },
+
+  async deleteMessage(messageId: string) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/messages/${messageId}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (!response.ok) throw new Error('Failed to delete message');
+    return response.json();
+  },
+
+  async getClassChat(classId: string) {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/class/${classId}`, { headers });
+    if (!response.ok) throw new Error('Failed to fetch class chat');
+    const result = await response.json();
+    return result.data;
+  },
+};
 
 export const sessionService = {
   async start(params: {

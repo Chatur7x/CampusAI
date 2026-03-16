@@ -34,6 +34,7 @@ import {
   Brain,
   ClipboardList,
   BookOpen,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -51,6 +52,7 @@ const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistra
 const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
 const FacultyLeaveRequestsPage = lazy(() => import('@/pages/faculty/LeaveRequests'));
 const FacultyAssignmentsPage = lazy(() => import('@/pages/faculty/Assignments'));
+const ChatPage = lazy(() => import('@/pages/Chat'));
 
 // Loading spinner for lazy-loaded pages
 const PageLoader = () => (
@@ -73,6 +75,7 @@ const sidebarItems = [
   { icon: BookOpen, label: 'Assignments', path: '/faculty/assignments' },
   { icon: Bell, label: 'Notices', path: '/faculty/notices' },
   { icon: ClipboardList, label: 'Leave Approvals', path: '/faculty/leaves' },
+  { icon: MessageSquare, label: 'Messages', path: '/faculty/chat' },
   { icon: User, label: 'Register Student', path: '/faculty/register-student' },
   { icon: Settings, label: 'Settings', path: '/faculty/settings' },
   { icon: Brain, label: 'AI Analytics', path: '/faculty/ai-analytics' },
@@ -119,6 +122,7 @@ export default function FacultyDashboard() {
             <Route path="/settings" element={<FacultySettingsPage />} />
             <Route path="/register-student" element={<StudentRegistrationPage />} />
             <Route path="/leaves" element={<FacultyLeaveRequestsPage />} />
+            <Route path="/chat" element={<ChatPage />} />
             <Route path="/ai-analytics" element={<AIDashboard role="faculty" />} />
           </Routes>
         </ErrorBoundary>

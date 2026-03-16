@@ -28,6 +28,7 @@ import {
   User,
   Loader2,
   Brain,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,6 +47,7 @@ const NoticesPage = lazy(() => import('@/pages/admin/Notices'));
 const SettingsPage = lazy(() => import('@/pages/admin/Settings'));
 const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistration'));
 const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
+const ChatPage = lazy(() => import('@/pages/Chat'));
 
 // Premium Loading Component (Optimized)
 const PageLoader = () => (
@@ -80,6 +82,7 @@ const sidebarItems = [
   { icon: Link2, label: 'Blockchain', path: '/admin/blockchain', color: 'orange' },
   { icon: BarChart3, label: 'Analytics', path: '/admin/analytics', color: 'teal' },
   { icon: Brain, label: 'AI Analytics', path: '/admin/ai-analytics', color: 'violet' },
+  { icon: MessageSquare, label: 'Messages', path: '/admin/chat', color: 'blue' },
   { icon: Bell, label: 'Notices', path: '/admin/notices', color: 'yellow' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', color: 'slate' },
 ];
@@ -146,6 +149,7 @@ export default function AdminDashboard() {
             <Route path="/blockchain" element={<BlockchainPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/ai-analytics" element={<AIDashboard role="admin" />} />
+            <Route path="/chat" element={<ChatPage />} />
             <Route path="/notices" element={<NoticesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

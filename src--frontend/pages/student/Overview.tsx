@@ -60,6 +60,12 @@ export default function StudentOverview() {
   const [subjectStats, setSubjectStats] = useState<
     { name: string; present: number; total: number; pct: number }[]
   >([]);
+  const [aiInsights, setAiInsights] = useState<{
+    trend: string;
+    riskScore: number;
+    recommendations: string[];
+    stabilityIndex: number; 
+  } | null>(null);
 
   // ── Live time for NOW detection ──
   const currentTime = `${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`;
@@ -193,6 +199,21 @@ export default function StudentOverview() {
               );
             }
           }
+        }
+        // 4. AI Predictions (V4 Insight)
+        try {
+          const { analyticsService } = await import("@/lib/api");
+          const predictions = await analyticsService.getStudentPredictions(studentId);
+          if (predictions && !cancelled) {
+            setAiInsights({
+              trend: predictions.trend,
+              riskScore: predictions.riskScore,
+              recommendations: predictions.recommendations,
+              stabilityIndex: Math.round((1 - (predictions.slope < 0 ? Math.abs(predictions.slope) : 0)) * 100),
+            });
+          }
+        } catch (e) {
+          console.warn("AI Predictions unavailable:", e);
         }
       } catch (err) {
         console.error("Overview fetch error:", err);
@@ -524,6 +545,65 @@ export default function StudentOverview() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bio-Net v4 AI Insights */}
+      {!loading && aiInsights && (
+        <Card className="relative overflow-hidden border-indigo-500/20 bg-slate-900/40 rounded-3xl group">
+          <div className="absolute top-0 right-0 p-6">
+            <div className="flex gap-1">
+              {[1,2,3].map(i => <div key={i} className="w-1 h-3 bg-indigo-500/30 rounded-full animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />)}
+            </div>
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-white flex items-center gap-2 text-lg font-bold">
+              <div className="p-1.5 rounded-lg bg-indigo-500/20">
+                <TrendingUp className="w-5 h-5 text-indigo-400" />
+              </div>
+              Bio-Net v4 AI Oracle
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between items-end mb-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Stability Index</span>
+                    <span className="text-sm font-bold text-indigo-300">{aiInsights?.stabilityIndex || 0}%</span>
+                  </div>
+                  <Progress value={aiInsights?.stabilityIndex || 0} className="h-1.5 bg-slate-800" />
+                </div>
+                <div>
+                  <div className="flex justify-between items-end mb-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Risk Mitigation Score</span>
+                    <span className="text-sm font-bold text-rose-400">{aiInsights?.riskScore || 0}/100</span>
+                  </div>
+                  <Progress value={100 - (aiInsights?.riskScore || 0)} className="h-1.5 bg-slate-800" />
+                </div>
+              </div>
+              
+              <div className="flex flex-col justify-center items-center p-4 rounded-2xl bg-white/[0.02] border border-white/[0.05]">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Projected Outcome</span>
+                <span className={`text-2xl font-black italic ${aiInsights?.trend === 'IMPROVING' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {aiInsights?.trend || 'STABLE'}
+                </span>
+                <span className="text-[9px] text-slate-400 mt-2 text-center leading-tight">Based on Neural Temporal Analysis</span>
+              </div>
+
+              <div className="space-y-2">
+                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Autonomous Recommendations</span>
+                 <div className="space-y-1.5">
+                   {(aiInsights?.recommendations || []).map((rec, i) => (
+                     <div key={i} className="flex items-start gap-2 text-[11px] text-slate-300 leading-snug">
+                       <CheckCircle className="w-3 h-3 text-indigo-400 mt-0.5 shrink-0" />
+                       {rec}
+                     </div>
+                   ))}
+                 </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Attendance Trend */}

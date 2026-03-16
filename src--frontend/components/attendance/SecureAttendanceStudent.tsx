@@ -13,7 +13,9 @@ import {
     CheckCircle2, AlertTriangle, ScanFace, Shield,
     Loader2, MapPin, Lock, Eye, ShieldAlert,
     Maximize, Brain, CheckSquare, Clock3,
+    QrCode as QrIcon,
   } from 'lucide-react';
+import QRScanner from './QRScanner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
@@ -58,6 +60,7 @@ export default function SecureAttendanceStudent() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isFocusLocked, setIsFocusLocked] = useState(false);
   const [focusViolations, setFocusViolations] = useState(0);
+  const [showScanner, setShowScanner] = useState(false);
 
   // Stats
   const [locationData, setLocationData] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
@@ -175,6 +178,35 @@ export default function SecureAttendanceStudent() {
     } catch (err: any) {
       setErrorMsg(err.message || 'Verification failed');
       setStep('failed');
+    }
+  };
+
+  const handleQRScan = (decodedText: string) => {
+    // Extract code from URL if needed: https://campusai.edu/attend/123456
+    let code = decodedText;
+    if (decodedText.includes('/attend/')) {
+      code = decodedText.split('/attend/').pop() || '';
+    }
+    
+    if (code.length === 6 && /^\d+$/.test(code)) {
+      setSessionCode(code);
+      setShowScanner(false);
+      // Auto-trigger validation
+      setStep('loading');
+      setStatusMsg('Verifying scanned code...');
+      
+      sessionService.check(selectedClassId, code)
+        .then(sessionCheck => {
+          if (!sessionCheck.active) throw new Error('Invalid or expired session code');
+          setActiveSession(sessionCheck.session);
+          setStep('location');
+        })
+        .catch(err => {
+          setErrorMsg(err.message || 'Verification failed');
+          setStep('failed');
+        });
+    } else {
+      toast.error('Invalid QR Code detected');
     }
   };
 
@@ -435,13 +467,29 @@ export default function SecureAttendanceStudent() {
                    />
                    <div className="absolute inset-0 pointer-events-none border-2 border-white/5 rounded-3xl group-focus-within:border-cyan-500/40 transition-all scale-[1.05] group-focus-within:scale-100 opacity-0 group-focus-within:opacity-100" />
                 </div>
-                <Button 
-                  disabled={sessionCode.length !== 6} 
-                  className="w-full py-10 bg-cyan-600 hover:bg-cyan-500 font-black text-2xl rounded-[2rem] shadow-xl shadow-cyan-900/30 transition-all uppercase tracking-[0.2em]"
-                  onClick={validateSessionAndStart}
-                >
-                  Confirm Token
-                </Button>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <Button 
+                    className="py-10 bg-slate-900 hover:bg-slate-800 text-cyan-400 font-black rounded-2xl border border-cyan-500/20 shadow-xl transition-all uppercase tracking-[0.2em]"
+                    onClick={() => setShowScanner(true)}
+                  >
+                    <QrIcon className="mr-2 w-6 h-6" /> Scan QR
+                  </Button>
+                  <Button 
+                    disabled={sessionCode.length !== 6} 
+                    className="py-10 bg-cyan-600 hover:bg-cyan-500 font-black rounded-2xl shadow-xl shadow-cyan-900/30 transition-all uppercase tracking-[0.2em]"
+                    onClick={validateSessionAndStart}
+                  >
+                    Manual Confirm
+                  </Button>
+                </div>
+
+                {showScanner && (
+                  <QRScanner 
+                    onScanSuccess={handleQRScan} 
+                    onClose={() => setShowScanner(false)} 
+                  />
+                )}
                 {focusViolations > 0 && (
                    <div className="flex justify-center items-center gap-2 text-red-500 text-xs font-black uppercase tracking-[0.3em] bg-red-500/10 py-3 rounded-xl border border-red-500/20 animate-pulse">
                       <ShieldAlert className="w-5 h-5" /> {focusViolations} Security Breaches Logged

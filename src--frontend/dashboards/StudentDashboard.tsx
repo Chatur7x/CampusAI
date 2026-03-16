@@ -32,6 +32,7 @@ import {
   GraduationCap,
   ScanFace,
   Brain,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,6 +47,7 @@ const StudentSettingsPage = lazy(() => import('@/pages/student/Settings'));
 const FaceRegistration = lazy(() => import('@/components/ai/FaceRegistration'));
 const FaceAttendance = lazy(() => import('@/components/ai/FaceAttendance'));
 const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
+const ChatPage = lazy(() => import('@/pages/Chat'));
 
 // Loading spinner for lazy-loaded pages
 const PageLoader = () => (
@@ -67,6 +69,7 @@ const sidebarItems = [
   { icon: ScanFace, label: 'Face Registration', path: '/student/face-register' },
   { icon: ScanFace, label: 'Face Attendance', path: '/student/face-attendance' },
   { icon: Brain, label: 'AI Analytics', path: '/student/ai-analytics' },
+  { icon: MessageSquare, label: 'Messages', path: '/student/chat' },
   { icon: Bell, label: 'Notices', path: '/student/notices' },
   { icon: Settings, label: 'Settings', path: '/student/settings' },
 ];
@@ -107,6 +110,7 @@ export default function StudentDashboard() {
             <Route path="/face-register" element={<FaceRegistration />} />
             <Route path="/face-attendance" element={<FaceAttendance />} />
             <Route path="/ai-analytics" element={<AIDashboard role="student" studentId={student?.id || user?.id} studentName={`${user?.profile?.first_name || ''} ${user?.profile?.last_name || ''}`.trim() || 'Student'} />} />
+            <Route path="/chat" element={<ChatPage />} />
             <Route path="/notices" element={<StudentNoticesPage />} />
             <Route path="/settings" element={<StudentSettingsPage />} />
           </Routes>

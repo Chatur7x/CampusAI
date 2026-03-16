@@ -56,6 +56,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaStep, setMfaStep] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [mfaLoading, setMfaLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -103,7 +106,53 @@ export default function LoginPage() {
     window.location.href = target;
   };
 
-  const handleLogin = async () => {
+
+  const finalizeLogin = (userObj: any) => {
+    // If user has mfa_enabled = true (custom profile flag)
+    if (userObj?.profile?.mfa_enabled) {
+      setMfaStep(true);
+      return;
+    }
+    
+    // Normal redirect logic
+    const r = userObj.role;
+    const target =
+      r === "SUPER_ADMIN" || r === "ADMIN"
+        ? "/admin"
+        : r === "FACULTY" || r === "CLASS_INCHARGE"
+          ? "/faculty"
+          : "/student";
+    window.location.href = target;
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && user && !mfaStep) {
+        // If they hit the login page but are already authenticated and NOT in MFA flow
+        // Optional: skipAutoRedirect ? ...
+    }
+  }, [isAuthenticated, user, mfaStep]);
+
+  const handleVerifyMFA = async () => {
+    if (otp.length !== 6) {
+        setError("Enter 6-digit code");
+        return;
+    }
+    setMfaLoading(true);
+    setError(null);
+    try {
+        const { authService } = await import("@/lib/api");
+        await authService.verifyMFA(user?.id || '', otp);
+        
+        // Success! Finalize redirect
+        if (user) finalizeLogin({ ...user, profile: { ...user.profile, mfa_enabled: false } }); // Pass false to bypass second check
+    } catch (err: any) {
+        setError(err.message || "Invalid or expired code");
+    } finally {
+        setMfaLoading(false);
+    }
+  };
+
+  const handleLoginSubmit = async () => {
     if (!email || !password) {
       setError("Enter email and password");
       return;
@@ -111,36 +160,36 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const timeout = new Promise<{ success: false; error: string }>((resolve) =>
-        setTimeout(() => resolve({ success: false, error: "Request timed out — check your connection." }), 8000)
-      );
-      const result = await Promise.race([signIn(email, password), timeout]);
+      const result = await signIn(email, password);
       
       if (!result.success) {
-        setError(result.error || "Login failed due to an unknown database issue. Please try again.");
+        setError(result.error || "Login failed");
       } else {
-        // Fix: If login succeeded but React Router hasn't redirected yet (e.g., due to suppressed schema error fallback),
-        // we force a redirect by waiting a split second, then doing a hard reload.
-        setTimeout(() => {
-          if (window.location.pathname === "/login") {
-            window.location.reload();
-          }
-        }, 1000);
+        // We need to fetch the full user to check the mfa_enabled flag
+        // The SupabaseAuthContext already starts enriching in background.
+        // We'll wait a bit or use the enriched data from result if it was there
+        
+        // Note: SupabaseAuthContext fetchUserData might take a split second.
+        // For enforcement, we need the mfa_enabled flag.
+        setTimeout(async () => {
+            const { profileService } = await import("@/lib/api");
+            const profile = await profileService.getCurrent();
+            if (profile?.mfa_enabled) {
+                setMfaStep(true);
+            } else {
+                window.location.reload(); // Let the auto-redirect handle it
+            }
+        }, 500);
       }
-    } catch (err) {
-      const msg = (err as Error).message || "";
-      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-        setError("🔌 Cannot reach the authentication server. Please check your internet connection or ensure the backend is running.");
-      } else {
-        setError(msg || "An unexpected error disrupted the login process.");
-      }
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred");
     } finally {
       setLoading(false);
     }
   };
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleLogin();
+    if (e.key === "Enter") handleLoginSubmit();
   };
 
   return (
@@ -353,7 +402,7 @@ export default function LoginPage() {
               )}
 
               {/* Sign In Button */}
-              <button onClick={handleLogin} disabled={loading}
+              <button onClick={handleLoginSubmit} disabled={loading}
                 className="relative w-full rounded-2xl py-3.5 text-[14px] font-semibold text-white overflow-hidden transition-all duration-300 disabled:opacity-50 group mt-1"
                 style={{
                   background: "linear-gradient(135deg, #6366f1, #8b5cf6, #10b981)",
@@ -372,6 +421,53 @@ export default function LoginPage() {
                   Sign In
                 </span>
               </button>
+
+              {/* MFA Modal/Overlay */}
+              {mfaStep && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl transition-all duration-500">
+                  <div className="w-full max-w-[380px] rounded-[32px] border border-white/10 p-8 shadow-2xl bg-white/[0.03] backdrop-blur-2xl">
+                    <div className="flex justify-center mb-6">
+                      <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
+                        <svg className="w-8 h-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                      </div>
+                    </div>
+                    <h2 className="text-center text-xl font-bold text-white mb-2">Two-Factor Authentication</h2>
+                    <p className="text-center text-white/40 text-[13px] mb-8 leading-relaxed">
+                      Enter the 6-digit verification code sent to your registered email address.
+                    </p>
+                    
+                    <div className="space-y-6">
+                      <input
+                        type="text"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        className="w-full text-center text-3xl font-bold tracking-[0.5em] h-16 bg-white/5 border border-white/10 rounded-2xl text-white focus:border-indigo-500 outline-none"
+                        placeholder="••••••"
+                        autoFocus
+                      />
+                      
+                      <button 
+                        onClick={handleVerifyMFA}
+                        disabled={mfaLoading || otp.length < 6}
+                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {mfaLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                        Verify & Continue
+                      </button>
+                      
+                      <button 
+                        onClick={() => { setMfaStep(false); signOut(); }}
+                        className="w-full py-2 text-white/30 hover:text-white/50 text-xs font-medium uppercase tracking-widest transition-colors"
+                      >
+                        Cancel Login
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Divider */}
               <div className="flex items-center gap-4 py-1">

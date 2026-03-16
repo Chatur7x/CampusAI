@@ -451,28 +451,39 @@ CREATE TRIGGER update_leave_requests_updated_at BEFORE UPDATE ON leave_requests 
 CREATE TRIGGER update_grades_updated_at BEFORE UPDATE ON grades FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_notices_updated_at BEFORE UPDATE ON notices FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Generate blockchain hash for attendance
+-- Generate hardened blockchain hash for attendance
 CREATE OR REPLACE FUNCTION generate_attendance_hash()
 RETURNS TRIGGER AS $$
 DECLARE
   prev_hash TEXT;
   data_to_hash TEXT;
+  salt TEXT := 'CAMPUSAI_SECURE_V4_';
 BEGIN
-  -- Get previous hash
+  -- Get previous hash for this student (chaining)
   SELECT blockchain_hash INTO prev_hash 
   FROM attendance 
   WHERE student_id = NEW.student_id 
   ORDER BY created_at DESC 
   LIMIT 1;
   
-  NEW.previous_hash := COALESCE(prev_hash, 'GENESIS');
+  -- Prevent replay: Verify that total records for this student/date doesn't exceed 1 (unique constraint already helps)
+  -- But we bind the hash to the nonce for cryptographic uniqueness
+  NEW.nonce := floor(random() * 1000000000)::INTEGER; 
+  NEW.previous_hash := COALESCE(prev_hash, 'GENESIS_BLOCK_V4');
   
-  -- Create hash from attendance data
-  data_to_hash := NEW.student_id || NEW.date || NEW.status || NEW.method || 
-                  COALESCE(NEW.confidence_score::TEXT, '') || NEW.previous_hash || NOW()::TEXT;
+  -- Create hardened hash from attendance data + salt + nonce + context
+  data_to_hash := salt || 
+                  NEW.student_id::TEXT || 
+                  NEW.date::TEXT || 
+                  NEW.status::TEXT || 
+                  NEW.method::TEXT || 
+                  COALESCE(NEW.confidence_score::TEXT, '0.1') || 
+                  COALESCE(NEW.device_info, 'UNKNOWN_DEV') ||
+                  COALESCE(NEW.ip_address::TEXT, '0.0.0.0') ||
+                  NEW.previous_hash || 
+                  NEW.nonce::TEXT;
   
   NEW.blockchain_hash := encode(digest(data_to_hash, 'sha256'), 'hex');
-  NEW.nonce := floor(random() * 1000000)::INTEGER;
   
   RETURN NEW;
 END;
