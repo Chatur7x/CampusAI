@@ -82,14 +82,23 @@ export default function FaceRegistration() {
 
   useEffect(() => {
     // Initialize FaceMesh robustly for Vite/ESM environments
-    const FaceMeshConstructor = (faceMeshModule as any).FaceMesh || 
-                              (faceMeshModule as any).default?.FaceMesh || 
-                              (faceMeshModule as any).default ||
-                              (window as any).FaceMesh;
+    let FaceMeshConstructor: any = null;
+    
+    // Check module first
+    if (faceMeshModule) {
+      FaceMeshConstructor = (faceMeshModule as any).FaceMesh || 
+                           (faceMeshModule as any).default?.FaceMesh || 
+                           (faceMeshModule as any).default;
+    }
 
-    if (!FaceMeshConstructor || typeof FaceMeshConstructor !== 'function') {
-      console.error('FaceMesh constructor not found in module or window', faceMeshModule);
-      setErrorMsg('Failed to initialize biometric engine: FaceMesh module error.');
+    // Fallback to window global if the module import didn't yield a function
+    if (typeof FaceMeshConstructor !== 'function') {
+      FaceMeshConstructor = (window as any).FaceMesh;
+    }
+
+    if (typeof FaceMeshConstructor !== 'function') {
+      console.error('FaceMesh constructor not found in module or window.');
+      setErrorMsg('Failed to initialize biometric engine. Please refresh the page.');
       setStep('error');
       return;
     }
