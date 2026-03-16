@@ -12,8 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { registerFace, checkLiveness, captureFrame, getLivenessChallenge } from '@/lib/ai/apiClient';
 import type { LivenessChallenge } from '@/lib/ai/apiClient';
-import { FaceMesh } from '@mediapipe/face_mesh';
-import * as faceMesh from '@mediapipe/face_mesh';
+import * as faceMeshModule from '@mediapipe/face_mesh';
 
 // ── Types ──
 
@@ -39,7 +38,7 @@ export default function FaceRegistration() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const meshCanvasRef = useRef<HTMLCanvasElement>(null);
-  const faceMeshRef = useRef<FaceMesh | null>(null);
+  const faceMeshRef = useRef<any>(null);
   const landmarksRef = useRef<any[] | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -82,9 +81,20 @@ export default function FaceRegistration() {
   };
 
   useEffect(() => {
-    // Initialize FaceMesh
-    const fm = new FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+    // Initialize FaceMesh robustly for Vite/ESM environments
+    const FaceMeshConstructor = (faceMeshModule as any).FaceMesh || 
+                              (faceMeshModule as any).default?.FaceMesh || 
+                              (faceMeshModule as any).default;
+
+    if (!FaceMeshConstructor) {
+      console.error('FaceMesh constructor not found in module', faceMeshModule);
+      setErrorMsg('Failed to initialize biometric engine: FaceMesh module error.');
+      setStep('error');
+      return;
+    }
+
+    const fm = new FaceMeshConstructor({
+      locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
     });
 
     fm.setOptions({
@@ -94,7 +104,7 @@ export default function FaceRegistration() {
       minTrackingConfidence: 0.5,
     });
 
-    fm.onResults((results) => {
+    fm.onResults((results: any) => {
       if (!meshCanvasRef.current || !videoRef.current) return;
       const canvasCtx = meshCanvasRef.current.getContext('2d');
       if (!canvasCtx) return;
@@ -125,7 +135,7 @@ export default function FaceRegistration() {
 
         // FACEMESH_TESSELATION is huge, let's use a subset for "premium look"
         // We'll just draw dots for landmarks for a cleaner 'data' look
-        landmarks.forEach((pt, i) => {
+        landmarks.forEach((pt: any, i: number) => {
           // Draw every 5th point for a cleaner look
           if (i % 4 === 0) {
             canvasCtx.fillStyle = i % 20 === 0 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(16, 185, 129, 0.4)';
