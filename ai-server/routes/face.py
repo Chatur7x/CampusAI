@@ -7,6 +7,7 @@ import json, logging
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from models.face_recognition_module import (
@@ -31,9 +32,15 @@ router = APIRouter()
 
 # ── Request / Response schemas ────────────────────────────────
 
+class Photo(BaseModel):
+    imageData: str
+    angle: str
+
 class RegisterRequest(BaseModel):
     user_id: str
-    images: List[str]  # base64 data-URLs
+    photos: List[Photo]
+    liveness_frames: List[str]
+    challenge_type: Optional[str] = None
 
 
 class VerifyRequest(BaseModel):
@@ -79,11 +86,14 @@ async def register_face(req: RegisterRequest):
     """
     try:
         # 1. Verify student exists first (Prevent 404 later)
-        student = fetch_student_by_user(req.user_id) # Kept existing fetch_student_by_user
+        student = fetch_student_by_user(req.user_id) 
         if not student:
             return JSONResponse(
                 status_code=404,
-                content={"success": False, "error": f"Registration Blocked: No student record found for user {req.user_id}. Action Required: Please ensure an admin has created your student entry before enrolling biometrics."}
+                content={
+                    "success": False, 
+                    "error": f"Registration Blocked: No student record found for user {req.user_id}. Action Required: Please ensure your student profile has been initialized."
+                }
             )
 
         # 2. Liveness verification on sequence
@@ -98,9 +108,8 @@ async def register_face(req: RegisterRequest):
             return {"success": False, "error": "Liveness check failed", "details": liveness}
 
         # 3. Generate multi-embedding from photos
-        # Extract base64 images from the list of photo dictionaries
-        images_base64 = [p["imageData"] for p in req.photos if "imageData" in p]
-        result = generate_multi_embedding(images_base64) # Changed to use images_base64 from photos
+        images_base64 = [p.imageData for p in req.photos]
+        result = generate_multi_embedding(images_base64) 
 
         if not result.get("face_detected"):
             log_ai_decision(
@@ -109,7 +118,7 @@ async def register_face(req: RegisterRequest):
                 user_id=req.user_id,
                 result={"success": False, "errors": result.get('errors')},
             )
-            raise HTTPException(400, f"Face not detected: {result.get('errors')}")
+            return {"success": False, "error": f"Face not detected: {result.get('errors')}"}
 
         embedding_json = json.dumps(result["embedding"])
         update_face_data(student["id"], embedding_json)
@@ -131,16 +140,9 @@ async def register_face(req: RegisterRequest):
         }
     except Exception as e:
         logger.error(f"Registration failed for user {req.user_id}: {e}", exc_info=True)
-        # Log this for debugging
-        error_detail = (
-            f"Registration Blocked: An unexpected error occurred during registration for user {req.user_id}. "
-            f"Error: {e}"
-        )
-        # The original code had a specific 404 for student not found, which is now handled by JSONResponse.
-        # This HTTPException is for other general errors.
         raise HTTPException(
             status_code=500,
-            detail=error_detail
+            detail=f"Registration Anomaly: {str(e)}"
         )
 
     result = generate_multi_embedding(req.images)

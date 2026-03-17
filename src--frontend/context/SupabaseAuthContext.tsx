@@ -169,14 +169,13 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         updated_at: rawProfile.updated_at || new Date().toISOString(),
       } : null;
 
-      // If no profile row exists, try to auto-create one
+      // If no profile row exists, the trigger should handle it. 
+      // We keep a lightweight fallback just in case of trigger failure.
       if (!rawProfile) {
         const meta = (su.user_metadata || {}) as Record<string, unknown>;
         const firstName = (typeof meta.first_name === 'string' ? meta.first_name : null)
-          || (typeof meta.full_name === 'string' ? meta.full_name.split(' ')[0] : null)
           || su.email?.split('@')[0] || 'User';
         const lastName = (typeof meta.last_name === 'string' ? meta.last_name : null)
-          || (typeof meta.full_name === 'string' ? meta.full_name.split(' ').slice(1).join(' ') : null)
           || 'User';
 
         await supabase.from('profiles').upsert({

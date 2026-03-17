@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { registerFace, checkLiveness, captureFrame, getLivenessChallenge } from '@/lib/ai/apiClient';
+import { studentService } from '@/lib/api';
 import type { LivenessChallenge } from '@/lib/ai/apiClient';
 import * as faceMeshModule from '@mediapipe/face_mesh';
 
@@ -180,15 +181,43 @@ export default function FaceRegistration() {
 
   const initFlow = async () => {
     setStep('loading');
-    setStatusMsg('Initializing biometric scanner...');
+    setStatusMsg('Verifying your student profile...');
+    
     try {
+      if (!user) throw new Error('Not authenticated');
+
+      // Retry mechanism for profile synchronization
+      let student = null;
+      let retries = 0;
+      const MAX_RETRIES = 3;
+
+      while (retries < MAX_RETRIES) {
+        setStatusMsg(retries === 0 ? 'Verifying profile...' : `Synchronizing profile (Attempt ${retries + 1})...`);
+        try {
+          student = await studentService.getByUserId(user.id);
+          if (student) break;
+        } catch (e) {
+          console.warn('Profile fetch attempt failed:', e);
+        }
+        
+        retries++;
+        if (retries < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+
+      if (!student) {
+        throw new Error('Registration Blocked: Your student record was not found in the database. Please ensure your profile is fully set up or contact support.');
+      }
+
+      setStatusMsg('Initializing biometric scanner...');
       await startCamera();
       setStep('capture');
       setStatusMsg(PHOTO_ANGLES[0].label);
       startVisibilityCheck();
       startMeshLoop();
     } catch (err) {
-      setErrorMsg(`Hardware access error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      setErrorMsg(err instanceof Error ? err.message : 'Hardware access error');
       setStep('error');
     }
   };
