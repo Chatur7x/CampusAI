@@ -368,8 +368,10 @@ export default function FaceRegistration() {
       setStep('success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'System fail';
-      if (msg.includes('404')) {
-        setErrorMsg('Database Link Missing: Your student profile has not been initialized. Please contact your Department Admin or Registrar to create your student record before enrolling your face.');
+      if (msg.includes('404') || msg.includes('Registration Blocked')) {
+        setErrorMsg(msg.includes('404') && !msg.includes(':') 
+          ? 'Database Link Missing: Your student profile has not been initialized. Please contact your Department Admin or Registrar.' 
+          : msg);
       } else {
         setErrorMsg(`Registration anomaly: ${msg}`);
       }
