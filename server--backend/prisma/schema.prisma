@@ -273,6 +273,7 @@ model Attendance {
   @@index([status], map: "idx_attendance_status")
   @@index([student_id], map: "idx_attendance_student")
   @@index([student_id, date], map: "idx_attendance_student_date")
+  @@index([subject_id], map: "idx_attendance_subject")
   @@map("attendance")
   @@schema("public")
 }

@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthenticatedRequest, NoticeCreate } from '../types';
+import { AuthenticatedRequest } from '../types';
 import { prisma } from '../utils/prisma';
 import { logAction } from '../utils/audit';
 import { createNotification } from '../services/notificationService';
@@ -18,28 +18,29 @@ export const createNotice = async (req: AuthenticatedRequest, res: Response): Pr
       data: {
         title,
         content,
-        priority,
-        targetRoles,
-        targetDepartments: targetDepartments || [],
-        targetClasses: targetClasses || [],
+        priority: priority || 'MEDIUM',
+        target_roles: targetRoles || [],
+        target_departments: targetDepartments || [],
+        target_classes: targetClasses || [],
         attachments: attachments || [],
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
-        publishedBy: req.user.id,
+        expiry_date: expiryDate ? new Date(expiryDate) : null,
+        published_by: req.user.id,
+        is_active: true
       },
     });
 
     // Notify target users
-    const targetUsers = await prisma.user.findMany({
+    const targetUsers = await prisma.profile.findMany({
       where: {
         role: { in: targetRoles },
-        isActive: true,
+        is_active: true,
       },
-      select: { id: true },
+      select: { user_id: true },
     });
 
-    for (const user of targetUsers) {
+    for (const profile of targetUsers) {
       await createNotification({
-        userId: user.id,
+        userId: profile.user_id,
         title: `New Notice: ${title}`,
         message: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
         type: 'NOTICE',
@@ -78,16 +79,16 @@ export const getNotices = async (req: AuthenticatedRequest, res: Response): Prom
     }
 
     const where: any = {
-      isActive: true,
+      is_active: true,
       OR: [
-        { targetRoles: { has: req.user.role } },
-        { targetRoles: { isEmpty: true } },
+        { target_roles: { has: req.user.role } },
+        { target_roles: { isEmpty: true } },
       ],
       AND: [
         {
           OR: [
-            { expiryDate: null },
-            { expiryDate: { gte: new Date() } },
+            { expiry_date: null },
+            { expiry_date: { gte: new Date() } },
           ],
         },
       ],
@@ -109,7 +110,7 @@ export const getNotices = async (req: AuthenticatedRequest, res: Response): Prom
         where,
         orderBy: [
           { priority: 'desc' },
-          { createdAt: 'desc' },
+          { created_at: 'desc' },
         ],
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
@@ -122,9 +123,9 @@ export const getNotices = async (req: AuthenticatedRequest, res: Response): Prom
       notices.map(async (notice) => {
         const read = await prisma.noticeRead.findUnique({
           where: {
-            noticeId_userId: {
-              noticeId: notice.id,
-              userId: req.user!.id,
+            notice_id_user_id: {
+              notice_id: notice.id,
+              user_id: req.user!.id,
             },
           },
         });
@@ -167,15 +168,15 @@ export const getNoticeById = async (req: AuthenticatedRequest, res: Response): P
     if (req.user) {
       await prisma.noticeRead.upsert({
         where: {
-          noticeId_userId: {
-            noticeId: id,
-            userId: req.user.id,
+          notice_id_user_id: {
+            notice_id: id,
+            user_id: req.user.id,
           },
         },
         update: {},
         create: {
-          noticeId: id,
-          userId: req.user.id,
+          notice_id: id,
+          user_id: req.user.id,
         },
       });
     }
@@ -212,12 +213,12 @@ export const updateNotice = async (req: AuthenticatedRequest, res: Response): Pr
         title,
         content,
         priority,
-        targetRoles,
-        targetDepartments,
-        targetClasses,
+        target_roles: targetRoles,
+        target_departments: targetDepartments,
+        target_classes: targetClasses,
         attachments,
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
-        isActive,
+        expiry_date: expiryDate ? new Date(expiryDate) : null,
+        is_active: isActive !== undefined ? isActive : true,
       },
     });
 
@@ -261,7 +262,7 @@ export const deleteNotice = async (req: AuthenticatedRequest, res: Response): Pr
     // Soft delete
     const notice = await prisma.notice.update({
       where: { id },
-      data: { isActive: false },
+      data: { is_active: false },
     });
 
     await logAction({
@@ -288,10 +289,10 @@ export const deleteNotice = async (req: AuthenticatedRequest, res: Response): Pr
 export const getNoticeStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const totalNotices = await prisma.notice.count();
-    const activeNotices = await prisma.notice.count({ where: { isActive: true } });
+    const activeNotices = await prisma.notice.count({ where: { is_active: true } });
     const expiredNotices = await prisma.notice.count({
       where: {
-        expiryDate: { lt: new Date() },
+        expiry_date: { lt: new Date() },
       },
     });
 

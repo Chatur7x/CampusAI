@@ -26,18 +26,19 @@ export const createTimetableEntry = async (req: AuthenticatedRequest, res: Respo
 
     const entry = await prisma.timetableEntry.create({
       data: {
-        classId,
-        subjectId,
-        facultyId,
-        dayOfWeek,
-        startTime,
-        endTime,
-        roomNumber,
+        class_id: classId,
+        subject_id: subjectId,
+        faculty_id: facultyId,
+        day_of_week: dayOfWeek,
+        start_time: startTime,
+        end_time: endTime,
+        room_number: roomNumber,
+        is_active: true
       },
       include: {
-        class: true,
-        subject: true,
-        faculty: { include: { user: { include: { profile: true } } } },
+        classes: true,
+        subjects: true,
+        faculties: { include: { users: { include: { profiles: true } } } },
       },
     });
 
@@ -66,31 +67,31 @@ export const getTimetable = async (req: AuthenticatedRequest, res: Response): Pr
   try {
     const { classId, facultyId, studentId } = req.query;
 
-    let where: any = {};
+    let where: any = { is_active: true };
 
     if (classId) {
-      where.classId = classId as string;
+      where.class_id = classId as string;
     } else if (facultyId) {
-      where.facultyId = facultyId as string;
+      where.faculty_id = facultyId as string;
     } else if (studentId) {
       const student = await prisma.student.findUnique({
         where: { id: studentId as string },
       });
       if (student) {
-        where.classId = student.classId;
+        where.class_id = student.class_id;
       }
     }
 
     const entries = await prisma.timetableEntry.findMany({
       where,
       include: {
-        class: true,
-        subject: true,
-        faculty: { include: { user: { include: { profile: true } } } },
+        classes: true,
+        subjects: true,
+        faculties: { include: { users: { include: { profiles: true } } } },
       },
       orderBy: [
-        { dayOfWeek: 'asc' },
-        { startTime: 'asc' },
+        { day_of_week: 'asc' },
+        { start_time: 'asc' },
       ],
     });
 
@@ -121,35 +122,35 @@ export const getMyTimetable = async (req: AuthenticatedRequest, res: Response): 
 
     if (req.user.role === 'STUDENT') {
       const student = await prisma.student.findUnique({
-        where: { userId: req.user.id },
+        where: { user_id: req.user.id },
       });
       if (student) {
         entries = await prisma.timetableEntry.findMany({
-          where: { classId: student.classId },
+          where: { class_id: student.class_id, is_active: true },
           include: {
-            subject: true,
-            faculty: { include: { user: { include: { profile: true } } } },
+            subjects: true,
+            faculties: { include: { users: { include: { profiles: true } } } },
           },
           orderBy: [
-            { dayOfWeek: 'asc' },
-            { startTime: 'asc' },
+            { day_of_week: 'asc' },
+            { start_time: 'asc' },
           ],
         });
       }
     } else if (req.user.role === 'FACULTY' || req.user.role === 'CLASS_INCHARGE') {
       const faculty = await prisma.faculty.findUnique({
-        where: { userId: req.user.id },
+        where: { user_id: req.user.id },
       });
       if (faculty) {
         entries = await prisma.timetableEntry.findMany({
-          where: { facultyId: faculty.id },
+          where: { faculty_id: faculty.id, is_active: true },
           include: {
-            class: true,
-            subject: true,
+            classes: true,
+            subjects: true,
           },
           orderBy: [
-            { dayOfWeek: 'asc' },
-            { startTime: 'asc' },
+            { day_of_week: 'asc' },
+            { start_time: 'asc' },
           ],
         });
       }
@@ -188,12 +189,12 @@ export const updateTimetableEntry = async (req: AuthenticatedRequest, res: Respo
 
     // Check for conflicts (excluding current entry)
     const conflicts = await checkTimetableConflicts(
-      classId || existingEntry.classId,
-      facultyId || existingEntry.facultyId,
-      roomNumber || existingEntry.roomNumber,
-      dayOfWeek || existingEntry.dayOfWeek,
-      startTime || existingEntry.startTime,
-      endTime || existingEntry.endTime,
+      classId || existingEntry.class_id,
+      facultyId || existingEntry.faculty_id,
+      roomNumber || existingEntry.room_number,
+      dayOfWeek || existingEntry.day_of_week,
+      startTime || existingEntry.start_time,
+      endTime || existingEntry.end_time,
       id
     );
 
@@ -209,18 +210,18 @@ export const updateTimetableEntry = async (req: AuthenticatedRequest, res: Respo
     const entry = await prisma.timetableEntry.update({
       where: { id },
       data: {
-        classId,
-        subjectId,
-        facultyId,
-        dayOfWeek,
-        startTime,
-        endTime,
-        roomNumber,
+        class_id: classId,
+        subject_id: subjectId,
+        faculty_id: facultyId,
+        day_of_week: dayOfWeek,
+        start_time: startTime,
+        end_time: endTime,
+        room_number: roomNumber,
       },
       include: {
-        class: true,
-        subject: true,
-        faculty: { include: { user: { include: { profile: true } } } },
+        classes: true,
+        subjects: true,
+        faculties: { include: { users: { include: { profiles: true } } } },
       },
     });
 
@@ -261,7 +262,11 @@ export const deleteTimetableEntry = async (req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    await prisma.timetableEntry.delete({ where: { id } });
+    // Soft delete
+    await prisma.timetableEntry.update({ 
+        where: { id },
+        data: { is_active: false }
+    });
 
     await logAction({
       userId: req.user.id,
@@ -313,7 +318,16 @@ export const bulkCreateTimetable = async (req: AuthenticatedRequest, res: Respon
         }
 
         const created = await prisma.timetableEntry.create({
-          data: entry,
+          data: {
+              class_id: entry.classId,
+              subject_id: entry.subjectId,
+              faculty_id: entry.facultyId,
+              day_of_week: entry.dayOfWeek,
+              start_time: entry.startTime,
+              end_time: entry.endTime,
+              room_number: entry.roomNumber,
+              is_active: true
+          },
         });
         results.push(created);
       } catch (err) {
@@ -354,22 +368,20 @@ async function checkTimetableConflicts(
   const conflicts = [];
 
   const where: any = {
-    dayOfWeek,
+    day_of_week: dayOfWeek,
+    is_active: true,
     id: excludeId ? { not: excludeId } : undefined,
     OR: [
-      // Class conflict
-      { classId },
-      // Faculty conflict
-      { facultyId },
-      // Room conflict
-      roomNumber ? { roomNumber } : {},
+      { class_id: classId },
+      { faculty_id: facultyId },
+      roomNumber ? { room_number: roomNumber } : {},
     ],
     AND: [
       {
         OR: [
-          { startTime: { lte: startTime }, endTime: { gt: startTime } },
-          { startTime: { lt: endTime }, endTime: { gte: endTime } },
-          { startTime: { gte: startTime }, endTime: { lte: endTime } },
+          { start_time: { lte: startTime }, end_time: { gt: startTime } },
+          { start_time: { lt: endTime }, end_time: { gte: endTime } },
+          { start_time: { gte: startTime }, end_time: { lte: endTime } },
         ],
       },
     ],
@@ -378,13 +390,13 @@ async function checkTimetableConflicts(
   const existingEntries = await prisma.timetableEntry.findMany({ where });
 
   for (const entry of existingEntries) {
-    if (entry.classId === classId) {
+    if (entry.class_id === classId) {
       conflicts.push({ type: 'CLASS', message: 'Class has another subject at this time', entry });
     }
-    if (entry.facultyId === facultyId) {
+    if (entry.faculty_id === facultyId) {
       conflicts.push({ type: 'FACULTY', message: 'Faculty is assigned to another class at this time', entry });
     }
-    if (entry.roomNumber && entry.roomNumber === roomNumber) {
+    if (entry.room_number && entry.room_number === roomNumber) {
       conflicts.push({ type: 'ROOM', message: 'Room is occupied at this time', entry });
     }
   }
@@ -398,15 +410,15 @@ function groupTimetableByDay(entries: any[]): { [key: number]: any[] } {
   };
 
   for (const entry of entries) {
-    if (!grouped[entry.dayOfWeek]) {
-      grouped[entry.dayOfWeek] = [];
+    if (!grouped[entry.day_of_week]) {
+      grouped[entry.day_of_week] = [];
     }
-    grouped[entry.dayOfWeek].push(entry);
+    grouped[entry.day_of_week].push(entry);
   }
 
   // Sort each day's entries by start time
   for (const day in grouped) {
-    grouped[day].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    grouped[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
   }
 
   return grouped;

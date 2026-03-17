@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import crypto from 'crypto';
-import { AuthenticatedRequest, AttendanceRecord } from '../types';
+import { AuthenticatedRequest } from '../types';
 import { prisma } from '../utils/prisma';
 import { logAction } from '../utils/audit';
 import { createNotification } from '../services/notificationService';
@@ -9,11 +9,11 @@ import { verifyFaceExternal } from '../utils/faceVerification';
 
 const getPreviousAttendanceHash = async (): Promise<string | null> => {
   const latest = await prisma.attendance.findFirst({
-    where: { blockchainHash: { not: null } },
-    orderBy: { createdAt: 'desc' },
-    select: { blockchainHash: true },
+    where: { blockchain_hash: { not: null } },
+    orderBy: { created_at: 'desc' },
+    select: { blockchain_hash: true },
   });
-  return latest?.blockchainHash || null;
+  return latest?.blockchain_hash || null;
 };
 
 const generateAttendanceHash = (payload: Record<string, unknown>): string => {
@@ -29,7 +29,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
     // Verify student exists
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      include: { user: { include: { profile: true } } },
+      include: { users: { include: { profiles: true } } },
     });
 
     if (!student) {
@@ -38,7 +38,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
     }
 
     // Check if face is registered
-    if (!student.faceRegistered || !student.faceData) {
+    if (!student.face_registered || !student.face_data) {
       res.status(400).json({ success: false, message: 'Face not registered. Please register your face first.' });
       return;
     }
@@ -46,7 +46,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
     // Delegate to external face verification provider; fail fast if not configured
     let verificationResult;
     try {
-      verificationResult = await verifyFaceExternal(student.faceData, faceData);
+      verificationResult = await verifyFaceExternal(student.face_data, faceData);
     } catch (err) {
       console.error('Face verification error:', err);
       res.status(503).json({ success: false, message: 'Face verification service unavailable' });
@@ -59,9 +59,9 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
         data: {
           type: 'face_mismatch',
           severity: 'HIGH',
-          userId: student.userId,
-          description: `Face verification failed for student ${student.enrollmentId}`,
-          data: { confidence: verificationResult.confidence },
+          user_id: student.user_id,
+          description: `Face verification failed for student ${student.enrollment_id}`,
+          metadata: { confidence: verificationResult.confidence },
         },
       });
 
@@ -99,34 +99,34 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
 
     const attendance = await prisma.attendance.upsert({
       where: {
-        studentId_date_subjectId: {
-          studentId,
+        student_id_date_subject_id: {
+          student_id: studentId,
           date: today,
-          subjectId: subjectId || null,
+          subject_id: subjectId || null,
         },
       },
       update: {
         status: 'PRESENT',
         method: 'AI_FACE',
-        confidenceScore: verificationResult.confidence,
-        location: location || null,
-        deviceInfo: deviceInfo || req.headers['user-agent'],
-        ipAddress: req.ip,
-        blockchainHash,
-        previousHash,
+        confidence_score: verificationResult.confidence,
+        location_lat: location?.lat || null,
+        location_lng: location?.lng || null,
+        device_info: deviceInfo || req.headers['user-agent'],
+        blockchain_hash: blockchainHash,
+        previous_hash: previousHash,
       },
       create: {
-        studentId,
-        subjectId,
+        student_id: studentId,
+        subject_id: subjectId || null,
         date: today,
         status: 'PRESENT',
         method: 'AI_FACE',
-        confidenceScore: verificationResult.confidence,
-        location: location || null,
-        deviceInfo: deviceInfo || req.headers['user-agent'],
-        ipAddress: req.ip,
-        blockchainHash,
-        previousHash,
+        confidence_score: verificationResult.confidence,
+        location_lat: location?.lat || null,
+        location_lng: location?.lng || null,
+        device_info: deviceInfo || req.headers['user-agent'],
+        blockchain_hash: blockchainHash,
+        previous_hash: previousHash,
       },
     });
 
@@ -143,7 +143,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
 
     // Create notification
     await createNotification({
-      userId: student.userId,
+      userId: student.user_id,
       title: 'Attendance Marked',
       message: `Your attendance has been marked as PRESENT via face recognition.`,
       type: 'ATTENDANCE',
@@ -184,7 +184,7 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      include: { user: true },
+      include: { users: true },
     });
 
     if (!student) {
@@ -209,30 +209,30 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
 
     const attendance = await prisma.attendance.upsert({
       where: {
-        studentId_date_subjectId: {
-          studentId,
+        student_id_date_subject_id: {
+          student_id: studentId,
           date: today,
-          subjectId: subjectId || null,
+          subject_id: subjectId || null,
         },
       },
       update: {
         status,
         method: 'MANUAL',
-        verifiedBy: req.user.id,
+        verified_by: req.user.id,
         justification,
-        blockchainHash,
-        previousHash,
+        blockchain_hash: blockchainHash,
+        previous_hash: previousHash,
       },
       create: {
-        studentId,
-        subjectId,
+        student_id: studentId,
+        subject_id: subjectId || null,
         date: today,
         status,
         method: 'MANUAL',
-        verifiedBy: req.user.id,
+        verified_by: req.user.id,
         justification,
-        blockchainHash,
-        previousHash,
+        blockchain_hash: blockchainHash,
+        previous_hash: previousHash,
       },
     });
 
@@ -248,7 +248,7 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
 
     // Notify student
     await createNotification({
-      userId: student.userId,
+      userId: student.user_id,
       title: 'Attendance Updated',
       message: `Your attendance has been marked as ${status} by faculty.`,
       type: 'ATTENDANCE',
@@ -297,33 +297,32 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
           previousHash,
         });
 
-
         const attendance = await prisma.attendance.upsert({
           where: {
-            studentId_date_subjectId: {
-              studentId: entry.studentId,
+            student_id_date_subject_id: {
+              student_id: entry.studentId,
               date: attendanceDate,
-              subjectId: subjectId || null,
+              subject_id: subjectId || null,
             },
           },
           update: {
             status: entry.status,
             method: 'MANUAL',
-            verifiedBy: req.user.id,
+            verified_by: req.user.id,
             justification: entry.justification,
-            blockchainHash,
-            previousHash,
+            blockchain_hash: blockchainHash,
+            previous_hash: previousHash,
           },
           create: {
-            studentId: entry.studentId,
-            subjectId,
+            student_id: entry.studentId,
+            subject_id: subjectId || null,
             date: attendanceDate,
             status: entry.status,
             method: 'MANUAL',
-            verifiedBy: req.user.id,
+            verified_by: req.user.id,
             justification: entry.justification,
-            blockchainHash,
-            previousHash,
+            blockchain_hash: blockchainHash,
+            previous_hash: previousHash,
           },
         });
 
@@ -338,7 +337,7 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
       userId: req.user.id,
       action: 'MARK_BULK_ATTENDANCE',
       entityType: 'attendance',
-      newValue: { count: results.length, classId, subjectId, date },
+      newValue: { count: results.length, class_id: classId, subject_id: subjectId, date },
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -366,7 +365,7 @@ export const getStudentAttendance = async (req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    const where: any = { studentId };
+    const where: any = { student_id: studentId };
 
     if (startDate && endDate) {
       where.date = {
@@ -376,15 +375,15 @@ export const getStudentAttendance = async (req: AuthenticatedRequest, res: Respo
     }
 
     if (subjectId) {
-      where.subjectId = subjectId as string;
+      where.subject_id = subjectId as string;
     }
 
     const attendance = await prisma.attendance.findMany({
       where,
       include: {
-        student: {
+        students: {
           include: {
-            user: { include: { profile: true } },
+            users: { include: { profiles: true } },
           },
         },
       },
@@ -393,12 +392,12 @@ export const getStudentAttendance = async (req: AuthenticatedRequest, res: Respo
 
     // Calculate statistics
     const total = attendance.length;
-    const present = attendance.filter(a => a.status === 'PRESENT').length;
-    const absent = attendance.filter(a => a.status === 'ABSENT').length;
-    const late = attendance.filter(a => a.status === 'LATE').length;
-    const excused = attendance.filter(a => a.status === 'EXCUSED').length;
+    const presentCount = attendance.filter(a => a.status === 'PRESENT').length;
+    const absentCount = attendance.filter(a => a.status === 'ABSENT').length;
+    const lateCount = attendance.filter(a => a.status === 'LATE').length;
+    const excusedCount = attendance.filter(a => a.status === 'EXCUSED').length;
 
-    const percentage = total > 0 ? ((present + late) / total) * 100 : 0;
+    const percentage = total > 0 ? ((presentCount + lateCount) / total) * 100 : 0;
 
     res.status(200).json({
       success: true,
@@ -406,10 +405,10 @@ export const getStudentAttendance = async (req: AuthenticatedRequest, res: Respo
         attendance,
         statistics: {
           total,
-          present,
-          absent,
-          late,
-          excused,
+          present: presentCount,
+          absent: absentCount,
+          late: lateCount,
+          excused: excusedCount,
           percentage: Math.round(percentage * 100) / 100,
         },
       },
@@ -429,9 +428,9 @@ export const getClassAttendance = async (req: AuthenticatedRequest, res: Respons
     targetDate.setHours(0, 0, 0, 0);
 
     const students = await prisma.student.findMany({
-      where: { classId },
+      where: { class_id: classId },
       include: {
-        user: { include: { profile: true } },
+        users: { include: { profiles: true } },
         attendance: {
           where: { date: targetDate },
         },
@@ -440,12 +439,12 @@ export const getClassAttendance = async (req: AuthenticatedRequest, res: Respons
 
     const attendanceData = students.map(student => ({
       studentId: student.id,
-      enrollmentId: student.enrollmentId,
-      name: `${student.user.profile?.firstName} ${student.user.profile?.lastName}`,
-      avatar: student.user.profile?.avatar,
+      enrollmentId: student.enrollment_id,
+      name: `${student.users.profiles?.first_name} ${student.users.profiles?.last_name}`,
+      avatar: student.users.profiles?.avatar_url,
       status: (student.attendance[0]?.status || 'NOT_MARKED') as string,
       method: student.attendance[0]?.method,
-      confidenceScore: student.attendance[0]?.confidenceScore,
+      confidenceScore: student.attendance[0]?.confidence_score,
     }));
 
     res.status(200).json({
@@ -477,7 +476,7 @@ export const getAttendanceAnalytics = async (req: AuthenticatedRequest, res: Res
       where: { id: studentId },
       include: {
         attendance: true,
-        class: true,
+        classes: true,
       },
     });
 
@@ -488,11 +487,11 @@ export const getAttendanceAnalytics = async (req: AuthenticatedRequest, res: Res
 
     const attendance = student.attendance;
     const total = attendance.length;
-    const present = attendance.filter(a => a.status === 'PRESENT').length;
-    const absent = attendance.filter(a => a.status === 'ABSENT').length;
-    const late = attendance.filter(a => a.status === 'LATE').length;
+    const presentCount = attendance.filter(a => a.status === 'PRESENT').length;
+    const absentCount = attendance.filter(a => a.status === 'ABSENT').length;
+    const lateCount = attendance.filter(a => a.status === 'LATE').length;
 
-    const currentPercentage = total > 0 ? ((present + late * 0.5) / total) * 100 : 0;
+    const currentPercentage = total > 0 ? ((presentCount + lateCount * 0.5) / total) * 100 : 0;
 
     // Calculate trend
     const sortedAttendance = attendance.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -509,9 +508,9 @@ export const getAttendanceAnalytics = async (req: AuthenticatedRequest, res: Res
     if (currentPercentage < 60) riskLevel = 'HIGH';
     else if (currentPercentage < 75) riskLevel = 'MEDIUM';
 
-    // Predictions
+    // Predictions (Simple heuristic)
     const requiredPercentage = 75;
-    const classesNeeded = Math.max(0, Math.ceil((requiredPercentage * total - (present + late * 0.5) * 100) / (100 - requiredPercentage)));
+    const classesNeeded = Math.max(0, Math.ceil((requiredPercentage * total - (presentCount + lateCount * 0.5) * 100) / (100 - requiredPercentage)));
     const safeAbsenceMargin = Math.max(0, Math.floor((currentPercentage - requiredPercentage) * total / 100));
 
     // Monthly breakdown
@@ -530,9 +529,9 @@ export const getAttendanceAnalytics = async (req: AuthenticatedRequest, res: Res
       success: true,
       data: {
         overallPercentage: Math.round(currentPercentage * 100) / 100,
-        presentCount: present,
-        absentCount: absent,
-        lateCount: late,
+        presentCount,
+        absentCount,
+        lateCount,
         totalClasses: total,
         riskLevel,
         trend,
@@ -564,8 +563,8 @@ export const registerFace = async (req: AuthenticatedRequest, res: Response): Pr
     const student = await prisma.student.update({
       where: { id: studentId },
       data: {
-        faceData,
-        faceRegistered: true,
+        face_data: faceData,
+        face_registered: true,
       },
     });
 

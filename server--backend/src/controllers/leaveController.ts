@@ -16,7 +16,7 @@ export const createLeaveRequest = async (req: AuthenticatedRequest, res: Respons
 
     // Get student record
     const student = await prisma.student.findUnique({
-      where: { userId: req.user.id },
+      where: { user_id: req.user.id },
     });
 
     if (!student) {
@@ -39,10 +39,10 @@ export const createLeaveRequest = async (req: AuthenticatedRequest, res: Respons
     // Check for overlapping leave requests
     const overlap = await prisma.leaveRequest.findFirst({
       where: {
-        studentId: student.id,
+        student_id: student.id,
         status: { in: ['PENDING', 'APPROVED'] },
-        startDate: { lte: end },
-        endDate: { gte: start },
+        start_date: { lte: end },
+        end_date: { gte: start },
       },
     });
     if (overlap) {
@@ -52,9 +52,9 @@ export const createLeaveRequest = async (req: AuthenticatedRequest, res: Respons
 
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
-        studentId: student.id,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        student_id: student.id,
+        start_date: new Date(startDate),
+        end_date: new Date(endDate),
         reason,
         type,
         documents: documents || [],
@@ -64,21 +64,21 @@ export const createLeaveRequest = async (req: AuthenticatedRequest, res: Respons
 
     // Notify class incharge
     let classIncharge: any = null;
-    if (student.classId) {
+    if (student.class_id) {
       const classRecord = await prisma.class.findUnique({
-        where: { id: student.classId },
-        select: { inchargeId: true },
+        where: { id: student.class_id },
+        select: { incharge_id: true },
       });
-      if (classRecord?.inchargeId) {
+      if (classRecord?.incharge_id) {
         classIncharge = await prisma.faculty.findUnique({
-          where: { id: classRecord.inchargeId },
+          where: { id: classRecord.incharge_id },
         });
       }
     }
 
     if (classIncharge) {
       await createNotification({
-        userId: classIncharge.userId,
+        userId: classIncharge.user_id,
         title: 'New Leave Request',
         message: `Student has requested leave from ${startDate} to ${endDate}`,
         type: 'LEAVE',
@@ -115,7 +115,7 @@ export const getMyLeaveRequests = async (req: AuthenticatedRequest, res: Respons
     }
 
     const student = await prisma.student.findUnique({
-      where: { userId: req.user.id },
+      where: { user_id: req.user.id },
     });
 
     if (!student) {
@@ -124,8 +124,8 @@ export const getMyLeaveRequests = async (req: AuthenticatedRequest, res: Respons
     }
 
     const leaveRequests = await prisma.leaveRequest.findMany({
-      where: { studentId: student.id },
-      orderBy: { createdAt: 'desc' },
+      where: { student_id: student.id },
+      orderBy: { created_at: 'desc' },
     });
 
     res.status(200).json({
@@ -148,7 +148,7 @@ export const cancelLeaveRequest = async (req: AuthenticatedRequest, res: Respons
     }
 
     const student = await prisma.student.findUnique({
-      where: { userId: req.user.id },
+      where: { user_id: req.user.id },
     });
 
     if (!student) {
@@ -157,7 +157,7 @@ export const cancelLeaveRequest = async (req: AuthenticatedRequest, res: Respons
     }
 
     const leaveRequest = await prisma.leaveRequest.findFirst({
-      where: { id, studentId: student.id },
+      where: { id, student_id: student.id },
     });
 
     if (!leaveRequest) {
@@ -212,15 +212,15 @@ export const getPendingLeaveRequests = async (req: AuthenticatedRequest, res: Re
     // If faculty, only show requests from their classes
     if (req.user.role === 'FACULTY' || req.user.role === 'CLASS_INCHARGE') {
       const faculty = await prisma.faculty.findUnique({
-        where: { userId: req.user.id },
+        where: { user_id: req.user.id },
       });
       if (faculty) {
         const classes = await prisma.class.findMany({
-          where: { inchargeId: faculty.id },
+          where: { incharge_id: faculty.id },
           select: { id: true },
         });
         const classIds = classes.map(c => c.id);
-        where.student = { classId: { in: classIds } };
+        where.students = { class_id: { in: classIds } };
       }
     }
 
@@ -228,14 +228,14 @@ export const getPendingLeaveRequests = async (req: AuthenticatedRequest, res: Re
       prisma.leaveRequest.findMany({
         where,
         include: {
-          student: {
+          students: {
             include: {
-              user: { include: { profile: true } },
-              class: true,
+              users: { include: { profiles: true } },
+              classes: true,
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
       }),
@@ -271,12 +271,12 @@ export const approveLeaveRequest = async (req: AuthenticatedRequest, res: Respon
     }
 
     const faculty = await prisma.faculty.findUnique({
-      where: { userId: req.user.id },
+      where: { user_id: req.user.id },
     });
 
     const leaveRequest = await prisma.leaveRequest.findUnique({
       where: { id },
-      include: { student: { include: { user: true } } },
+      include: { students: { include: { users: true } } },
     });
 
     if (!leaveRequest) {
@@ -293,16 +293,16 @@ export const approveLeaveRequest = async (req: AuthenticatedRequest, res: Respon
       where: { id },
       data: {
         status,
-        approvedBy: faculty?.id,
-        approvedAt: new Date(),
+        approved_by: faculty?.id,
+        approved_at: new Date(),
         comments,
       },
     });
 
     // Mark attendance as ON_LEAVE for approved requests
     if (status === 'APPROVED') {
-      const startDate = new Date(leaveRequest.startDate);
-      const endDate = new Date(leaveRequest.endDate);
+      const startDate = new Date(leaveRequest.start_date);
+      const endDate = new Date(leaveRequest.end_date);
       const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
       for (let i = 0; i < days; i++) {
@@ -312,15 +312,15 @@ export const approveLeaveRequest = async (req: AuthenticatedRequest, res: Respon
 
         await prisma.attendance.upsert({
           where: {
-            studentId_date_subjectId: {
-              studentId: leaveRequest.studentId,
+            student_id_date_subject_id: {
+              student_id: leaveRequest.student_id,
               date,
-              subjectId: null as any,
+              subject_id: null as any,
             },
           },
           update: { status: 'ON_LEAVE' },
           create: {
-            studentId: leaveRequest.studentId,
+            student_id: leaveRequest.student_id,
             date,
             status: 'ON_LEAVE',
             method: 'MANUAL',
@@ -331,7 +331,7 @@ export const approveLeaveRequest = async (req: AuthenticatedRequest, res: Respon
 
     // Notify student
     await createNotification({
-      userId: leaveRequest.student.userId,
+      userId: leaveRequest.students.user_id,
       title: `Leave Request ${status}`,
       message: `Your leave request has been ${status.toLowerCase()}.${comments ? ` Comments: ${comments}` : ''}`,
       type: 'LEAVE',
@@ -367,12 +367,12 @@ export const getLeaveStats = async (req: AuthenticatedRequest, res: Response): P
 
     const stats = await prisma.leaveRequest.groupBy({
       by: ['status', 'type'],
-      where: { studentId },
+      where: { student_id: studentId },
       _count: { status: true },
     });
 
     const totalStats = await prisma.leaveRequest.aggregate({
-      where: { studentId },
+      where: { student_id: studentId },
       _count: { id: true },
     });
 

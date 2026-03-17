@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calculator, TrendingUp, AlertTriangle, CheckCircle2, Info, BookOpen, Loader2 } from 'lucide-react';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
@@ -154,7 +153,7 @@ export default function AttendanceCalculatorPage() {
               <Label className="text-slate-300">Simulate Upcoming Attendance</Label>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-[10px] text-slate-500 uppercase font-black">Attend Classes</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-black">Classes to Attend</span>
                   <Input
                     type="number"
                     value={simulated.extraClasses}
@@ -163,7 +162,7 @@ export default function AttendanceCalculatorPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <span className="text-[10px] text-slate-500 uppercase font-black">Attend Labs</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-black">Labs to Attend</span>
                   <Input
                     type="number"
                     value={simulated.extraLabs}

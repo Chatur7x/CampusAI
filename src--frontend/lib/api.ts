@@ -23,6 +23,9 @@ import type {
   LeaveStatus,
 } from './database.types';
 
+const AI_BASE_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
 // =============================================================
 // ERROR HANDLING
 // =============================================================
@@ -1001,14 +1004,13 @@ export const attendanceService = {
 // =============================================================
 
 export const leaveService = {
-  async getForStudent(studentId: string): Promise<Leave[]> {
-    const { data, error } = await supabase
-      .from('leave_requests')
-      .select(`*`)
-      .eq('student_id', studentId)
-      .order('created_at', { ascending: false });
-    if (error) handleError(error);
-    return data || [];
+  async getForStudent(_studentId: string): Promise<Leave[]> {
+    const response = await fetch(`${BACKEND_URL}/api/leaves/my`, {
+      headers: await buildFunctionHeaders(),
+    });
+    const result = await response.json();
+    if (!result.success) handleError({ message: result.message || 'Failed to fetch leave requests' });
+    return result.data || [];
   },
 
   async getPending(filters?: { classId?: string }): Promise<Leave[]> {
@@ -1032,22 +1034,20 @@ export const leaveService = {
   },
 
   async create(leave: Partial<Leave>): Promise<Leave | null> {
-    const insert: Record<string, any> = {
-      student_id: leave.student_id || (leave as any).studentId,
-      start_date: leave.start_date || (leave as any).startDate,
-      end_date: leave.end_date || (leave as any).endDate,
-      reason: leave.reason,
-      type: leave.type || 'PERSONAL',
-      status: 'PENDING',
-    };
-
-    const { data, error } = await supabase
-      .from('leave_requests')
-      .insert(insert)
-      .select()
-      .single();
-    if (error) handleError(error);
-    return data;
+    const response = await fetch(`${BACKEND_URL}/api/leaves`, {
+      method: 'POST',
+      headers: await buildFunctionHeaders(),
+      body: JSON.stringify({
+        startDate: leave.start_date || (leave as any).startDate,
+        endDate: leave.end_date || (leave as any).endDate,
+        reason: leave.reason,
+        type: leave.type || 'PERSONAL',
+        documents: (leave as any).documents || [],
+      }),
+    });
+    const result = await response.json();
+    if (!result.success) handleError({ message: result.message || 'Failed to submit leave request' });
+    return result.data;
   },
 
   async approve(leaveId: string, approverId: string): Promise<Leave | null> {
@@ -1439,8 +1439,7 @@ export const timetableService = {
 // ANALYTICS SERVICE
 // =============================================================
 
-const AI_BASE_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
 
 export const analyticsService = {
   async getAdminDashboard() {
