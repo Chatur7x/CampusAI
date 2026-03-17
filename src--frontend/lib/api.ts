@@ -1520,10 +1520,18 @@ export const analyticsService = {
     }
   },
 
-  async getStudentPredictions(studentId: string) {
+  async getStudentStats() {
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/analytics/student-dashboard`, { headers });
+    if (!response.ok) throw new Error('Failed to fetch student analytics');
+    const result = await response.json();
+    return result.data;
+  },
+
+  async getPredictions(studentId: string) {
     const headers = await buildFunctionHeaders();
     const response = await fetch(`${BACKEND_URL}/api/analytics/predictions/${studentId}`, { headers });
-    if (!response.ok) throw new Error('Failed to fetch attendance predictions');
+    if (!response.ok) throw new Error('Failed to fetch predictions');
     const result = await response.json();
     return result.data;
   },
@@ -1794,3 +1802,5 @@ export const sessionService = {
     return response.json();
   },
 };
+
+

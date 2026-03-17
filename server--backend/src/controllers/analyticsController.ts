@@ -126,8 +126,17 @@ export const getStudentDashboardStats = async (req: AuthenticatedRequest, res: R
     const student = await prisma.student.findUnique({
       where: { userId: req.user.id },
       include: {
-        attendance: true,
-        class: true,
+        attendance: {
+          orderBy: { date: 'desc' },
+        },
+        class: {
+          include: {
+            timetable: {
+              where: { isActive: true },
+              include: { subject: true },
+            }
+          }
+        },
       },
     });
 
@@ -136,60 +145,162 @@ export const getStudentDashboardStats = async (req: AuthenticatedRequest, res: R
       return;
     }
 
-    const attendance = student.attendance;
-    const total = attendance.length;
-    const present = attendance.filter(a => a.status === 'PRESENT').length;
-    const absent = attendance.filter(a => a.status === 'ABSENT').length;
-    const late = attendance.filter(a => a.status === 'LATE').length;
+    // 1. Fetch Session Weights from System Settings
+    const weightsSetting = await prisma.systemSetting.findUnique({
+      where: { key: 'attendance_weights' }
+    });
+    
+    const weights: Record<string, number> = (weightsSetting?.value as any) || {
+      CLASS: 1,
+      LAB: 2
+    };
 
-    const percentage = total > 0 ? ((present + late * 0.5) / total) * 100 : 0;
+    // 2. Calculate Weighted Attendance Stats
+    let totalWeightedSessions = 0;
+    let attendedWeightedSessions = 0;
+    let totalClasses = 0;
+    let totalLabs = 0;
+    let attendedClasses = 0;
+    let attendedLabs = 0;
 
-    // Risk assessment
-    let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = 'LOW';
-    if (percentage < 60) riskLevel = 'HIGH';
-    else if (percentage < 75) riskLevel = 'MEDIUM';
+    const subjectBreakdown: Record<string, { 
+      name: string; 
+      total: number; 
+      attended: number; 
+      percentage: number;
+    }> = {};
 
-    // Safe absence margin
-    const requiredPercentage = 75;
-    const safeAbsenceMargin = Math.max(0, Math.floor((percentage - requiredPercentage) * total / 100));
+    student.attendance.forEach(att => {
+      const type = att.session_type || 'CLASS';
+      const weight = weights[type] || 1;
+      const isPresent = att.status === 'PRESENT' || att.status === 'EXCUSED';
+      const isLate = att.status === 'LATE';
+      
+      const sessionValue = isPresent ? 1 : (isLate ? 0.75 : 0);
+      
+      totalWeightedSessions += weight;
+      attendedWeightedSessions += (sessionValue * weight);
 
-    // Today's classes
-    const today = new Date();
-    const todaySchedule = await prisma.timetableEntry.findMany({
-      where: {
-        classId: student.classId,
-        dayOfWeek: today.getDay(),
-      },
-      include: { subject: true },
+      if (type === 'LAB') {
+        totalLabs++;
+        if (isPresent) attendedLabs++;
+      } else {
+        totalClasses++;
+        if (isPresent) attendedClasses++;
+      }
+
+      // Subject breakdown
+      if (att.subject_id) {
+        if (!subjectBreakdown[att.subject_id]) {
+          subjectBreakdown[att.subject_id] = { name: 'Unknown', total: 0, attended: 0, percentage: 0 };
+        }
+        subjectBreakdown[att.subject_id].total += weight;
+        subjectBreakdown[att.subject_id].attended += (sessionValue * weight);
+      }
     });
 
-    // Recent notices
-    const recentNotices = await prisma.notice.findMany({
+    // Resolve subject names
+    const subjectIds = Object.keys(subjectBreakdown);
+    if (subjectIds.length > 0) {
+      const subjects = await prisma.subject.findMany({
+        where: { id: { in: subjectIds } },
+        select: { id: true, name: true }
+      });
+      subjects.forEach(s => {
+        if (subjectBreakdown[s.id]) subjectBreakdown[s.id].name = s.name;
+      });
+    }
+
+    Object.values(subjectBreakdown).forEach(s => {
+      s.percentage = s.total > 0 ? Math.round((s.attended / s.total) * 100) : 0;
+    });
+
+    const overallPercentage = totalWeightedSessions > 0 
+      ? Math.round((attendedWeightedSessions / totalWeightedSessions) * 100) 
+      : 0;
+
+    // 3. Smart Calculator Logic (S5, S6)
+    const target = 75;
+    const currentDeficit = Math.max(0, (target / 100) * totalWeightedSessions - attendedWeightedSessions);
+    
+    // Recovery Strategies
+    const labsOnlyNeeded = Math.ceil(currentDeficit / (weights.LAB * (1 - target/100)));
+    const classesOnlyNeeded = Math.ceil(currentDeficit / (weights.CLASS * (1 - target/100)));
+    
+    // 4. Today's Timetable
+    const today = new Date();
+    const todayDay = today.getDay();
+    const schedule = student.class.timetable.filter(t => t.dayOfWeek === todayDay);
+
+    // 5. Recent Notices
+    const notices = await prisma.notice.findMany({
       where: {
         isActive: true,
         OR: [
-          { targetRoles: { has: req.user.role } },
+          { targetRoles: { has: 'STUDENT' } },
           { targetClasses: { has: student.classId } },
         ],
       },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: 3,
     });
+
+    // 6. AI Metrics (S3)
+    const riskScore = calculateRiskScore(student.attendance);
+    const stabilityIndex = Math.max(0, 100 - riskScore);
+    const projectedOutcome = overallPercentage > 75 ? 'FAVORABLE' : (overallPercentage > 60 ? 'CAUTIONARY' : 'CRITICAL');
 
     res.status(200).json({
       success: true,
       data: {
-        attendance: {
-          percentage: Math.round(percentage * 100) / 100,
-          present,
-          absent,
-          late,
-          total,
-          riskLevel,
-          safeAbsenceMargin,
+        summary: {
+          attendancePercentage: overallPercentage,
+          totalWeightedSessions,
+          attendedWeightedSessions: Math.round(attendedWeightedSessions * 100) / 100,
+          totalClasses,
+          attendedClasses,
+          totalLabs,
+          attendedLabs,
+          riskLevel: overallPercentage < 60 ? 'HIGH' : (overallPercentage < 75 ? 'MEDIUM' : 'LOW'),
+          status: overallPercentage >= 75 ? 'SAFE' : 'SHORTAGE',
+          stabilityIndex,
+          riskScore,
+          projectedOutcome
         },
-        todaySchedule,
-        recentNotices,
+        subjectBreakdown: Object.values(subjectBreakdown),
+        calculator: {
+          target,
+          currentDeficit,
+          strategies: {
+            combined: {
+              label: 'Fastest Recovery (Labs + classes)',
+              sessions: Math.ceil(currentDeficit / ((weights.LAB + weights.CLASS)/2 * (1 - target/100))),
+            },
+            labsOnly: {
+              label: 'Lab Focused (Highest Weight)',
+              sessions: labsOnlyNeeded,
+              impactPerSession: weights.LAB,
+            },
+            classesOnly: {
+              label: 'Class Focused',
+              sessions: classesOnlyNeeded,
+              impactPerSession: weights.CLASS,
+            }
+          }
+        },
+        timetable: schedule.map(s => ({
+          subject: s.subject.name,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          room: s.roomNumber || student.class.roomNumber,
+          type: s.sessionType
+        })),
+        notices: notices.map(n => ({
+          id: n.id,
+          title: n.title,
+          priority: n.priority,
+          createdAt: n.createdAt
+        }))
       },
     });
   } catch (error) {

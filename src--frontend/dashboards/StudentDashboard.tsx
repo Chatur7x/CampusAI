@@ -33,6 +33,8 @@ import {
   ScanFace,
   Brain,
   MessageSquare,
+  BookOpen,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,6 +44,8 @@ const StudentTimetablePage = lazy(() => import('@/pages/student/Timetable'));
 const MyAttendancePage = lazy(() => import('@/pages/student/MyAttendance'));
 const SecureAttendanceStudent = lazy(() => import('@/components/attendance/SecureAttendanceStudent'));
 const AttendanceCalculatorPage = lazy(() => import('@/pages/student/AttendanceCalculator'));
+const StudentAssignmentsPage = lazy(() => import('@/pages/student/Assignments'));
+const StudentLeaveRequestsPage = lazy(() => import('@/pages/student/LeaveRequests'));
 const StudentNoticesPage = lazy(() => import('@/pages/student/Notices'));
 const StudentSettingsPage = lazy(() => import('@/pages/student/Settings'));
 const FaceRegistration = lazy(() => import('@/components/ai/FaceRegistration'));
@@ -64,10 +68,11 @@ const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/student' },
   { icon: ClipboardList, label: 'Live Attendance', path: '/student/live-attendance' },
   { icon: Calendar, label: 'Timetable', path: '/student/timetable' },
-  { icon: ClipboardList, label: 'My Records', path: '/student/attendance' },
+  { icon: GraduationCap, label: 'My Records', path: '/student/attendance' },
+  { icon: BookOpen, label: 'Assignments', path: '/student/assignments' },
+  { icon: FileText, label: 'Leave Requests', path: '/student/leaves' },
   { icon: Calculator, label: 'Calculator', path: '/student/calculator' },
   { icon: ScanFace, label: 'Face Registration', path: '/student/face-register' },
-  { icon: ScanFace, label: 'Face Attendance', path: '/student/face-attendance' },
   { icon: Brain, label: 'AI Analytics', path: '/student/ai-analytics' },
   { icon: MessageSquare, label: 'Messages', path: '/student/chat' },
   { icon: Bell, label: 'Notices', path: '/student/notices' },
@@ -106,6 +111,8 @@ export default function StudentDashboard() {
             <Route path="/live-attendance" element={<SecureAttendanceStudent />} />
             <Route path="/timetable" element={<StudentTimetablePage />} />
             <Route path="/attendance" element={<MyAttendancePage />} />
+            <Route path="/assignments" element={<StudentAssignmentsPage />} />
+            <Route path="/leaves" element={<StudentLeaveRequestsPage />} />
             <Route path="/calculator" element={<AttendanceCalculatorPage />} />
             <Route path="/face-register" element={<FaceRegistration />} />
             <Route path="/face-attendance" element={<FaceAttendance />} />

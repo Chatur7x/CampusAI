@@ -18,6 +18,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Menu, LogOut, ChevronDown, User, Settings, GraduationCap, LayoutDashboard } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { useEffect } from 'react';
+import { Bell } from 'lucide-react';
 
 /**
  * Common layout for the portal dashboards.
@@ -136,6 +139,31 @@ export default function DashboardLayout({ role, sidebarItems, children }: Dashbo
     toast.success('Logged out successfully');
     navigate('/login', { replace: true });
   };
+
+  // ── Portal-wide Realtime Notifications (S7) ──
+  useEffect(() => {
+    if (!user || role !== 'student') return;
+    
+    const channel = supabase
+      .channel('global:notices')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notices' 
+      }, (payload: any) => {
+        const newNotice = payload.new;
+        toast.info(`New Notice: ${newNotice.title}`, {
+          description: newNotice.content?.substring(0, 100) + '...',
+          icon: <Bell className="w-4 h-4 text-emerald-400" />,
+          duration: 10000,
+        });
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, role]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2);

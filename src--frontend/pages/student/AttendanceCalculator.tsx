@@ -18,128 +18,83 @@ interface SubjectStats {
 
 export default function AttendanceCalculatorPage() {
   const { user } = useSupabaseAuth();
-  const [subjects, setSubjects] = useState<SubjectStats[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedSubject, setSelectedSubject] = useState<string>('custom');
-  const [totalClasses, setTotalClasses] = useState(50);
-  const [attendedClasses, setAttendedClasses] = useState(38);
   const [requiredPercentage, setRequiredPercentage] = useState(75);
+  
+  // Weights (ideally fetched from system settings, but we can default)
+  const [weights, setWeights] = useState({ CLASS: 1, LAB: 2 });
 
-  // Fetch real attendance data grouped by subject
   useEffect(() => {
     (async () => {
-      if (!user?.student?.id && !user?.id) { setLoading(false); return; }
+      if (!user) return;
       try {
-        const studentId = user?.student?.id;
-        if (!studentId) { setLoading(false); return; }
-
-        // Get all attendance records for this student
-        const { data: attendanceData } = await supabase
-          .from('attendance')
-          .select('subject_id, status')
-          .eq('student_id', studentId);
-
-        if (!attendanceData?.length) { setLoading(false); return; }
-
-        // Get subject names
-        const subjectIds = [...new Set(attendanceData.map(a => a.subject_id).filter(Boolean))];
-        let subjectMap: Record<string, string> = {};
-        if (subjectIds.length > 0) {
-          const { data: subjectData } = await supabase
-            .from('subjects')
-            .select('id, name, code')
-            .in('id', subjectIds);
-          if (subjectData) {
-            subjectMap = Object.fromEntries(subjectData.map(s => [s.id, `${s.name} (${s.code})`]));
-          }
-          // Fallback: try courses table
-          const missing = subjectIds.filter(id => !subjectMap[id]);
-          if (missing.length > 0) {
-            const { data: courseData } = await supabase
-              .from('courses')
-              .select('id, name, code')
-              .in('id', missing);
-            if (courseData) {
-              courseData.forEach(c => { subjectMap[c.id] = `${c.name} (${c.code})`; });
-            }
-          }
-        }
-
-        // Group by subject
-        const statsMap: Record<string, { total: number; attended: number }> = {};
-        for (const rec of attendanceData) {
-          const sid = rec.subject_id || 'unknown';
-          if (!statsMap[sid]) statsMap[sid] = { total: 0, attended: 0 };
-          statsMap[sid].total++;
-          if (rec.status === 'PRESENT' || rec.status === 'LATE') {
-            statsMap[sid].attended++;
-          }
-        }
-
-        const result: SubjectStats[] = Object.entries(statsMap).map(([id, stats]) => ({
-          id,
-          name: subjectMap[id] || `Subject ${id.substring(0, 8)}`,
-          total: stats.total,
-          attended: stats.attended,
-        }));
-
-        setSubjects(result);
-        // Auto-select first subject if available
-        if (result.length > 0) {
-          setSelectedSubject(result[0].id);
-          setTotalClasses(result[0].total);
-          setAttendedClasses(result[0].attended);
+        const { analyticsService, settingsService } = await import('@/lib/api');
+        const [dashboardData, settingsData] = await Promise.all([
+          analyticsService.getStudentStats(),
+          settingsService.getAll()
+        ]);
+        
+        setStats(dashboardData);
+        
+        // Extract weights from settings
+        const classW = settingsData.find((s: any) => s.key === 'ATTENDANCE_WEIGHT_CLASS')?.value;
+        const labW = settingsData.find((s: any) => s.key === 'ATTENDANCE_WEIGHT_LAB')?.value;
+        if (classW && labW) {
+          setWeights({ CLASS: Number(classW), LAB: Number(labW) });
         }
       } catch (err) {
-        console.error('Failed to fetch attendance data:', err);
+        console.error('Calculator initialization error:', err);
       } finally {
         setLoading(false);
       }
     })();
   }, [user]);
 
-  const handleSubjectChange = (subjectId: string) => {
-    setSelectedSubject(subjectId);
-    if (subjectId !== 'custom') {
-      const subject = subjects.find(s => s.id === subjectId);
-      if (subject) {
-        setTotalClasses(subject.total);
-        setAttendedClasses(subject.attended);
-      }
-    }
+  const currentStats = stats?.summary || { 
+    attendedClasses: 0, totalClasses: 0, 
+    attendedLabs: 0, totalLabs: 0, 
+    attendancePercentage: 0 
   };
 
-  const safeAttended = Math.min(attendedClasses, totalClasses);
-  const currentPercentage = totalClasses > 0 ? (safeAttended / totalClasses) * 100 : 0;
+  const [simulated, setSimulated] = useState({
+    extraClasses: 0,
+    extraLabs: 0
+  });
 
-  const analysis = useMemo(() => {
-    if (totalClasses === 0) return { canSkip: 0, needsToAttend: 0 };
+  const getWeightedStats = (addC = 0, addL = 0) => {
+    const attC = currentStats.attendedClasses + addC;
+    const totC = currentStats.totalClasses + addC;
+    const attL = currentStats.attendedLabs + addL;
+    const totL = currentStats.totalLabs + addL;
     
-    // Safety Margin: Classes that can be missed while staying above threshold
-    // (A) / (T + S) = req / 100  => S = (100*A / req) - T
-    const safetyMargin = Math.floor(Math.max(0, (100 * safeAttended / requiredPercentage) - totalClasses));
-
-    if (currentPercentage >= requiredPercentage) {
-      return {
-        canSkip: safetyMargin,
-        needsToAttend: 0,
-      };
-    } else {
-      // Classes needed in a row: (A + x) / (T + x) = req / 100
-      // 100A + 100x = reqT + reqx
-      // x(100 - req) = reqT - 100A
-      // x = (reqT - 100A) / (100 - req)
-      if (requiredPercentage === 100) {
-        // If 100% is required and we missed even one, we can NEVER reach exactly 100%.
-        return { canSkip: 0, needsToAttend: Infinity };
-      }
-      const x = (requiredPercentage * totalClasses - 100 * safeAttended) / (100 - requiredPercentage);
-      return {
-        canSkip: 0,
-        needsToAttend: Math.ceil(Math.max(0, x)),
-      };
+    const earned = (attC * weights.CLASS) + (attL * weights.LAB);
+    const total = (totC * weights.CLASS) + (totL * weights.LAB);
+    
+    const percentage = total > 0 ? (earned / total) * 100 : 0;
+    
+    // Recovery calculation: How many MORE sessions needed to hit target?
+    // We assume user attends ALL upcoming sessions.
+    // (Earned + x*W) / (Total + x*W) = Target
+    // Simple approach: Incremental simulation for mixed recovery
+    let recoveryClasses = 0;
+    let recoveryLabs = 0;
+    
+    if (percentage < requiredPercentage) {
+      // Find min classes needed (assuming only classes)
+      const xC = (requiredPercentage * total / 100 - earned) / (weights.CLASS * (1 - requiredPercentage / 100));
+      recoveryClasses = Math.ceil(Math.max(0, xC));
+      
+      // Find min labs needed (assuming only labs)
+      const xL = (requiredPercentage * total / 100 - earned) / (weights.LAB * (1 - requiredPercentage / 100));
+      recoveryLabs = Math.ceil(Math.max(0, xL));
     }
-  }, [totalClasses, safeAttended, requiredPercentage, currentPercentage]);
+
+    return { percentage, recoveryClasses, recoveryLabs, earned, total };
+  };
+
+  const result = getWeightedStats(simulated.extraClasses, simulated.extraLabs);
+  const currentPercentage = result.percentage;
 
   const risk = useMemo(() => {
     if (currentPercentage < requiredPercentage - 10) return { level: 'CRITICAL', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' };
@@ -167,73 +122,63 @@ export default function AttendanceCalculatorPage() {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Calculator className="w-5 h-5 text-emerald-400" />
-              Current Status
+              Dynamic Inputs
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label className="text-slate-300 flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-emerald-500" /> 
-                Select Subject
-              </Label>
-              <Select value={selectedSubject} onValueChange={handleSubjectChange}>
-                <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white">
-                  <SelectValue placeholder="Select a subject to auto-fill" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-700 text-white">
-                  <SelectItem value="custom">Custom Input (Manual)</SelectItem>
-                  {subjects.map(sub => (
-                    <SelectItem key={sub.id} value={sub.id}>
-                      {sub.name} ({sub.attended}/{sub.total})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
+               <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">Live Statistics</h4>
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <p className="text-[10px] text-slate-400 uppercase">Classes</p>
+                   <p className="text-lg font-bold text-white">{currentStats.attendedClasses} / {currentStats.totalClasses}</p>
+                 </div>
+                 <div>
+                   <p className="text-[10px] text-slate-400 uppercase">Labs</p>
+                   <p className="text-lg font-bold text-white">{currentStats.attendedLabs} / {currentStats.totalLabs}</p>
+                 </div>
+               </div>
             </div>
 
-            <div className="space-y-2 pt-2">
-              <Label className="text-slate-300">Total Classes Held</Label>
+            <div className="space-y-4 pt-2">
+              <Label className="text-slate-300">Target Threshold (%)</Label>
               <Input
                 type="number"
-                inputMode="numeric"
-                min={1}
-                value={totalClasses}
-                onChange={(e) => {
-                  setTotalClasses(Math.max(1, parseInt(e.target.value) || 0));
-                  setSelectedSubject('custom');
-                }}
-                className="bg-slate-900 border-slate-800 text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-300">Classes Attended</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={totalClasses}
-                value={attendedClasses}
-                onChange={(e) => {
-                  setAttendedClasses(Math.max(0, parseInt(e.target.value) || 0));
-                  setSelectedSubject('custom');
-                }}
-                className="bg-slate-900 border-slate-800 text-white"
-              />
-              {attendedClasses > totalClasses && (
-                <p className="text-xs text-amber-500 mt-1">Attended classes cannot exceed total classes.</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-300">Required Attendance (%)</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={100}
                 value={requiredPercentage}
                 onChange={(e) => setRequiredPercentage(Math.min(100, Math.max(1, parseInt(e.target.value) || 0)))}
-                className="bg-slate-900 border-slate-800 text-white"
+                className="bg-slate-900 border-slate-800 text-white h-12 text-lg font-bold"
               />
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <Label className="text-slate-300">Simulate Upcoming Attendance</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <span className="text-[10px] text-slate-500 uppercase font-black">Attend Classes</span>
+                  <Input
+                    type="number"
+                    value={simulated.extraClasses}
+                    onChange={(e) => setSimulated(p => ({ ...p, extraClasses: Math.max(0, parseInt(e.target.value) || 0) }))}
+                    className="bg-slate-900 border-slate-800 text-emerald-400 font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <span className="text-[10px] text-slate-500 uppercase font-black">Attend Labs</span>
+                  <Input
+                    type="number"
+                    value={simulated.extraLabs}
+                    onChange={(e) => setSimulated(p => ({ ...p, extraLabs: Math.max(0, parseInt(e.target.value) || 0) }))}
+                    className="bg-slate-900 border-slate-800 text-cyan-400 font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-white/5">
+              <div className="flex justify-between items-center text-xs text-slate-500 uppercase font-black tracking-widest">
+                <span>Calculated Weights</span>
+                <span className="text-emerald-500">Class: {weights.CLASS}x | Lab: {weights.LAB}x</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -266,33 +211,46 @@ export default function AttendanceCalculatorPage() {
               </div>
             </div>
 
-            <div className={`p-4 rounded-2xl ${risk.bg} border ${risk.border} flex items-start gap-3`}>
+            <div className={`p-6 rounded-3xl ${risk.bg} border ${risk.border} flex items-start gap-4`}>
               {currentPercentage >= requiredPercentage ? (
-                <CheckCircle2 className={`w-5 h-5 mt-0.5 ${risk.color}`} />
+                <CheckCircle2 className={`w-6 h-6 mt-0.5 ${risk.color}`} />
               ) : (
-                <AlertTriangle className={`w-5 h-5 mt-0.5 ${risk.color}`} />
+                <AlertTriangle className={`w-6 h-6 mt-0.5 ${risk.color}`} />
               )}
-              <div>
-                <h4 className={`font-semibold ${risk.color}`}>{risk.level} STATUS</h4>
+              <div className="flex-1">
+                <h4 className={`font-black text-sm uppercase tracking-widest ${risk.color}`}>{risk.level} STRATEGY</h4>
                 {currentPercentage >= requiredPercentage ? (
-                  <div className="space-y-1">
-                    <p className="text-sm text-emerald-200/70 mt-1">
-                      You are safely above the target! You can skip <strong className="text-emerald-300 font-bold">{analysis.canSkip}</strong> more classes.
+                  <div className="space-y-3 mt-2">
+                    <p className="text-sm text-slate-300">
+                      Weighted integrity confirmed. You have a safety cushion.
                     </p>
-                    <div className="flex items-center gap-2 mt-2">
-                       <Badge className="bg-emerald-500/20 text-emerald-300 border-none">Safety Margin: {analysis.canSkip} classes</Badge>
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                         <p className="text-[10px] text-slate-500 uppercase font-black">Safe Miss (Classes)</p>
+                         <p className="text-lg font-bold text-emerald-400">{Math.floor(((result.earned - (requiredPercentage * result.total / 100)) / weights.CLASS)) || 0}</p>
+                       </div>
+                       <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                         <p className="text-[10px] text-slate-500 uppercase font-black">Safe Miss (Labs)</p>
+                         <p className="text-lg font-bold text-cyan-400">{Math.floor(((result.earned - (requiredPercentage * result.total / 100)) / weights.LAB)) || 0}</p>
+                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    <p className="text-sm text-amber-200/70 mt-1">
-                      {analysis.needsToAttend === Infinity 
-                        ? 'Target mathematically impossible to reach (can never undo a missed class for 100%).'
-                        : `Target not met. You must attend the next ${analysis.needsToAttend} consecutive classes.`}
+                  <div className="space-y-3 mt-2">
+                    <p className="text-sm text-slate-300">
+                      Recovery required. Attend sessions to restore integrity.
                     </p>
-                    <div className="flex items-center gap-2 mt-2">
-                       <Badge className="bg-amber-500/20 text-amber-300 border-none">Required: {analysis.needsToAttend === Infinity ? 'Impossible' : `${analysis.needsToAttend} more`}</Badge>
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                         <p className="text-[10px] text-slate-500 uppercase font-black">Target (Classes only)</p>
+                         <p className="text-lg font-bold text-amber-400">{result.recoveryClasses}</p>
+                       </div>
+                       <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                         <p className="text-[10px] text-slate-500 uppercase font-black">Target (Labs only)</p>
+                         <p className="text-lg font-bold text-cyan-400">{result.recoveryLabs}</p>
+                       </div>
                     </div>
+                    <p className="text-[10px] text-slate-500 font-medium italic">* Calculated assuming 100% attendance in future sessions.</p>
                   </div>
                 )}
               </div>

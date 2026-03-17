@@ -10,9 +10,9 @@ import type { Notification, Attendance, Notice, SecurityAlert, Message } from '.
 
 // Define valid table names for this application
 type TableName = 'profiles' | 'departments' | 'classes' | 'courses' | 'students' | 
-  'faculty' | 'attendance' | 'leaves' | 'notices' | 'notifications' | 
+  'faculty' | 'attendance' | 'leave_requests' | 'notices' | 'notifications' | 
   'blockchain_hashes' | 'timetable' | 'chat_messages' | 'chat_conversations' |
-  'class_courses' | 'security_alerts' | 'audit_logs' | 'system_settings' | 'messages';
+  'class_courses' | 'security_alerts' | 'audit_logs' | 'system_settings' | 'messages' | 'assignments';
 
 // =============================================================
 // GENERIC REALTIME HOOK
@@ -607,7 +607,7 @@ export function useRealtimeDashboardStats() {
   // Refresh on leave request changes
   useRealtime(
     {
-      table: 'leaves',
+      table: 'leave_requests',
       event: '*',
     },
     useCallback(() => {

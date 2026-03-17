@@ -49,7 +49,7 @@ model Session {
   ip_address  String?   @db.Inet
   expires_at  DateTime  @db.Timestamptz(6)
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
-  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users     @relation("portalSessions", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("sessions")
   @@schema("public")
@@ -231,6 +231,7 @@ model TimetableEntry {
   isActive   Boolean?     @default(true) @map("is_active")
   created_at DateTime?    @default(now()) @db.Timestamptz(6)
   updated_at DateTime?    @default(now()) @db.Timestamptz(6)
+  sessionType String?      @default("CLASS") @map("session_type")
   attendance Attendance[]
   class      Class        @relation(fields: [classId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   faculty    Faculty      @relation(fields: [facultyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -261,6 +262,7 @@ model Attendance {
   nonce              Int?
   created_at         DateTime?         @default(now()) @db.Timestamptz(6)
   updated_at         DateTime?         @default(now()) @db.Timestamptz(6)
+  session_type       String?           @default("CLASS")
   students           Student           @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   subjects           Subject?          @relation(fields: [subject_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   timetable_entries  TimetableEntry?   @relation(fields: [timetable_entry_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1089,7 +1091,7 @@ model users {
   security_alerts_security_alerts_user_idTousers     SecurityAlert[]             @relation("security_alerts_user_idTousers")
   security_events_security_events_resolved_byTousers SecurityEvent[]             @relation("security_events_resolved_byTousers")
   security_events_security_events_user_idTousers     SecurityEvent[]             @relation("security_events_user_idTousers")
-  sessions                                           Session[]
+  portalSessions                                     Session[]                   @relation("portalSessions")
   students                                           Student?
   system_settings                                    SystemSetting[]
   token_blacklist                                    TokenBlacklist[]
