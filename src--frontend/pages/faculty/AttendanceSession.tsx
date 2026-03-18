@@ -168,6 +168,7 @@ export default function AttendanceSessionPage() {
             timetable_entry_id: selectedEntry.id,
             status,
             method: mode === 'SMART' ? smartMethod : 'MANUAL',
+            session_id: activeSession?.id,
           });
       }
       toast.success(`Attendance updated to ${status}`);

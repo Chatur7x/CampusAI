@@ -100,10 +100,12 @@ def fetch_student_by_user(user_id: str) -> dict | None:
     sb = get_supabase()
     res = _try_query(sb, "students", "*", "userId", user_id, single=True)
     if res.data:
+        logger.info(f"Successfully found student record for user {user_id}")
         set_to_cache(cache_key, res.data)
         set_to_cache(f"student_{res.data['id']}", res.data)
         return res.data
     
+    logger.warning(f"No student record found for user {user_id} - Link missing in database table")
     # Do NOT cache None results for new users - this allows immediate enrollment after an admin creates the record
     return None
 

@@ -310,6 +310,7 @@ export default function SecureAttendanceStudent() {
             student_id: user?.student?.id || user?.id || '',
             class_id: selectedClassId,
             course_id: activeSession?.course_id || '',
+            session_id: activeSession?.id,
             status: 'PRESENT',
             method: 'AI_FACE_SECURE',
             confidence_score: verification.confidence.score,
@@ -353,8 +354,10 @@ export default function SecureAttendanceStudent() {
                       <Shield className="w-8 h-8 text-emerald-400" />
                     </div>
                     <div>
-                      <CardTitle className="text-fluid-md font-black italic tracking-tighter uppercase text-white">Identity Portal</CardTitle>
-                      <CardDescription className="text-slate-500 font-bold uppercase text-[9px] tracking-[0.2em]">Biometric Verification v4.0</CardDescription>
+                      <CardTitle className="text-white text-3xl font-black italic tracking-tighter uppercase leading-none">
+                Secure <span className="text-emerald-400">Attendance</span>
+              </CardTitle>
+              <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em] mt-2">Biometric Verification Portal</p>
                     </div>
                   </div>
                </CardHeader>
@@ -684,9 +687,9 @@ export default function SecureAttendanceStudent() {
                       <ShieldAlert className="w-14 h-14 text-red-500" />
                    </motion.div>
                    <div className="space-y-4">
-                      <p className="text-[10px] font-black text-red-500 uppercase tracking-[0.6em]">Security Protocol Breach</p>
-                      <h2 className="text-fluid-lg font-black text-white italic tracking-tighter uppercase leading-none">Access Denied</h2>
-                      <p className="text-red-400/80 font-bold text-lg leading-relaxed px-4">{errorMsg}</p>
+                      <Badge className="bg-emerald-500/10 text-emerald-400 border-none px-4 py-1 font-black text-[10px] tracking-widest uppercase">Encryption: Active</Badge>
+                <h3 className="text-3xl font-black text-white italic tracking-tighter uppercase">Biometric Link</h3>
+                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Awaiting Verification</p>
                    </div>
                    <div className="p-8 glass-premium bg-slate-950/40 rounded-[2rem] border border-white/5 text-[10px] text-slate-500 text-left space-y-4 font-mono">
                       <p className="flex justify-between items-center"><span className="text-slate-400 font-black">LOG_ID:</span> <span className="text-white">#{Math.random().toString(36).substring(7).toUpperCase()}</span></p>

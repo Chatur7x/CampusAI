@@ -145,28 +145,6 @@ async def register_face(req: RegisterRequest):
             detail=f"Registration Anomaly: {str(e)}"
         )
 
-    result = generate_multi_embedding(req.images)
-    if not result.get("face_detected"):
-        raise HTTPException(400, f"Face not detected: {result.get('errors')}")
-
-    embedding_json = json.dumps(result["embedding"])
-    update_face_data(student["id"], embedding_json)
-
-    # Audit log
-    log_ai_decision(
-        decision_type="FACE_REGISTER",
-        student_id=student["id"],
-        user_id=req.user_id,
-        result={"success": True, "images_processed": result["count"]},
-    )
-
-    return {
-        "success": True,
-        "student_id": student["id"],
-        "images_processed": result["count"],
-        "errors": result.get("errors"),
-    }
-
 
 @router.post("/verify")
 async def verify_face_endpoint(req: VerifyRequest):

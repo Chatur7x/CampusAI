@@ -327,7 +327,7 @@ export default function FaceRegistration() {
 
   const prepareLiveness = async (capturedPhotos: CapturedPhoto[]) => {
     setStep('loading');
-    setStatusMsg('Preparing dynamic challenge...');
+    setStatusMsg('Initializing biometric scanner...');
     try {
       const challenge = await getLivenessChallenge();
       setActiveChallenge(challenge);
@@ -463,7 +463,7 @@ export default function FaceRegistration() {
 
               <Button 
                 onClick={initFlow} 
-                className="w-full mt-8 h-16 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xl font-bold shadow-[0_0_20px_rgba(16,185,129,0.3)] group"
+                className="w-full mt-8 h-12 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-md font-bold shadow-[0_0_20px_rgba(16,185,129,0.3)] group"
               >
                 Initalize Secure Scanner
                 <ChevronRight className="ml-2 h-6 w-6 group-hover:translate-x-1 transition-transform" />

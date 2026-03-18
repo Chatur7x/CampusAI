@@ -7,7 +7,7 @@ import { QrCode, Play, StopCircle, CheckCircle2, XCircle, ShieldAlert, Timer, Us
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
-import { studentService, attendanceService, auditLogService } from '@/lib/api';
+import { studentService, attendanceService, auditLogService, sessionService } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
@@ -43,6 +43,7 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
   const [bleScannerActive, setBleScannerActive] = useState(false);
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
 
   // Fetch enrolled students when component mounts
   useEffect(() => {
@@ -57,107 +58,154 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
     })();
   }, [classId]);
 
-  const startSession = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setSessionCode(code);
-    setSessionActive(true);
-    setTimeLeft(120);
-    setCodeTimeLeft(30);
-    setRequests([]);
-
-    // Pre-populate students from the class roster as pending
-    const studentRequests: StudentRequest[] = enrolledStudents.map((s: any) => ({
-      id: s.id,
-      studentId: s.id,
-      name: s.profile ? `${s.profile.first_name} ${s.profile.last_name}` : `Student ${s.enrollment_id}`,
-      rollNumber: s.enrollment_id || s.id.substring(0, 8),
-      status: 'pending' as const,
-      confidenceScore: 0,
-      time: '',
-    }));
-    setRequests(studentRequests);
-
-    auditLogService.log('ATTENDANCE_SESSION_START', 'attendance_session', classId || '', {
-      newValues: { classId, subjectId, code },
-    });
-  };
-
-  const endSession = async () => {
-    setSessionActive(false);
+  const startSession = async () => {
+    if (!classId) return;
     
-    // Save all approved attendance to database
-    const approved = requests.filter(r => r.status === 'approved');
-    if (approved.length === 0) return;
-
     setSaving(true);
+    setStatusMsg('Initializing Secure Session...');
+
     try {
-      const facultyId = user?.faculty?.id || user?.id || '';
-      const records = approved.map(r => ({
-        student_id: r.studentId,
-        subject_id: subjectId || null,
-        timetable_entry_id: timetableEntryId || null,
-        status: 'PRESENT' as const,
-        method: 'MANUAL' as const,
-        faculty_id: facultyId,
-        confidence_score: r.confidenceScore > 0 ? r.confidenceScore / 100 : null,
-        date: new Date().toISOString().split('T')[0],
-      }));
-
-      // Also mark absent for students that were NOT approved
-      const absentStudents = requests.filter(r => r.status !== 'approved');
-      const absentRecords = absentStudents.map(r => ({
-        student_id: r.studentId,
-        subject_id: subjectId || null,
-        timetable_entry_id: timetableEntryId || null,
-        status: 'ABSENT' as const,
-        method: 'MANUAL' as const,
-        faculty_id: facultyId,
-        confidence_score: null,
-        date: new Date().toISOString().split('T')[0],
-      }));
-
-      const allRecords = [...records, ...absentRecords];
-      
-      // Insert in batches via direct Supabase insert
-      const { error } = await supabase
-        .from('attendance')
-        .upsert(allRecords.map(r => ({
-          student_id: r.student_id,
-          subject_id: r.subject_id,
-          date: r.date,
-          status: r.status,
-          method: r.method,
-          verified_by: r.faculty_id,
-          confidence_score: r.confidence_score,
-        })), { onConflict: 'student_id,date,subject_id' });
-
-      if (error) throw error;
-
-      toast.success(`Attendance saved: ${approved.length} present, ${absentStudents.length} absent`);
-      auditLogService.log('ATTENDANCE_SESSION_END', 'attendance_session', classId || '', {
-        newValues: { present: approved.length, absent: absentStudents.length },
+      // 1. Get faculty location for geo-fencing anchor
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { 
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
       });
+
+      const { latitude, longitude } = position.coords;
+      const facultyId = user?.faculty?.id || user?.id || '';
+
+      // 2. Start session on AI Server (AI will generate the 6-digit code)
+      const res = await sessionService.start({
+        faculty_id: facultyId,
+        class_id: classId,
+        course_id: subjectId || '',
+        timetable_entry_id: timetableEntryId,
+        latitude,
+        longitude,
+        radius_meters: 100,
+        duration_mins: 5
+      });
+
+      if (!res.success || !res.session) {
+        throw new Error(res.message || 'Failed to initialize session on AI server');
+      }
+
+      setSessionCode(res.session.session_code);
+      setSessionActive(true);
+      setTimeLeft(300); // 5 minutes standard
+      setCodeTimeLeft(30);
+      setRequests([]);
+
+      // Pre-populate students from the class roster as pending
+      const studentRequests: StudentRequest[] = enrolledStudents.map((s: any) => ({
+        id: s.id,
+        studentId: s.id,
+        name: s.profile ? `${s.profile.first_name} ${s.profile.last_name}` : `Student ${s.enrollment_id}`,
+        rollNumber: s.enrollment_id || s.id.substring(0, 8),
+        status: 'pending' as const,
+        confidenceScore: 0,
+        time: '',
+      }));
+      setRequests(studentRequests);
+
+      auditLogService.log('ATTENDANCE_SESSION_START', 'attendance_session', classId || '', {
+        newValues: { classId, subjectId, code: res.session.session_code, latitude, longitude },
+      });
+
+      toast.success('Secure attendance session activated');
     } catch (err: any) {
-      console.error('Failed to save attendance:', err);
-      toast.error('Failed to save some attendance records');
+      console.error('Session Init Failed:', err);
+      toast.error(err.message || 'Failed to start secure session. Please check location permissions.');
     } finally {
       setSaving(false);
+      setStatusMsg('');
     }
   };
 
-  // Timer logic
+  const endSession = async () => {
+    if (!classId) return;
+    
+    setSaving(true);
+    try {
+      // 1. Deactivate the session in the database
+      await supabase
+        .from('attendance_sessions')
+        .update({ is_active: false })
+        .eq('class_id', classId)
+        .eq('session_code', sessionCode);
+
+      setSessionActive(false);
+
+      // 2. Identify students who never verified (stayed 'pending')
+      const absentStudents = requests.filter(r => r.status === 'pending');
+      const facultyId = user?.faculty?.id || user?.id || '';
+      
+      if (absentStudents.length > 0) {
+        const absentRecords = absentStudents.map(r => ({
+          student_id: r.studentId,
+          subject_id: subjectId || null,
+          timetable_entry_id: timetableEntryId || null,
+          status: 'ABSENT' as const,
+          method: 'MANUAL' as const,
+          verified_by: facultyId,
+          date: new Date().toISOString().split('T')[0],
+        }));
+
+        const { error } = await supabase
+          .from('attendance')
+          .upsert(absentRecords.map(r => ({
+            student_id: r.student_id,
+            subject_id: r.subject_id,
+            date: r.date,
+            status: r.status,
+            method: r.method,
+            verified_by: r.verified_by,
+          })), { onConflict: 'student_id,date,subject_id' });
+
+        if (error) throw error;
+      }
+
+      // 3. For already 'approved' students, they already have records in DB 
+      // (either from real-time AI verification or manual Approve clicks).
+      // If we want to ensure manual approvals are saved:
+      const manualApproved = requests.filter(r => r.status === 'approved' && r.confidenceScore === 100);
+      if (manualApproved.length > 0) {
+          const manualRecords = manualApproved.map(r => ({
+            student_id: r.studentId,
+            subject_id: subjectId || null,
+            status: 'PRESENT' as const,
+            method: 'MANUAL' as const,
+            verified_by: facultyId,
+            date: new Date().toISOString().split('T')[0],
+          }));
+          await supabase.from('attendance').upsert(manualRecords, { onConflict: 'student_id,date,subject_id' });
+      }
+
+      toast.success('Attendance session finalized');
+      auditLogService.log('ATTENDANCE_SESSION_END', 'attendance_session', classId || '', {
+        newValues: { absentees: absentStudents.length },
+      });
+    } catch (err: any) {
+      console.error('Failed to end session:', err);
+      toast.error('Failed to finalize session properly');
+    } finally {
+      setSaving(false);
+      setTimeLeft(120); // Reset timer for next session
+    }
+  };
+
+  // Timer logic — count down session time but DO NOT rotate the code locally.
+  // The session code is generated by the AI server and is valid for the full session duration.
+  // Rotating it client-side would break student entry (their code would never match the DB).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (sessionActive && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
-        setCodeTimeLeft((prev) => {
-          if (prev <= 1) {
-            setSessionCode(Math.floor(100000 + Math.random() * 900000).toString());
-            return 30;
-          }
-          return prev - 1;
-        });
+        setCodeTimeLeft((prev) => (prev <= 1 ? 30 : prev - 1)); // just for UI pulse effect
       }, 1000);
     } else if (timeLeft <= 0) {
       setSessionActive(false);
@@ -277,7 +325,7 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
         </div>
       </div>
 
-      {!sessionActive && timeLeft === 120 && (
+      {!sessionActive && !saving && (
         <Card className="bg-slate-950/80 border-emerald-500/20 shadow-[0_0_50px_-12px_rgba(16,185,129,0.25)] rounded-3xl text-center py-12">
           <CardContent className="space-y-6">
             <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
@@ -300,7 +348,7 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
         </Card>
       )}
 
-      {(sessionActive || timeLeft < 120) && (
+      {(sessionActive || saving) && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Main Session Control */}

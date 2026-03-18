@@ -262,7 +262,9 @@ model Attendance {
   nonce              Int?
   created_at         DateTime?         @default(now()) @db.Timestamptz(6)
   updated_at         DateTime?         @default(now()) @db.Timestamptz(6)
+  session_id         String?           @db.Uuid
   session_type       String?           @default("CLASS")
+  attendance_sessions AttendanceSession? @relation(fields: [session_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   students           Student           @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   subjects           Subject?          @relation(fields: [subject_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   timetable_entries  TimetableEntry?   @relation(fields: [timetable_entry_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -275,6 +277,29 @@ model Attendance {
   @@index([student_id, date], map: "idx_attendance_student_date")
   @@index([subject_id], map: "idx_attendance_subject")
   @@map("attendance")
+  @@schema("public")
+}
+
+model AttendanceSession {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  faculty_id         String       @db.Uuid
+  class_id           String       @db.Uuid
+  course_id          String?      @db.Uuid
+  timetable_entry_id String?      @db.Uuid
+  session_code       String       @unique
+  latitude           Float?
+  longitude          Float?
+  radius_meters      Float?       @default(100)
+  is_active          Boolean?     @default(true)
+  expires_at         DateTime?    @db.Timestamptz(6)
+  created_at         DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?    @default(now()) @db.Timestamptz(6)
+  attendance         Attendance[]
+
+  @@index([class_id], map: "idx_attendance_sessions_class")
+  @@index([faculty_id], map: "idx_attendance_sessions_faculty")
+  @@index([session_code], map: "idx_attendance_sessions_code")
+  @@map("attendance_sessions")
   @@schema("public")
 }
 

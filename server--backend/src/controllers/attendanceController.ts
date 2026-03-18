@@ -24,7 +24,7 @@ const generateAttendanceHash = (payload: Record<string, unknown>): string => {
 // ==================== AI FACE ATTENDANCE ====================
 export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { studentId, faceData, location, deviceInfo, subjectId } = req.body;
+    const { studentId, faceData, location, deviceInfo, subjectId, sessionId } = req.body;
 
     // Verify student exists
     const student = await prisma.student.findUnique({
@@ -112,6 +112,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
         location_lat: location?.lat || null,
         location_lng: location?.lng || null,
         device_info: deviceInfo || req.headers['user-agent'],
+        session_id: sessionId || null,
         blockchain_hash: blockchainHash,
         previous_hash: previousHash,
       },
@@ -125,6 +126,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
         location_lat: location?.lat || null,
         location_lng: location?.lng || null,
         device_info: deviceInfo || req.headers['user-agent'],
+        session_id: sessionId || null,
         blockchain_hash: blockchainHash,
         previous_hash: previousHash,
       },

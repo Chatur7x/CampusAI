@@ -21,6 +21,7 @@ import {
   getCurrentLocation, captureFrame,
   type VerifyFaceResponse,
 } from '@/lib/ai/apiClient';
+import { attendanceService, sessionService } from '@/lib/api';
 
 // ── Types ──
 
@@ -58,6 +59,7 @@ export default function FaceAttendance() {
   const [locationData, setLocationData] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
   const [onCampus, setOnCampus] = useState(false);
   const [campusDistance, setCampusDistance] = useState(0);
+  const [activeSession, setActiveSession] = useState<any>(null);
 
   // Face
   const [faceVisible, setFaceVisible] = useState(false);
@@ -140,6 +142,16 @@ export default function FaceAttendance() {
         setStep('failed');
         return;
       }
+
+      // Verify session code and get session details
+      setStatusMsg('Verifying session...');
+      const sessionRes = await sessionService.check(sessionCode);
+      if (!sessionRes.success || !sessionRes.session) {
+        setErrorMsg('Invalid or expired session code.');
+        setStep('failed');
+        return;
+      }
+      setActiveSession(sessionRes.session);
 
       // Move to location check
       setStep('location');
@@ -259,21 +271,17 @@ export default function FaceAttendance() {
 
       // 3. Record attendance in DB
       try {
-        await supabase.from('attendance').insert({
-          student_id: user?.id,
-          session_code: sessionCode,
-          status: faceMatch && livenessPass ? 'present' : 'flagged',
-          verification_method: 'face_recognition_python',
-          face_confidence: Math.round(similarity * 100),
-          liveness_score: Math.round(livenessScore * 100),
-          confidence_score: Math.round(confScore * 100),
-          latitude: locationData?.latitude,
-          longitude: locationData?.longitude,
-          fraud_alerts: fraudResult.flags.length > 0 ? JSON.stringify(fraudResult.flags) : null,
-          created_at: new Date().toISOString(),
+        await attendanceService.mark({
+          student_id: user?.id || '',
+          session_id: activeSession?.id,
+          status: faceMatch && livenessPass ? 'PRESENT' : 'FLAGGED',
+          method: 'AI_FACE',
+          confidence_score: similarity,
+          location_lat: locationData?.latitude,
+          location_lng: locationData?.longitude,
         });
-      } catch {
-        // DB insert may fail due to RLS — still show result
+      } catch (err) {
+        console.error('Attendance mark failed:', err);
       }
 
       stopCamera();

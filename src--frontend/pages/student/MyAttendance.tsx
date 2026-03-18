@@ -88,7 +88,7 @@ export default function MyAttendancePage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Loader2 className="w-12 h-12 animate-spin text-emerald-500" />
-        <p className="text-slate-400 font-medium animate-pulse text-sm tracking-widest uppercase text-center">Decrypting Records...</p>
+        <p className="text-slate-400 font-medium animate-pulse text-sm tracking-widest uppercase text-center">Loading Attendance Records...</p>
       </div>
     );
   }
@@ -119,9 +119,9 @@ export default function MyAttendancePage() {
              </div>
              <div className="space-y-1">
                 <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase leading-none">
-                  Neural <span className="text-emerald-400">Archives</span>
+                  Attendance <span className="text-emerald-400">Archives</span>
                 </h1>
-                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Historical Integrity Ledger</p>
+                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Historical Attendance Ledger</p>
              </div>
           </div>
           <div className="flex flex-wrap justify-center md:justify-start gap-3">
@@ -130,7 +130,7 @@ export default function MyAttendancePage() {
                onClick={() => navigate('/student/live-attendance')}
                className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black uppercase tracking-widest border-none rounded-full shadow-[0_0_30px_rgba(16,185,129,0.2)] transition-all flex items-center gap-2 px-8"
              >
-               <Scan className="w-4 h-4" /> Engage Portal
+               <Scan className="w-4 h-4" /> Register Attendance
              </Button>
           </div>
         </div>
@@ -142,7 +142,7 @@ export default function MyAttendancePage() {
           <CardHeader className="p-8 pb-4">
              <CardTitle className="text-white flex items-center gap-3 text-lg font-black uppercase italic tracking-tighter">
                 <Activity className="w-5 h-5 text-emerald-400" />
-                Recent Transmission Logs
+                Recent Attendance Logs
              </CardTitle>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-8">
@@ -222,7 +222,7 @@ export default function MyAttendancePage() {
               <div className="p-6 rounded-3xl bg-indigo-500/5 border border-indigo-500/10 space-y-4">
                  <div className="flex items-center gap-3">
                     <Zap className="w-5 h-5 text-indigo-400" />
-                    <h4 className="font-black text-xs uppercase tracking-widest text-indigo-300">AI stability Index</h4>
+                    <h4 className="font-black text-xs uppercase tracking-widest text-indigo-300">Participation Index</h4>
                  </div>
                  <div className="space-y-2">
                     <div className="flex justify-between text-[10px] font-black uppercase text-indigo-400/60">
@@ -242,7 +242,7 @@ export default function MyAttendancePage() {
            <Card className="bg-slate-950/80 border border-emerald-500/20 rounded-[3rem] shadow-2xl p-8">
               <div className="flex items-center gap-3 mb-6">
                 <Send className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-white font-black italic tracking-tighter uppercase">Absence Protocol</h3>
+                <h3 className="text-white font-black italic tracking-tighter uppercase">Request Leave</h3>
               </div>
               <div className="space-y-5">
                 <div className="space-y-2">
@@ -255,7 +255,7 @@ export default function MyAttendancePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Operational Reason</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Reason for Leave</Label>
                   <Textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
@@ -299,7 +299,7 @@ export default function MyAttendancePage() {
         <CardHeader className="p-10 pb-4">
            <CardTitle className="text-white flex items-center gap-3 text-lg font-black uppercase italic tracking-tighter">
               <Lock className="w-5 h-5 text-indigo-400" />
-              Per-Subject Forensic Breakdown
+              Subject-wise Detailed Analysis
            </CardTitle>
         </CardHeader>
         <CardContent className="p-10 pt-0">

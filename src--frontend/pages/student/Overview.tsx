@@ -128,7 +128,7 @@ export default function StudentOverview() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Loader2 className="w-12 h-12 animate-spin text-emerald-500" />
-        <p className="text-slate-400 font-medium animate-pulse text-sm tracking-widest uppercase">Syncing Neural Data...</p>
+        <p className="text-slate-400 font-medium animate-pulse text-sm tracking-widest uppercase">Synchronizing Academic Data...</p>
       </div>
     );
   }
@@ -216,7 +216,7 @@ export default function StudentOverview() {
 
                 <div className="flex gap-3">
                   <Badge className={`${attendance.riskLevel === 'LOW' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'} border-none px-4 py-1.5 font-black text-[10px] tracking-widest uppercase`}>
-                    Security Risk: {attendance.riskLevel}
+                    Attendance Risk: {attendance.riskLevel}
                   </Badge>
                   <Badge className="bg-slate-800/50 text-slate-400 border-none px-4 py-1.5 font-black text-[10px] tracking-widest uppercase">
                     Status: {attendance.status}
@@ -283,7 +283,7 @@ export default function StudentOverview() {
                 <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mb-4">
                    <Clock className="w-8 h-8 text-slate-700" />
                 </div>
-                <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Digital Void: No Classes Today</p>
+                <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">No Classes Scheduled Today</p>
               </div>
             ) : (
               <div className="space-y-4">

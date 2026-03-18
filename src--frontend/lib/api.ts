@@ -898,15 +898,17 @@ export const attendanceService = {
   },
 
   async mark(attendance: Partial<Attendance> & Record<string, any>): Promise<Attendance | null> {
-    const studentId = attendance.student_id || attendance.student_id;
+    const studentId = attendance.student_id || attendance.studentId;
     if (!studentId) handleError({ message: 'student_id is required', code: 'VALIDATION_ERROR', status: 400 });
 
     const subjectId =
       attendance.course_id ||
       attendance.courseId ||
       attendance.subject_id ||
-      attendance.subject_id ||
+      attendance.subjectId ||
       null;
+
+    const sessionId = attendance.session_id || attendance.sessionId || null;
 
     try {
       const result = await callEdgeFunction<Attendance>('attendance', {
@@ -915,11 +917,16 @@ export const attendanceService = {
           studentId,
           status: attendance.status || 'PRESENT',
           subjectId,
+          sessionId,
           justification: attendance.justification ?? attendance.remarks ?? null,
           timetableEntryId: attendance.timetable_entry_id || attendance.timetableEntryId || null,
+          method: attendance.method || 'MANUAL',
+          confidenceScore: attendance.confidence_score || attendance.confidenceScore || null,
+          location: attendance.location || null,
+          deviceInfo: attendance.device_info || attendance.device_id || null,
         },
       });
-      return result || null;
+      if (result) return result;
     } catch {
       // Fallback to direct insert
       const { data, error } = await supabase
@@ -927,17 +934,22 @@ export const attendanceService = {
         .insert({
           student_id: studentId,
           subject_id: subjectId,
+          session_id: sessionId,
           date: new Date().toISOString().split('T')[0],
           status: attendance.status || 'PRESENT',
           method: attendance.method || 'MANUAL',
           verified_by: attendance.verified_by || attendance.faculty_id || null,
           justification: attendance.justification ?? attendance.remarks ?? null,
+          confidence_score: attendance.confidence_score || attendance.confidenceScore || null,
+          location: attendance.location || null,
+          device_info: attendance.device_info || attendance.device_id || null,
         })
         .select()
         .single();
       if (error) handleError(error);
       return data;
     }
+    return null;
   },
 
   async markBulk(records: (Partial<Attendance> & Record<string, any>)[]): Promise<Attendance[]> {

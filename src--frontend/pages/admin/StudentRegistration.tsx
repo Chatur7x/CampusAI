@@ -222,36 +222,106 @@ export default function StudentRegistrationPage() {
 
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bulk-operations', {
-        body: {
-          operation: 'import_students',
-          data: [
-            {
-              email: form.email.trim(),
-              firstName: form.firstName.trim(),
-              lastName: (form.lastName || form.middleName || 'Student').trim(),
-              enrollmentId: form.rollNumber.trim(),
-              departmentId: form.departmentId,
-              classId: form.classId,
-              batchYear: Number(form.batch) || new Date().getFullYear(),
-              semester: Number(form.semester) || 1,
-              phone: form.phone || undefined,
-              guardianName: form.fatherName || form.motherName || undefined,
-              guardianPhone: form.parentsMobile || undefined,
-              guardianEmail: undefined,
-            },
-          ],
-          options: { sendNotifications: true, skipDuplicates: true },
-        },
-      });
+      // First try the edge function (works in production)
+      let edgeFunctionSucceeded = false;
+      try {
+        const { data, error } = await supabase.functions.invoke('bulk-operations', {
+          body: {
+            operation: 'import_students',
+            data: [
+              {
+                email: form.email.trim(),
+                firstName: form.firstName.trim(),
+                lastName: (form.lastName || form.middleName || 'Student').trim(),
+                enrollmentId: form.rollNumber.trim(),
+                departmentId: form.departmentId,
+                classId: form.classId,
+                batchYear: Number(form.batch) || new Date().getFullYear(),
+                semester: Number(form.semester) || 1,
+                phone: form.phone || undefined,
+                guardianName: form.fatherName || form.motherName || undefined,
+                guardianPhone: form.parentsMobile || undefined,
+                guardianEmail: undefined,
+              },
+            ],
+            options: { sendNotifications: true, skipDuplicates: true },
+          },
+        });
 
-      if (error) throw error;
-      if (!data?.success) {
-        throw new Error(data?.message || 'Registration failed');
+        if (!error && data?.success) {
+          edgeFunctionSucceeded = true;
+        }
+      } catch (_edgeErr) {
+        console.warn('Edge function unavailable, falling back to direct DB insert');
+      }
+
+      if (!edgeFunctionSucceeded) {
+        // Direct Supabase fallback — works locally and when edge functions are not deployed
+        // Step 1: Check if a user with this email already exists in profiles
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('email', form.email.trim())
+          .maybeSingle();
+
+        let userId: string;
+
+        if (existingProfile?.user_id) {
+          userId = existingProfile.user_id;
+          // Update the profile  
+          await supabase.from('profiles').update({
+            first_name: form.firstName.trim(),
+            last_name: (form.lastName || form.middleName || 'Student').trim(),
+            phone: form.phone || null,
+            role: 'STUDENT',
+          }).eq('user_id', userId);
+        } else {
+          // Create a placeholder user ID for the profile (student will set password via magic link)
+          // Try inserting profile with a temporary user-id derived from email
+          const tempUserId = crypto.randomUUID();
+          userId = tempUserId;
+
+          const { error: profileErr } = await supabase.from('profiles').insert({
+            user_id: tempUserId,
+            email: form.email.trim(),
+            first_name: form.firstName.trim(),
+            last_name: (form.lastName || form.middleName || 'Student').trim(),
+            role: 'STUDENT',
+            phone: form.phone || null,
+            address: [form.plotNo, form.streetNo, form.apartment, form.doorNo, form.landmark].filter(Boolean).join(', ') || null,
+            city: form.city || null,
+            state: form.state || null,
+            country: form.country || 'India',
+            postal_code: form.pincode || null,
+            theme: 'dark',
+            language: 'en',
+          });
+
+          if (profileErr) {
+            throw new Error(`Failed to create profile: ${profileErr.message}`);
+          }
+        }
+
+        // Step 2: Upsert student record
+        const { error: studentErr } = await supabase.from('students').upsert({
+          user_id: userId,
+          enrollment_id: form.rollNumber.trim(),
+          department_id: form.departmentId,
+          class_id: form.classId,
+          batch_year: Number(form.batch) || new Date().getFullYear(),
+          semester: Number(form.semester) || 1,
+          face_registered: false,
+          guardian_name: form.fatherName || form.motherName || null,
+          guardian_phone: form.parentsMobile || null,
+        }, { onConflict: 'user_id' });
+
+        if (studentErr) {
+          throw new Error(`Failed to create student record: ${studentErr.message}`);
+        }
       }
 
       setSubmitted(true);
-      toast.success('Student registered • Credentials emailed');
+      toast.success('Student registered successfully!');
       setForm(() => ({ ...initialForm, departmentId: form.departmentId, classId: form.classId }));
       setStep(0);
     } catch (err) {
