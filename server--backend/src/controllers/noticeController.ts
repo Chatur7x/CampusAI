@@ -7,7 +7,7 @@ import { createNotification } from '../services/notificationService';
 // ==================== CRUD OPERATIONS ====================
 export const createNotice = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { title, content, priority, targetRoles, targetDepartments, targetClasses, attachments, expiryDate } = req.body;
+    const { title, content, priority, target_roles, target_departments, target_classes, attachments, expiry_date } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'FACULTY')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
@@ -19,11 +19,11 @@ export const createNotice = async (req: AuthenticatedRequest, res: Response): Pr
         title,
         content,
         priority: priority || 'MEDIUM',
-        target_roles: targetRoles || [],
-        target_departments: targetDepartments || [],
-        target_classes: targetClasses || [],
+        target_roles: target_roles || [],
+        target_departments: target_departments || [],
+        target_classes: target_classes || [],
         attachments: attachments || [],
-        expiry_date: expiryDate ? new Date(expiryDate) : null,
+        expiry_date: expiry_date ? new Date(expiry_date) : null,
         published_by: req.user.id,
         is_active: true
       },
@@ -32,7 +32,7 @@ export const createNotice = async (req: AuthenticatedRequest, res: Response): Pr
     // Notify target users
     const targetUsers = await prisma.profile.findMany({
       where: {
-        role: { in: targetRoles },
+        role: { in: target_roles },
         is_active: true,
       },
       select: { user_id: true },
@@ -129,7 +129,7 @@ export const getNotices = async (req: AuthenticatedRequest, res: Response): Prom
             },
           },
         });
-        return { ...notice, isRead: !!read };
+        return { ...notice, is_read: !!read };
       })
     );
 
@@ -194,7 +194,7 @@ export const getNoticeById = async (req: AuthenticatedRequest, res: Response): P
 export const updateNotice = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, content, priority, targetRoles, targetDepartments, targetClasses, attachments, expiryDate, isActive } = req.body;
+    const { title, content, priority, target_roles, target_departments, target_classes, attachments, expiry_date, is_active } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
@@ -213,12 +213,12 @@ export const updateNotice = async (req: AuthenticatedRequest, res: Response): Pr
         title,
         content,
         priority,
-        target_roles: targetRoles,
-        target_departments: targetDepartments,
-        target_classes: targetClasses,
+        target_roles: target_roles,
+        target_departments: target_departments,
+        target_classes: target_classes,
         attachments,
-        expiry_date: expiryDate ? new Date(expiryDate) : null,
-        is_active: isActive !== undefined ? isActive : true,
+        expiry_date: expiry_date ? new Date(expiry_date) : null,
+        is_active: is_active !== undefined ? is_active : true,
       },
     });
 

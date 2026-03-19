@@ -6,7 +6,6 @@ import { hashPassword } from '../utils/bcrypt';
 import csvParser from 'csv-parser';
 import xlsx from 'xlsx';
 import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 
 const generateSecurePassword = (): string => crypto.randomBytes(12).toString('base64url');
@@ -24,16 +23,10 @@ export const uploadStudentsCSV = async (req: AuthenticatedRequest, res: Response
       return;
     }
 
-    const results: BulkUploadResult = {
-      success: 0,
-      failed: 0,
-      errors: [],
-    };
-
+    const results: BulkUploadResult = { success: 0, failed: 0, errors: [] };
     const filePath = req.file.path;
     const students: any[] = [];
 
-    // Parse CSV
     await new Promise((resolve, reject) => {
       fs.createReadStream(filePath)
         .pipe(csvParser())
@@ -42,78 +35,62 @@ export const uploadStudentsCSV = async (req: AuthenticatedRequest, res: Response
         .on('error', reject);
     });
 
-    // Process each student
     for (let i = 0; i < students.length; i++) {
       const row = students[i];
       try {
-        // Validate required fields
-        if (!row.email || !row.firstName || !row.lastName || !row.enrollmentId) {
+        if (!row.email || !row.first_name || !row.last_name || !row.enrollment_id) {
           results.failed++;
-          results.errors.push({
-            row: i + 1,
-            message: 'Missing required fields (email, firstName, lastName, enrollmentId)',
-          });
+          results.errors.push({ row: i + 1, message: 'Missing required fields (email, first_name, last_name, enrollment_id)' });
           continue;
         }
 
-        // Check if email exists
-        const existingUser = await prisma.user.findUnique({
-          where: { email: row.email },
-        });
-
-        if (existingUser) {
+        // Email lives on profiles
+        const existingProfile = await prisma.profile.findUnique({ where: { email: row.email } });
+        if (existingProfile) {
           results.failed++;
-          results.errors.push({
-            row: i + 1,
-            message: `Email ${row.email} already exists`,
-          });
+          results.errors.push({ row: i + 1, message: `Email ${row.email} already exists` });
           continue;
         }
 
-        // Check if enrollment ID exists
-        const existingStudent = await prisma.student.findUnique({
-          where: { enrollmentId: row.enrollmentId },
-        });
-
+        const existingStudent = await prisma.student.findUnique({ where: { enrollment_id: row.enrollment_id } });
         if (existingStudent) {
           results.failed++;
-          results.errors.push({
-            row: i + 1,
-            message: `Enrollment ID ${row.enrollmentId} already exists`,
-          });
+          results.errors.push({ row: i + 1, message: `Enrollment ID ${row.enrollment_id} already exists` });
           continue;
         }
 
-        // Create user and student
         await prisma.$transaction(async (tx) => {
-          const user = await tx.user.create({
+          const user = await tx.users.create({
             data: {
+              id: crypto.randomUUID(),
               email: row.email,
-              password: await hashPassword(row.password || generateSecurePassword()),
-              role: 'STUDENT',
+              encrypted_password: await hashPassword(row.password || generateSecurePassword()),
+              email_confirmed_at: new Date(),
             },
           });
 
           await tx.profile.create({
             data: {
-              userId: user.id,
-              firstName: row.firstName,
-              lastName: row.lastName,
+              user_id: user.id,
+              email: row.email,
+              first_name: row.first_name,
+              last_name: row.last_name,
               phone: row.phone || null,
+              role: 'STUDENT',
             },
           });
 
           await tx.student.create({
             data: {
-              userId: user.id,
-              enrollmentId: row.enrollmentId,
-              departmentId: row.departmentId || '',
-              classId: row.classId || '',
-              batchYear: parseInt(row.batchYear) || new Date().getFullYear(),
+              user_id: user.id,
+              enrollment_id: row.enrollment_id,
+              department_id: row.department_id || '',
+              class_id: row.class_id || '',
+              batch_year: parseInt(row.batch_year) || new Date().getFullYear(),
               semester: parseInt(row.semester) || 1,
-              guardianName: row.guardianName || null,
-              guardianPhone: row.guardianPhone || null,
-              guardianEmail: row.guardianEmail || null,
+              guardian_name: row.guardian_name || null,
+              guardian_phone: row.guardian_phone || null,
+              guardian_email: row.guardian_email || null,
             },
           });
         });
@@ -121,14 +98,10 @@ export const uploadStudentsCSV = async (req: AuthenticatedRequest, res: Response
         results.success++;
       } catch (error) {
         results.failed++;
-        results.errors.push({
-          row: i + 1,
-          message: (error as Error).message,
-        });
+        results.errors.push({ row: i + 1, message: (error as Error).message });
       }
     }
 
-    // Clean up uploaded file
     fs.unlinkSync(filePath);
 
     await logAction({
@@ -140,11 +113,7 @@ export const uploadStudentsCSV = async (req: AuthenticatedRequest, res: Response
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(200).json({
-      success: true,
-      message: `Processed ${students.length} records`,
-      data: results,
-    });
+    res.status(200).json({ success: true, message: `Processed ${students.length} records`, data: results });
   } catch (error) {
     console.error('Upload students CSV error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -163,12 +132,7 @@ export const uploadFacultyCSV = async (req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    const results: BulkUploadResult = {
-      success: 0,
-      failed: 0,
-      errors: [],
-    };
-
+    const results: BulkUploadResult = { success: 0, failed: 0, errors: [] };
     const filePath = req.file.path;
     const faculty: any[] = [];
 
@@ -183,53 +147,47 @@ export const uploadFacultyCSV = async (req: AuthenticatedRequest, res: Response)
     for (let i = 0; i < faculty.length; i++) {
       const row = faculty[i];
       try {
-        if (!row.email || !row.firstName || !row.lastName || !row.employeeId) {
+        if (!row.email || !row.first_name || !row.last_name || !row.employee_id) {
           results.failed++;
-          results.errors.push({
-            row: i + 1,
-            message: 'Missing required fields',
-          });
+          results.errors.push({ row: i + 1, message: 'Missing required fields' });
           continue;
         }
 
-        const existingUser = await prisma.user.findUnique({
-          where: { email: row.email },
-        });
-
-        if (existingUser) {
+        const existingProfile = await prisma.profile.findUnique({ where: { email: row.email } });
+        if (existingProfile) {
           results.failed++;
-          results.errors.push({
-            row: i + 1,
-            message: `Email ${row.email} already exists`,
-          });
+          results.errors.push({ row: i + 1, message: `Email ${row.email} already exists` });
           continue;
         }
 
         await prisma.$transaction(async (tx) => {
-          const user = await tx.user.create({
+          const user = await tx.users.create({
             data: {
+              id: crypto.randomUUID(),
               email: row.email,
-              password: await hashPassword(row.password || generateSecurePassword()),
-              role: 'FACULTY',
+              encrypted_password: await hashPassword(row.password || generateSecurePassword()),
+              email_confirmed_at: new Date(),
             },
           });
 
           await tx.profile.create({
             data: {
-              userId: user.id,
-              firstName: row.firstName,
-              lastName: row.lastName,
+              user_id: user.id,
+              email: row.email,
+              first_name: row.first_name,
+              last_name: row.last_name,
               phone: row.phone || null,
+              role: 'FACULTY',
             },
           });
 
           await tx.faculty.create({
             data: {
-              userId: user.id,
-              employeeId: row.employeeId,
+              user_id: user.id,
+              employee_id: row.employee_id,
               designation: row.designation || 'Assistant Professor',
-              departmentId: row.departmentId || '',
-              joiningDate: row.joiningDate ? new Date(row.joiningDate) : new Date(),
+              department_id: row.department_id || '',
+              joining_date: row.joining_date ? new Date(row.joining_date) : new Date(),
               specialization: row.specialization || null,
             },
           });
@@ -238,10 +196,7 @@ export const uploadFacultyCSV = async (req: AuthenticatedRequest, res: Response)
         results.success++;
       } catch (error) {
         results.failed++;
-        results.errors.push({
-          row: i + 1,
-          message: (error as Error).message,
-        });
+        results.errors.push({ row: i + 1, message: (error as Error).message });
       }
     }
 
@@ -256,11 +211,7 @@ export const uploadFacultyCSV = async (req: AuthenticatedRequest, res: Response)
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(200).json({
-      success: true,
-      message: `Processed ${faculty.length} records`,
-      data: results,
-    });
+    res.status(200).json({ success: true, message: `Processed ${faculty.length} records`, data: results });
   } catch (error) {
     console.error('Upload faculty CSV error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -279,25 +230,25 @@ export const exportStudents = async (req: AuthenticatedRequest, res: Response): 
 
     const students = await prisma.student.findMany({
       include: {
-        user: { include: { profile: true } },
-        department: true,
-        class: true,
+        users: { include: { profiles: true } },
+        departments: true,
+        classes: true,
       },
     });
 
     const data = students.map((s) => ({
-      enrollmentId: s.enrollmentId,
-      email: s.user.email,
-      firstName: s.user.profile?.firstName,
-      lastName: s.user.profile?.lastName,
-      phone: s.user.profile?.phone,
-      department: s.department?.name,
-      class: s.class?.name,
-      batchYear: s.batchYear,
+      enrollment_id: s.enrollment_id,
+      email: s.users.profiles?.email,
+      first_name: s.users.profiles?.first_name,
+      last_name: s.users.profiles?.last_name,
+      phone: s.users.profiles?.phone,
+      department: s.departments?.name,
+      class: s.classes?.name,
+      batch_year: s.batch_year,
       semester: s.semester,
-      faceRegistered: s.faceRegistered,
-      guardianName: s.guardianName,
-      guardianPhone: s.guardianPhone,
+      face_registered: s.face_registered,
+      guardian_name: s.guardian_name,
+      guardian_phone: s.guardian_phone,
     }));
 
     if (format === 'csv') {
@@ -319,10 +270,7 @@ export const exportStudents = async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      data,
-    });
+    res.status(200).json({ success: true, data });
   } catch (error) {
     console.error('Export students error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -339,11 +287,7 @@ export const exportAttendance = async (req: AuthenticatedRequest, res: Response)
     }
 
     const where: any = {};
-
-    if (classId) {
-      where.student = { classId: classId as string };
-    }
-
+    if (classId) where.students = { class_id: classId as string };
     if (startDate && endDate) {
       where.date = {
         gte: new Date(startDate as string),
@@ -354,10 +298,10 @@ export const exportAttendance = async (req: AuthenticatedRequest, res: Response)
     const attendance = await prisma.attendance.findMany({
       where,
       include: {
-        student: {
+        students: {
           include: {
-            user: { include: { profile: true } },
-            class: true,
+            users: { include: { profiles: true } },
+            classes: true,
           },
         },
       },
@@ -366,13 +310,13 @@ export const exportAttendance = async (req: AuthenticatedRequest, res: Response)
 
     const data = attendance.map((a) => ({
       date: a.date.toISOString().split('T')[0],
-      enrollmentId: a.student.enrollmentId,
-      studentName: `${a.student.user.profile?.firstName} ${a.student.user.profile?.lastName}`,
-      class: a.student.class?.name,
+      enrollment_id: a.students.enrollment_id,
+      student_name: `${a.students.users.profiles?.first_name} ${a.students.users.profiles?.last_name}`,
+      class: a.students.classes?.name,
       status: a.status,
       method: a.method,
-      confidenceScore: a.confidenceScore,
-      blockchainHash: a.blockchainHash,
+      confidence_score: a.confidence_score,
+      blockchain_hash: a.blockchain_hash,
     }));
 
     if (format === 'csv') {
@@ -394,10 +338,7 @@ export const exportAttendance = async (req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      data,
-    });
+    res.status(200).json({ success: true, data });
   } catch (error) {
     console.error('Export attendance error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -426,25 +367,25 @@ export const bulkAttendanceCorrection = async (req: AuthenticatedRequest, res: R
 
         const existing = await prisma.attendance.findUnique({
           where: {
-            studentId_date_subjectId: {
-              studentId,
+            student_id_date_subject_id: {
+              student_id: studentId,
               date: attendanceDate,
-              subjectId: null as any,
+              subject_id: null as any,
             },
           },
         });
 
         const updated = await prisma.attendance.update({
           where: {
-            studentId_date_subjectId: {
-              studentId,
+            student_id_date_subject_id: {
+              student_id: studentId,
               date: attendanceDate,
-              subjectId: null as any,
+              subject_id: null as any,
             },
           },
           data: {
             status,
-            verifiedBy: req.user.id,
+            verified_by: req.user.id,
             justification: justification || 'Bulk correction',
           },
         });
@@ -480,19 +421,13 @@ function convertToCSV(data: any[]): string {
   if (data.length === 0) return '';
 
   const headers = Object.keys(data[0]);
-  const csvRows = [];
+  const csvRows = [headers.join(',')];
 
-  // Header
-  csvRows.push(headers.join(','));
-
-  // Rows
   for (const row of data) {
     const values = headers.map((header) => {
       const value = row[header];
       if (value === null || value === undefined) return '';
-      if (typeof value === 'string' && value.includes(',')) {
-        return `"${value}"`;
-      }
+      if (typeof value === 'string' && value.includes(',')) return `"${value}"`;
       return value;
     });
     csvRows.push(values.join(','));

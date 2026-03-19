@@ -48,25 +48,25 @@ export async function verifyLocation(
     latitude, longitude
   );
 
-  const isWithinCampus = distance <= CAMPUS_CONFIG.radiusMeters;
-  let spoofDetected = false;
-  let spoofReason: string | null = null;
+  const is_within_campus = distance <= CAMPUS_CONFIG.radiusMeters;
+  let spoof_detected = false;
+  let spoof_reason: string | null = null;
 
   // Check 1: Accuracy too low (could be mocked GPS)
   if (accuracy !== null && accuracy > CAMPUS_CONFIG.maxAccuracyMeters) {
-    spoofDetected = true;
-    spoofReason = `GPS accuracy too low: ${accuracy}m (max: ${CAMPUS_CONFIG.maxAccuracyMeters}m)`;
+    spoof_detected = true;
+    spoof_reason = `GPS accuracy too low: ${accuracy}m (max: ${CAMPUS_CONFIG.maxAccuracyMeters}m)`;
   }
 
   // Check 2: Velocity anomaly — if user's last geo check was recent but far away
-  if (!spoofDetected) {
+  if (!spoof_detected) {
     const lastGeo = await prisma.geoVerification.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
     });
 
     if (lastGeo) {
-      const timeDiffSeconds = (Date.now() - lastGeo.createdAt.getTime()) / 1000;
+      const timeDiffSeconds = (Date.now() - lastGeo.created_at.getTime()) / 1000;
       const distFromLast = haversineDistance(
         lastGeo.latitude, lastGeo.longitude,
         latitude, longitude
@@ -76,8 +76,8 @@ export async function verifyLocation(
       if (timeDiffSeconds > 0 && timeDiffSeconds < 300) {
         const speed = distFromLast / timeDiffSeconds;
         if (speed > 100) {
-          spoofDetected = true;
-          spoofReason = `Impossible velocity: ${speed.toFixed(1)} m/s over ${timeDiffSeconds.toFixed(0)}s`;
+          spoof_detected = true;
+          spoof_reason = `Impossible velocity: ${speed.toFixed(1)} m/s over ${timeDiffSeconds.toFixed(0)}s`;
         }
       }
     }
@@ -86,23 +86,23 @@ export async function verifyLocation(
   // Log the verification
   await prisma.geoVerification.create({
     data: {
-      userId,
+      user_id: userId,
       latitude,
       longitude,
       accuracy,
-      campusDistance: distance,
-      isWithinCampus,
-      spoofDetected,
-      spoofReason,
-      attendanceId,
+      campus_distance: distance,
+      is_within_campus,
+      spoof_detected,
+      spoof_reason,
+      attendance_id: attendanceId,
     },
   });
 
   return {
-    isWithinCampus,
+    isWithinCampus: is_within_campus,
     distanceMeters: Math.round(distance),
-    spoofDetected,
-    spoofReason,
+    spoofDetected: spoof_detected,
+    spoofReason: spoof_reason,
   };
 }
 
@@ -111,8 +111,8 @@ export async function verifyLocation(
  */
 export async function getGeoHistory(userId: string, limit = 20) {
   return prisma.geoVerification.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
     take: limit,
   });
 }

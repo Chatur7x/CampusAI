@@ -213,6 +213,7 @@ model Class {
   faculty       Faculty          @relation(fields: [incharge_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   students      Student[]
   timetable     TimetableEntry[]
+  conversations Conversation[]
 
   @@unique([name, section, academic_year])
   @@map("classes")
@@ -405,19 +406,64 @@ model Notification {
   @@schema("public")
 }
 
+model Conversation {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title            String?
+  type             String                    @default("DIRECT")
+  created_by       String?                   @db.Uuid
+  class_id         String?                   @db.Uuid
+  is_active        Boolean?                  @default(true)
+  last_message_at  DateTime?                 @default(now()) @db.Timestamptz(6)
+  created_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  messages         Message[]
+  participants     ConversationParticipant[]
+  classes          Class?                    @relation(fields: [class_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  creator          users?                    @relation("ConversationCreator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([last_message_at(sort: Desc)], map: "idx_conversations_last_message")
+  @@index([type], map: "idx_conversations_type")
+  @@map("conversations")
+  @@schema("public")
+}
+
+model ConversationParticipant {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String       @db.Uuid
+  user_id         String       @db.Uuid
+  role            String?      @default("MEMBER")
+  unread_count    Int?         @default(0)
+  last_read_at    DateTime?    @db.Timestamptz(6)
+  is_muted        Boolean?     @default(false)
+  created_at      DateTime?    @default(now()) @db.Timestamptz(6)
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user            users        @relation("ConversationParticipantUser", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conversation_id, user_id])
+  @@map("conversation_participants")
+  @@schema("public")
+}
+
 model Message {
   id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   conversation_id String        @db.Uuid
   sender_id       String        @db.Uuid
   content         String
   attachments     String[]      @default([])
+  message_type    String?       @default("TEXT")
   is_edited       Boolean?      @default(false)
   edited_at       DateTime?     @db.Timestamptz(6)
+  is_read         Boolean?      @default(false)
+  read_at         DateTime?     @db.Timestamptz(6)
+  reply_to_id     String?       @db.Uuid
   created_at      DateTime?     @default(now()) @db.Timestamptz(6)
-  conversations   conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users           users         @relation(fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  conversation    Conversation  @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sender          users         @relation("MessageSender", fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reply_to        Message?      @relation("MessageReplies", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies         Message[]     @relation("MessageReplies")
 
   @@index([conversation_id, created_at(sort: Desc)], map: "idx_messages_conversation")
+  @@index([sender_id], map: "idx_messages_sender")
   @@map("messages")
   @@schema("public")
 }
@@ -586,7 +632,7 @@ model SecurityEvent {
 }
 
 model FaceEmbedding {
-  id              String    @id @default(dbgenerated("extensions.uuid_generate_v4()")) @db.Uuid
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   studentId       String    @map("student_id") @db.Uuid
   embeddingVector Json      @map("embedding_vector")
   confidence      Float?    @default(1.0)
@@ -599,7 +645,7 @@ model FaceEmbedding {
 }
 
 model FaceVerificationLog {
-  id              String    @id @default(dbgenerated("extensions.uuid_generate_v4()")) @db.Uuid
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   studentId       String?   @map("student_id") @db.Uuid
   similarityScore Float?    @map("similarity_score")
   deviceId        String?   @map("device_id")
@@ -1102,11 +1148,9 @@ model users {
   admins                                             Admin?
   api_request_log                                    ApiRequestLog[]
   audit_logs                                         AuditLog[]
-  conversation_participants                          conversation_participants[]
   faculty                                            Faculty?
   geo_verifications                                  GeoVerification[]
   login_history                                      LoginHistory[]
-  messages                                           Message[]
   mfa_backup_codes                                   MfaBackupCode[]
   notice_reads                                       NoticeRead[]
   notices                                            Notice[]
@@ -1122,36 +1166,13 @@ model users {
   system_settings                                    SystemSetting[]
   token_blacklist                                    TokenBlacklist[]
   trusted_devices                                    TrustedDevice[]
+  conversations_created                              Conversation[]              @relation("ConversationCreator")
+  conversation_participants                          ConversationParticipant[]   @relation("ConversationParticipantUser")
+  messages_sent                                      Message[]                   @relation("MessageSender")
 
   @@index([instance_id])
   @@index([is_anonymous])
   @@schema("auth")
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model conversation_participants {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversation_id String        @db.Uuid
-  user_id         String        @db.Uuid
-  last_read_at    DateTime?     @db.Timestamptz(6)
-  is_muted        Boolean?      @default(false)
-  created_at      DateTime?     @default(now()) @db.Timestamptz(6)
-  conversations   conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([conversation_id, user_id])
-  @@schema("public")
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model conversations {
-  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
-  updated_at                DateTime?                   @default(now()) @db.Timestamptz(6)
-  conversation_participants conversation_participants[]
-  messages                  Message[]
-
-  @@schema("public")
 }
 
 enum aal_level {

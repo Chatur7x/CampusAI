@@ -6,10 +6,9 @@ import { getLoginHistory, getAllLoginHistory } from '../utils/loginHistory';
 import { getGeoHistory } from '../utils/geoVerification';
 import { cleanupExpiredTokens } from '../utils/tokenBlacklist';
 import { prisma } from '../utils/prisma';
-import { Severity } from '@prisma/client';
+import { severity } from '@prisma/client';
 
 // ==================== SECURITY DASHBOARD ====================
-
 export const getDashboardStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
@@ -22,14 +21,13 @@ export const getDashboardStats = async (req: AuthenticatedRequest, res: Response
 };
 
 // ==================== SECURITY EVENTS ====================
-
 export const listSecurityEvents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
-    const { eventType, severity, userId, resolved, startDate, endDate, page, limit } = req.query;
+    const { eventType, severity: sev, userId, resolved, startDate, endDate, page, limit } = req.query;
     const data = await getSecurityEvents({
       eventType: eventType as string | undefined,
-      severity: severity as Severity | undefined,
+      severity: sev as severity | undefined,
       userId: userId as string | undefined,
       resolved: resolved !== undefined ? resolved === 'true' : undefined,
       startDate: startDate ? new Date(startDate as string) : undefined,
@@ -57,12 +55,10 @@ export const resolveEvent = async (req: AuthenticatedRequest, res: Response): Pr
 };
 
 // ==================== DEVICE TRUST ====================
-
 export const listDevices = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
     const userId = (req.query.userId as string) || req.user.id;
-    // Non-admins can only see their own devices
     if (userId !== req.user.id && !['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
       return;
@@ -101,7 +97,6 @@ export const deleteDevice = async (req: AuthenticatedRequest, res: Response): Pr
 };
 
 // ==================== LOGIN HISTORY ====================
-
 export const myLoginHistory = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
@@ -134,7 +129,6 @@ export const allLoginHistory = async (req: AuthenticatedRequest, res: Response):
 };
 
 // ==================== GEO VERIFICATION ====================
-
 export const geoHistory = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
@@ -153,7 +147,6 @@ export const geoHistory = async (req: AuthenticatedRequest, res: Response): Prom
 };
 
 // ==================== TOKEN MANAGEMENT ====================
-
 export const cleanupTokens = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
@@ -166,14 +159,13 @@ export const cleanupTokens = async (req: AuthenticatedRequest, res: Response): P
 };
 
 // ==================== ACTIVE SESSIONS ====================
-
 export const listActiveSessions = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
     const sessions = await prisma.session.findMany({
-      where: { userId: req.user.id, expiresAt: { gt: new Date() } },
-      select: { id: true, deviceInfo: true, ipAddress: true, createdAt: true, expiresAt: true },
-      orderBy: { createdAt: 'desc' },
+      where: { user_id: req.user.id, expires_at: { gt: new Date() } },
+      select: { id: true, device_info: true, ip_address: true, created_at: true, expires_at: true },
+      orderBy: { created_at: 'desc' },
     });
     res.json({ success: true, data: sessions });
   } catch (error) {
@@ -186,7 +178,7 @@ export const revokeSession = async (req: AuthenticatedRequest, res: Response): P
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
     const { sessionId } = req.params;
-    await prisma.session.deleteMany({ where: { id: sessionId, userId: req.user.id } });
+    await prisma.session.deleteMany({ where: { id: sessionId, user_id: req.user.id } });
     res.json({ success: true, message: 'Session revoked' });
   } catch (error) {
     console.error('Revoke session error:', error);
@@ -198,23 +190,21 @@ export const revokeAllSessions = async (req: AuthenticatedRequest, res: Response
   try {
     if (!req.user) { res.status(401).json({ success: false, message: 'Auth required' }); return; }
     const { keepCurrent } = req.body;
-    const currentToken = req.headers.authorization?.substring(7);
-    
-    if (keepCurrent && currentToken) {
-      // Delete all sessions except the current one
+
+    if (keepCurrent) {
       const currentSession = await prisma.session.findFirst({
-        where: { userId: req.user.id },
-        orderBy: { createdAt: 'desc' },
+        where: { user_id: req.user.id },
+        orderBy: { created_at: 'desc' },
       });
       if (currentSession) {
         await prisma.session.deleteMany({
-          where: { userId: req.user.id, id: { not: currentSession.id } },
+          where: { user_id: req.user.id, id: { not: currentSession.id } },
         });
       }
     } else {
-      await prisma.session.deleteMany({ where: { userId: req.user.id } });
+      await prisma.session.deleteMany({ where: { user_id: req.user.id } });
     }
-    
+
     res.json({ success: true, message: 'All other sessions revoked' });
   } catch (error) {
     console.error('Revoke all sessions error:', error);

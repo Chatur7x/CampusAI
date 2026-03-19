@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import crypto from 'crypto';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../utils/prisma';
 import { logAction } from '../utils/audit';
@@ -15,37 +16,34 @@ export const getAllUsers = async (req: AuthenticatedRequest, res: Response): Pro
     }
 
     const where: any = {};
-
-    if (role) {
-      where.role = role;
-    }
+    if (role) where.role = role;
 
     if (search) {
       where.OR = [
         { email: { contains: search as string, mode: 'insensitive' } },
-        { profile: { firstName: { contains: search as string, mode: 'insensitive' } } },
-        { profile: { lastName: { contains: search as string, mode: 'insensitive' } } },
+        { profiles: { first_name: { contains: search as string, mode: 'insensitive' } } },
+        { profiles: { last_name: { contains: search as string, mode: 'insensitive' } } },
       ];
     }
 
     const [users, total] = await Promise.all([
-      prisma.user.findMany({
+      prisma.users.findMany({
         where,
         include: {
-          profile: {
+          profiles: {
             select: {
-              firstName: true,
-              lastName: true,
+              first_name: true,
+              last_name: true,
               phone: true,
-              avatar: true,
+              avatar_url: true,
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
       }),
-      prisma.user.count({ where }),
+      prisma.users.count({ where }),
     ]);
 
     res.status(200).json({
@@ -68,63 +66,65 @@ export const getAllUsers = async (req: AuthenticatedRequest, res: Response): Pro
 
 export const createUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { email, password, firstName, lastName, role, ...roleData } = req.body;
+    const { email, password, first_name, last_name, role, ...roleData } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
       return;
     }
 
-    // Check if email exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    // Email lives on profiles table — check via profile
+    const existingProfile = await prisma.profile.findUnique({ where: { email } });
+    if (existingProfile) {
       res.status(409).json({ success: false, message: 'Email already exists' });
       return;
     }
 
     const user = await prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
+      const newUser = await tx.users.create({
         data: {
+          id: crypto.randomUUID(),
           email,
-          password: await hashPassword(password),
-          role,
+          encrypted_password: await hashPassword(password),
+          email_confirmed_at: new Date(),
         },
       });
 
       await tx.profile.create({
         data: {
-          userId: newUser.id,
-          firstName,
-          lastName,
+          user_id: newUser.id,
+          email,
+          first_name,
+          last_name,
+          role,
         },
       });
 
-      // Create role-specific records
       if (role === 'STUDENT') {
         await tx.student.create({
           data: {
-            userId: newUser.id,
-            enrollmentId: roleData.enrollmentId || `STU${Date.now()}`,
-            departmentId: roleData.departmentId || '',
-            classId: roleData.classId || '',
-            batchYear: roleData.batchYear || new Date().getFullYear(),
+            user_id: newUser.id,
+            enrollment_id: roleData.enrollmentId || `STU${Date.now()}`,
+            department_id: roleData.departmentId || '',
+            class_id: roleData.classId || '',
+            batch_year: roleData.batchYear || new Date().getFullYear(),
             semester: roleData.semester || 1,
           },
         });
       } else if (role === 'FACULTY' || role === 'CLASS_INCHARGE') {
         await tx.faculty.create({
           data: {
-            userId: newUser.id,
-            employeeId: roleData.employeeId || `EMP${Date.now()}`,
+            user_id: newUser.id,
+            employee_id: roleData.employeeId || `EMP${Date.now()}`,
             designation: roleData.designation || 'Assistant Professor',
-            departmentId: roleData.departmentId || '',
-            joiningDate: new Date(),
+            department_id: roleData.departmentId || '',
+            joining_date: new Date(),
           },
         });
       } else if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
         await tx.admin.create({
           data: {
-            userId: newUser.id,
+            user_id: newUser.id,
             permissions: roleData.permissions || [],
           },
         });
@@ -138,7 +138,7 @@ export const createUser = async (req: AuthenticatedRequest, res: Response): Prom
       action: 'CREATE_USER',
       entityType: 'user',
       entityId: user.id,
-      newValue: { email, role, firstName, lastName },
+      newValue: { email, role, first_name, last_name },
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -157,37 +157,35 @@ export const createUser = async (req: AuthenticatedRequest, res: Response): Prom
 export const updateUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { firstName, lastName, isActive, role } = req.body;
+    const { first_name, last_name, is_active, role } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
       return;
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { id } });
+    const existingUser = await prisma.users.findUnique({ where: { id } });
     if (!existingUser) {
       res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
     const user = await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({
+      // is_active lives on profiles, role lives on users
+      const updated = await tx.users.update({
         where: { id },
-        data: {
-          isActive,
-          role: role || existingUser.role,
-        },
+        data: { role: role || existingUser.role },
       });
 
-      if (firstName || lastName) {
-        await tx.profile.update({
-          where: { userId: id },
-          data: {
-            firstName,
-            lastName,
-          },
-        });
-      }
+      await tx.profile.update({
+        where: { user_id: id },
+        data: {
+          ...(first_name && { first_name }),
+          ...(last_name && { last_name }),
+          ...(is_active !== undefined && { is_active }),
+          ...(role && { role }),
+        },
+      });
 
       return updated;
     });
@@ -223,16 +221,16 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response): Prom
       return;
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { id } });
+    const existingUser = await prisma.users.findUnique({ where: { id } });
     if (!existingUser) {
       res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
-    // Soft delete by deactivating
-    await prisma.user.update({
-      where: { id },
-      data: { isActive: false },
+    // Soft delete — deactivate on profile
+    await prisma.profile.update({
+      where: { user_id: id },
+      data: { is_active: false },
     });
 
     await logAction({
@@ -245,10 +243,7 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response): Prom
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'User deleted successfully',
-    });
+    res.status(200).json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -263,16 +258,13 @@ export const getDepartments = async (req: AuthenticatedRequest, res: Response): 
         _count: {
           select: {
             students: true,
-            faculty: true,
+            faculty_faculty_department_idTodepartments: true,
           },
         },
       },
     });
 
-    res.status(200).json({
-      success: true,
-      data: departments,
-    });
+    res.status(200).json({ success: true, data: departments });
   } catch (error) {
     console.error('Get departments error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -281,7 +273,7 @@ export const getDepartments = async (req: AuthenticatedRequest, res: Response): 
 
 export const createDepartment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { name, code, description, hodId } = req.body;
+    const { name, code, description, hod_id } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
@@ -289,12 +281,7 @@ export const createDepartment = async (req: AuthenticatedRequest, res: Response)
     }
 
     const department = await prisma.department.create({
-      data: {
-        name,
-        code,
-        description,
-        hodId,
-      },
+      data: { name, code, description, hod_id },
     });
 
     await logAction({
@@ -307,11 +294,7 @@ export const createDepartment = async (req: AuthenticatedRequest, res: Response)
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(201).json({
-      success: true,
-      message: 'Department created successfully',
-      data: department,
-    });
+    res.status(201).json({ success: true, message: 'Department created successfully', data: department });
   } catch (error) {
     console.error('Create department error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -321,7 +304,7 @@ export const createDepartment = async (req: AuthenticatedRequest, res: Response)
 export const updateDepartment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description, hodId } = req.body;
+    const { name, description, hod_id } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
@@ -336,11 +319,7 @@ export const updateDepartment = async (req: AuthenticatedRequest, res: Response)
 
     const department = await prisma.department.update({
       where: { id },
-      data: {
-        name,
-        description,
-        hodId,
-      },
+      data: { name, description, hod_id },
     });
 
     await logAction({
@@ -354,11 +333,7 @@ export const updateDepartment = async (req: AuthenticatedRequest, res: Response)
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'Department updated successfully',
-      data: department,
-    });
+    res.status(200).json({ success: true, message: 'Department updated successfully', data: department });
   } catch (error) {
     console.error('Update department error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -392,10 +367,7 @@ export const deleteDepartment = async (req: AuthenticatedRequest, res: Response)
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'Department deleted successfully',
-    });
+    res.status(200).json({ success: true, message: 'Department deleted successfully' });
   } catch (error) {
     console.error('Delete department error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -405,30 +377,20 @@ export const deleteDepartment = async (req: AuthenticatedRequest, res: Response)
 // ==================== COURSE MANAGEMENT ====================
 export const getCourses = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { departmentId } = req.query;
+    const { department_id } = req.query;
 
     const where: any = {};
-    if (departmentId) {
-      where.departmentId = departmentId as string;
-    }
+    if (department_id) where.department_id = department_id as string;
 
     const courses = await prisma.course.findMany({
       where,
       include: {
-        department: true,
-        _count: {
-          select: {
-            subjects: true,
-            classes: true,
-          },
-        },
+        departments: true,
+        _count: { select: { subjects: true, classes: true } },
       },
     });
 
-    res.status(200).json({
-      success: true,
-      data: courses,
-    });
+    res.status(200).json({ success: true, data: courses });
   } catch (error) {
     console.error('Get courses error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -437,7 +399,7 @@ export const getCourses = async (req: AuthenticatedRequest, res: Response): Prom
 
 export const createCourse = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { name, code, credits, semester, departmentId, description } = req.body;
+    const { name, code, credits, semester, department_id, description } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
@@ -445,14 +407,7 @@ export const createCourse = async (req: AuthenticatedRequest, res: Response): Pr
     }
 
     const course = await prisma.course.create({
-      data: {
-        name,
-        code,
-        credits,
-        semester,
-        departmentId,
-        description,
-      },
+      data: { name, code, credits, semester, department_id, description },
     });
 
     await logAction({
@@ -465,11 +420,7 @@ export const createCourse = async (req: AuthenticatedRequest, res: Response): Pr
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(201).json({
-      success: true,
-      message: 'Course created successfully',
-      data: course,
-    });
+    res.status(201).json({ success: true, message: 'Course created successfully', data: course });
   } catch (error) {
     console.error('Create course error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -481,25 +432,18 @@ export const getClasses = async (req: AuthenticatedRequest, res: Response): Prom
   try {
     const classes = await prisma.class.findMany({
       include: {
-        department: true,
-        course: true,
-        incharge: {
+        departments: true,
+        courses: true,
+        faculty: {
           include: {
-            user: { include: { profile: true } },
+            users: { include: { profiles: true } },
           },
         },
-        _count: {
-          select: {
-            students: true,
-          },
-        },
+        _count: { select: { students: true } },
       },
     });
 
-    res.status(200).json({
-      success: true,
-      data: classes,
-    });
+    res.status(200).json({ success: true, data: classes });
   } catch (error) {
     console.error('Get classes error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -508,7 +452,7 @@ export const getClasses = async (req: AuthenticatedRequest, res: Response): Prom
 
 export const createClass = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { name, section, departmentId, courseId, inchargeId, roomNumber, capacity, academicYear } = req.body;
+    const { name, section, department_id, course_id, incharge_id, room_number, capacity, academic_year } = req.body;
 
     if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
@@ -516,16 +460,7 @@ export const createClass = async (req: AuthenticatedRequest, res: Response): Pro
     }
 
     const cls = await prisma.class.create({
-      data: {
-        name,
-        section,
-        departmentId,
-        courseId,
-        inchargeId,
-        roomNumber,
-        capacity,
-        academicYear,
-      },
+      data: { name, section, department_id, course_id, incharge_id, room_number, capacity, academic_year },
     });
 
     await logAction({
@@ -538,11 +473,7 @@ export const createClass = async (req: AuthenticatedRequest, res: Response): Pro
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(201).json({
-      success: true,
-      message: 'Class created successfully',
-      data: cls,
-    });
+    res.status(201).json({ success: true, message: 'Class created successfully', data: cls });
   } catch (error) {
     console.error('Create class error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -553,11 +484,7 @@ export const createClass = async (req: AuthenticatedRequest, res: Response): Pro
 export const getSystemSettings = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const settings = await prisma.systemSetting.findMany();
-
-    res.status(200).json({
-      success: true,
-      data: settings,
-    });
+    res.status(200).json({ success: true, data: settings });
   } catch (error) {
     console.error('Get system settings error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -576,8 +503,8 @@ export const updateSystemSetting = async (req: AuthenticatedRequest, res: Respon
 
     const setting = await prisma.systemSetting.upsert({
       where: { key },
-      update: { value, updatedBy: req.user.id },
-      create: { key, value, updatedBy: req.user.id },
+      update: { value, updated_by: req.user.id },
+      create: { key, value, updated_by: req.user.id },
     });
 
     await logAction({
@@ -590,11 +517,7 @@ export const updateSystemSetting = async (req: AuthenticatedRequest, res: Respon
       userAgent: req.headers['user-agent'],
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'Setting updated successfully',
-      data: setting,
-    });
+    res.status(200).json({ success: true, message: 'Setting updated successfully', data: setting });
   } catch (error) {
     console.error('Update system setting error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });

@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { Severity } from '@prisma/client';
+import { severity } from '@prisma/client';
 
 export type SecurityEventType =
   | 'login_anomaly'
@@ -14,102 +14,82 @@ export type SecurityEventType =
   | 'suspicious_export';
 
 interface CreateEventParams {
-  eventType: SecurityEventType;
-  severity: Severity;
-  userId?: string;
-  ipAddress?: string;
-  userAgent?: string;
+  event_type: SecurityEventType;
+  severity: severity;
+  user_id?: string;
+  ip_address?: string;
+  user_agent?: string;
   description: string;
-  metadata?: Record<string, unknown>;
+  data?: Record<string, unknown>;
 }
 
-/**
- * Create a security event and trigger automatic incident response
- */
 export async function createSecurityEvent(params: CreateEventParams): Promise<string> {
-  const event = await prisma.securityEvent.create({
+  const event = await prisma.securityAlert.create({
     data: {
-      eventType: params.eventType,
+      type: params.event_type,
       severity: params.severity,
-      userId: params.userId,
-      ipAddress: params.ipAddress,
-      userAgent: params.userAgent,
+      user_id: params.user_id,
       description: params.description,
-      metadata: params.metadata as any,
+      data: params.data as any,
     },
   });
 
-  // Automated incident response based on severity
   await autoResponse(event.id, params);
-
   return event.id;
 }
 
-/**
- * Automatic incident response engine
- */
 async function autoResponse(eventId: string, params: CreateEventParams): Promise<void> {
   try {
-    // CRITICAL: Lock the account immediately
-    if (params.severity === 'CRITICAL' && params.userId) {
-      await prisma.user.update({
-        where: { id: params.userId },
-        data: {
-          isActive: false,
-          lockoutUntil: new Date(Date.now() + 24 * 3600 * 1000), // lock 24h
-        },
+    if (params.severity === 'CRITICAL' && params.user_id) {
+      // Deactivate profile
+      await prisma.profile.update({
+        where: { user_id: params.user_id },
+        data: { is_active: false, lockout_until: new Date(Date.now() + 24 * 3600 * 1000) },
       });
 
-      // Revoke all sessions
-      await prisma.session.deleteMany({ where: { userId: params.userId } });
+      await prisma.session.deleteMany({ where: { user_id: params.user_id } });
 
-      // Notify admins
-      const admins = await prisma.user.findMany({
-        where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, isActive: true },
-        select: { id: true },
+      const admins = await prisma.profile.findMany({
+        where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, is_active: true },
+        select: { user_id: true },
       });
 
       await prisma.notification.createMany({
         data: admins.map(a => ({
-          userId: a.id,
-          title: `🚨 CRITICAL Security Event`,
+          user_id: a.user_id,
+          title: '🚨 CRITICAL Security Event',
           message: `${params.description}. User account has been auto-locked.`,
-          type: 'SECURITY',
+          type: 'SECURITY' as any,
         })),
       });
     }
 
-    // HIGH: Send alert to admins, increase monitoring
-    if (params.severity === 'HIGH' && params.userId) {
-      const admins = await prisma.user.findMany({
-        where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, isActive: true },
-        select: { id: true },
+    if (params.severity === 'HIGH' && params.user_id) {
+      const admins = await prisma.profile.findMany({
+        where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, is_active: true },
+        select: { user_id: true },
       });
 
       await prisma.notification.createMany({
         data: admins.map(a => ({
-          userId: a.id,
-          title: `⚠️ High Security Alert`,
+          user_id: a.user_id,
+          title: '⚠️ High Security Alert',
           message: params.description,
-          type: 'SECURITY',
+          type: 'SECURITY' as any,
         })),
       });
     }
 
-    // BRUTE FORCE: Lock account after pattern detected
-    if (params.eventType === 'brute_force' && params.userId) {
-      await prisma.user.update({
-        where: { id: params.userId },
-        data: {
-          lockoutUntil: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-        },
+    if (params.event_type === 'brute_force' && params.user_id) {
+      await prisma.profile.update({
+        where: { user_id: params.user_id },
+        data: { lockout_until: new Date(Date.now() + 60 * 60 * 1000) },
       });
     }
 
-    // GEO SPOOF: Flag the attendance record
-    if (params.eventType === 'geo_spoof' && params.metadata?.attendanceId) {
+    if (params.event_type === 'geo_spoof' && params.data?.attendanceId) {
       await prisma.attendance.update({
-        where: { id: params.metadata.attendanceId as string },
+        where: { id: params.data.attendanceId as string },
         data: { status: 'ABSENT', justification: 'Auto-rejected: GPS spoof detected' },
       });
     }
@@ -118,12 +98,9 @@ async function autoResponse(eventId: string, params: CreateEventParams): Promise
   }
 }
 
-/**
- * Get security events with filters
- */
 export async function getSecurityEvents(filters: {
   eventType?: string;
-  severity?: Severity;
+  severity?: severity;
   userId?: string;
   resolved?: boolean;
   startDate?: Date;
@@ -132,53 +109,46 @@ export async function getSecurityEvents(filters: {
   limit?: number;
 }) {
   const where: any = {};
-  if (filters.eventType) where.eventType = filters.eventType;
+  if (filters.eventType) where.type = filters.eventType;
   if (filters.severity) where.severity = filters.severity;
-  if (filters.userId) where.userId = filters.userId;
+  if (filters.userId) where.user_id = filters.userId;
   if (filters.resolved !== undefined) where.resolved = filters.resolved;
   if (filters.startDate || filters.endDate) {
-    where.createdAt = {};
-    if (filters.startDate) where.createdAt.gte = filters.startDate;
-    if (filters.endDate) where.createdAt.lte = filters.endDate;
+    where.created_at = {};
+    if (filters.startDate) where.created_at.gte = filters.startDate;
+    if (filters.endDate) where.created_at.lte = filters.endDate;
   }
 
   const page = filters.page || 1;
   const limit = filters.limit || 50;
 
   const [events, total] = await Promise.all([
-    prisma.securityEvent.findMany({
+    prisma.securityAlert.findMany({
       where,
-      include: { user: { select: { email: true, role: true } } },
-      orderBy: { createdAt: 'desc' },
+      include: {
+        users_security_alerts_user_idTousers: { select: { email: true, role: true } },
+      },
+      orderBy: { created_at: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.securityEvent.count({ where }),
+    prisma.securityAlert.count({ where }),
   ]);
 
   return { events, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-/**
- * Resolve a security event
- */
-export async function resolveSecurityEvent(
-  eventId: string,
-  resolvedByUserId: string
-): Promise<void> {
-  await prisma.securityEvent.update({
+export async function resolveSecurityEvent(eventId: string, resolvedByUserId: string): Promise<void> {
+  await prisma.securityAlert.update({
     where: { id: eventId },
     data: {
       resolved: true,
-      resolvedBy: resolvedByUserId,
-      resolvedAt: new Date(),
+      resolved_by: resolvedByUserId,
+      resolved_at: new Date(),
     },
   });
 }
 
-/**
- * Get security dashboard statistics
- */
 export async function getSecurityStats() {
   const now = new Date();
   const oneDayAgo = new Date(now.getTime() - 24 * 3600 * 1000);
@@ -192,24 +162,18 @@ export async function getSecurityStats() {
     spoofDetections7d,
     trustedDeviceCount,
     recentEvents,
-    eventsByType,
   ] = await Promise.all([
-    prisma.securityEvent.count({ where: { resolved: false } }),
-    prisma.securityEvent.count({ where: { resolved: false, severity: 'CRITICAL' } }),
-    prisma.loginHistory.count({ where: { status: 'failed', createdAt: { gte: oneDayAgo } } }),
-    prisma.loginHistory.count({ where: { status: 'success', createdAt: { gte: oneDayAgo } } }),
-    prisma.geoVerification.count({ where: { spoofDetected: true, createdAt: { gte: sevenDaysAgo } } }),
-    prisma.trustedDevice.count({ where: { isTrusted: true } }),
-    prisma.securityEvent.findMany({
-      where: { createdAt: { gte: sevenDaysAgo } },
-      include: { user: { select: { email: true } } },
-      orderBy: { createdAt: 'desc' },
+    prisma.securityAlert.count({ where: { resolved: false } }),
+    prisma.securityAlert.count({ where: { resolved: false, severity: 'CRITICAL' } }),
+    prisma.loginHistory.count({ where: { status: 'failed', created_at: { gte: oneDayAgo } } }),
+    prisma.loginHistory.count({ where: { status: 'success', created_at: { gte: oneDayAgo } } }),
+    prisma.geoVerification.count({ where: { spoof_detected: true, created_at: { gte: sevenDaysAgo } } }),
+    prisma.trustedDevice.count({ where: { is_trusted: true } }),
+    prisma.securityAlert.findMany({
+      where: { created_at: { gte: sevenDaysAgo } },
+      include: { users_security_alerts_user_idTousers: { select: { email: true } } },
+      orderBy: { created_at: 'desc' },
       take: 20,
-    }),
-    prisma.securityEvent.groupBy({
-      by: ['eventType'],
-      _count: { id: true },
-      where: { createdAt: { gte: sevenDaysAgo } },
     }),
   ]);
 
@@ -221,31 +185,27 @@ export async function getSecurityStats() {
     spoofDetections7d,
     trustedDeviceCount,
     recentEvents,
-    eventsByType: eventsByType.map(e => ({ type: e.eventType, count: e._count.id })),
   };
 }
 
-/**
- * Detect brute force pattern: >5 failed logins in 15 min from same IP
- */
 export async function detectBruteForce(ipAddress: string, userId?: string): Promise<boolean> {
   const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
   const failedCount = await prisma.loginHistory.count({
     where: {
-      ipAddress,
+      ip_address: ipAddress,
       status: 'failed',
-      createdAt: { gte: fifteenMinAgo },
+      created_at: { gte: fifteenMinAgo },
     },
   });
 
   if (failedCount >= 5) {
     await createSecurityEvent({
-      eventType: 'brute_force',
+      event_type: 'brute_force',
       severity: failedCount >= 10 ? 'CRITICAL' : 'HIGH',
-      userId,
-      ipAddress,
+      user_id: userId,
+      ip_address: ipAddress,
       description: `Brute force detected: ${failedCount} failed attempts from IP ${ipAddress} in 15 minutes`,
-      metadata: { failedCount },
+      data: { failedCount },
     });
     return true;
   }

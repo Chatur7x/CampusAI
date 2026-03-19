@@ -118,10 +118,11 @@ router.get('/blockchain/attendance-chain/:studentId', authenticate, blockchainCo
 // ==================== CHAT ROUTES ====================
 router.post('/chat/messages', authenticate, chatController.sendMessage);
 router.get('/chat/conversations', authenticate, chatController.getConversations);
-router.get('/chat/messages/:userId', authenticate, chatController.getMessages);
-router.put('/chat/messages/read/:userId', authenticate, chatController.markMessagesAsRead);
+router.post('/chat/conversations/direct', authenticate, chatController.createOrGetDirectConversation);
+router.get('/chat/messages/:conversationId', authenticate, chatController.getMessages);
+router.put('/chat/messages/read/:conversationId', authenticate, chatController.markMessagesAsRead);
 router.delete('/chat/messages/:messageId', authenticate, chatController.deleteMessage);
-router.get('/chat/class/:classId', authenticate, chatController.getClassChat);
+router.get('/chat/class/:classId', authenticate, chatController.getOrCreateClassConversation);
 
 // ==================== SECURITY ROUTES ====================
 // Dashboard (admin only)

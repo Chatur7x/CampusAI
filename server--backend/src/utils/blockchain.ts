@@ -167,9 +167,9 @@ export async function persistBlock(block: Block): Promise<void> {
   try {
     await prisma.blockchainHash.create({
       data: {
-        blockIndex: block.index,
+        block_index: block.index,
         hash: block.hash,
-        previousHash: block.previousHash,
+        previous_hash: block.previousHash,
         data: JSON.stringify(block.data),
         nonce: block.nonce,
         timestamp: new Date(block.timestamp),
@@ -185,16 +185,15 @@ export async function persistBlock(block: Block): Promise<void> {
  */
 export async function loadChainFromDB(): Promise<void> {
   try {
-    const rows = await prisma.blockchainHash.findMany({ orderBy: { blockIndex: 'asc' } });
+    const rows = await prisma.blockchainHash.findMany({ orderBy: { block_index: 'asc' } });
     if (rows.length === 0) return;
     const chain = getBlockchain();
-    // Blocks already loaded from genesis — skip index 0
     for (const row of rows) {
-      if (row.blockIndex === 0) continue;
+      if (row.block_index === 0) continue;
       const restored: Block = {
-        index: row.blockIndex,
+        index: row.block_index,
         hash: row.hash,
-        previousHash: row.previousHash,
+        previousHash: row.previous_hash,
         data: JSON.parse(row.data as string),
         nonce: row.nonce,
         timestamp: row.timestamp.getTime(),

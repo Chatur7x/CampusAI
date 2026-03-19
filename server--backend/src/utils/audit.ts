@@ -5,14 +5,14 @@ export const logAction = async (entry: AuditLogEntry): Promise<void> => {
   try {
     await prisma.auditLog.create({
       data: {
-        userId: entry.userId,
+        user_id: entry.userId,
         action: entry.action,
-        entityType: entry.entityType,
-        entityId: entry.entityId,
-        oldValue: entry.oldValue || null,
-        newValue: entry.newValue || null,
-        ipAddress: entry.ipAddress,
-        userAgent: entry.userAgent,
+        entity_type: entry.entityType,
+        entity_id: entry.entityId,
+        old_value: entry.oldValue || null,
+        new_value: entry.newValue || null,
+        ip_address: entry.ipAddress,
+        user_agent: entry.userAgent,
       },
     });
   } catch (error) {
@@ -33,32 +33,32 @@ export const getAuditLogs = async (
 ) => {
   const where: any = {};
 
-  if (filters.userId) where.userId = filters.userId;
-  if (filters.entityType) where.entityType = filters.entityType;
+  if (filters.userId) where.user_id = filters.userId;
+  if (filters.entityType) where.entity_type = filters.entityType;
   if (filters.action) where.action = { contains: filters.action, mode: 'insensitive' };
   if (filters.startDate || filters.endDate) {
-    where.timestamp = {};
-    if (filters.startDate) where.timestamp.gte = filters.startDate;
-    if (filters.endDate) where.timestamp.lte = filters.endDate;
+    where.created_at = {};
+    if (filters.startDate) where.created_at.gte = filters.startDate;
+    if (filters.endDate) where.created_at.lte = filters.endDate;
   }
 
   const [logs, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
       include: {
-        user: {
+        users: {
           select: {
             email: true,
-            profile: {
+            profiles: {
               select: {
-                firstName: true,
-                lastName: true,
+                first_name: true,
+                last_name: true,
               },
             },
           },
         },
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { created_at: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -85,29 +85,29 @@ export const exportAuditLogs = async (
 ) => {
   const where: any = {};
 
-  if (filters.entityType) where.entityType = filters.entityType;
+  if (filters.entityType) where.entity_type = filters.entityType;
   if (filters.startDate || filters.endDate) {
-    where.timestamp = {};
-    if (filters.startDate) where.timestamp.gte = filters.startDate;
-    if (filters.endDate) where.timestamp.lte = filters.endDate;
+    where.created_at = {};
+    if (filters.startDate) where.created_at.gte = filters.startDate;
+    if (filters.endDate) where.created_at.lte = filters.endDate;
   }
 
   return prisma.auditLog.findMany({
     where,
     include: {
-      user: {
+      users: {
         select: {
           email: true,
           role: true,
-          profile: {
+          profiles: {
             select: {
-              firstName: true,
-              lastName: true,
+              first_name: true,
+              last_name: true,
             },
           },
         },
       },
     },
-    orderBy: { timestamp: 'desc' },
+    orderBy: { created_at: 'desc' },
   });
 };

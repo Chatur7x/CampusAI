@@ -8,7 +8,7 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-// In-memory cache: tokenHash → expiry timestamp of cache entry
+// In-memory cache: token_hash → expiry timestamp of cache entry
 const blacklistCache = new Map<string, number>();
 const CACHE_TTL = 60_000; // 60 seconds
 
@@ -42,17 +42,17 @@ export async function blacklistToken(
     const parts = token.split('.');
     if (parts.length !== 3) return;
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
-    const expiresAt = payload.exp ? new Date(payload.exp * 1000) : new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const expires_at = payload.exp ? new Date(payload.exp * 1000) : new Date(Date.now() + 7 * 24 * 3600 * 1000);
 
     const hash = hashToken(token);
 
     await prisma.tokenBlacklist.upsert({
-      where: { tokenHash: hash },
+      where: { token_hash: hash },
       create: {
-        tokenHash: hash,
-        userId,
+        token_hash: hash,
+        user_id: userId,
         reason,
-        expiresAt,
+        expires_at,
       },
       update: { reason },
     });
@@ -76,7 +76,7 @@ export async function isTokenBlacklisted(token: string): Promise<boolean> {
     if (cached !== undefined) return cached;
 
     const entry = await prisma.tokenBlacklist.findUnique({
-      where: { tokenHash: hash },
+      where: { token_hash: hash },
     });
 
     if (entry) {
@@ -98,9 +98,7 @@ export async function blacklistAllUserTokens(
   reason: 'password_change' | 'admin_revoke' | 'suspicious'
 ): Promise<void> {
   // Delete all sessions = effectively invalidates all refresh tokens
-  // The access tokens will still work briefly until they hit the blacklist check,
-  // so we also create a marker entry
-  await prisma.session.deleteMany({ where: { userId } });
+  await prisma.session.deleteMany({ where: { user_id: userId } });
 }
 
 /**
@@ -108,7 +106,7 @@ export async function blacklistAllUserTokens(
  */
 export async function cleanupExpiredTokens(): Promise<number> {
   const result = await prisma.tokenBlacklist.deleteMany({
-    where: { expiresAt: { lt: new Date() } },
+    where: { expires_at: { lt: new Date() } },
   });
   return result.count;
 }

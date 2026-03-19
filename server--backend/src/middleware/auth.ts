@@ -11,47 +11,46 @@ export const authenticate = async (
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
     const token = authHeader.substring(7);
-    
+
     if (!token) {
       res.status(401).json({ success: false, message: 'Token not provided' });
       return;
     }
 
-    // Check if token has been revoked (logout, password change, etc.)
     if (await isTokenBlacklisted(token)) {
       res.status(401).json({ success: false, message: 'Token has been revoked' });
       return;
     }
 
     const decoded = verifyToken(token);
-    
-    // Check if user still exists and is active
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true, isActive: true },
+
+    // Profile holds role and is_active for app-level auth
+    const profile = await prisma.profile.findUnique({
+      where: { user_id: decoded.userId },
+      select: { user_id: true, email: true, role: true, is_active: true },
     });
 
-    if (!user) {
+    if (!profile) {
       res.status(401).json({ success: false, message: 'User not found' });
       return;
     }
 
-    if (!user.isActive) {
+    if (!profile.is_active) {
       res.status(401).json({ success: false, message: 'Account is deactivated' });
       return;
     }
 
     req.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
+      id: profile.user_id,
+      email: profile.email,
+      role: profile.role,
     };
 
     next();
@@ -72,8 +71,8 @@ export const requireRole = (...allowedRoles: string[]) => {
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      res.status(403).json({ 
-        success: false, 
+      res.status(403).json({
+        success: false,
         message: 'Insufficient permissions',
         requiredRoles: allowedRoles,
         currentRole: req.user.role,
@@ -95,13 +94,11 @@ export const requireOwnershipOrRole = (
       return;
     }
 
-    // If user has allowed role, skip ownership check
     if (allowedRoles.includes(req.user.role)) {
       next();
       return;
     }
 
-    // Check ownership
     const resourceId = req.params[paramName];
     if (resourceId === req.user.id) {
       next();

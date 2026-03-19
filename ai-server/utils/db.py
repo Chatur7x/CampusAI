@@ -136,20 +136,18 @@ def update_face_data(student_id: str, embedding_json: str):
 
 
 def insert_face_embedding(student_id: str, embedding_json: str, confidence: float = 1.0):
-    """Insert a new vector into the historical embeddings table."""
+    """Insert a new vector into the historical embeddings table (jsonb + pgvector column)."""
     sb = get_supabase()
     invalidate_cache(f"embeddings_{student_id}")
     try:
-        # v4: Construct vector string for pgvector format
-        vector_str = str(embedding_json) if isinstance(embedding_json, list) else embedding_json
-        
+        emb_list = embedding_json if isinstance(embedding_json, list) else embedding_json
         sb.table("face_embeddings").insert({
             "student_id": student_id,
-            "embedding_vector": embedding_json,
-            "embedding_v4": vector_str,
+            "embedding_vector": emb_list,
+            "embedding_vec": emb_list,  # pgvector column for HNSW search
             "confidence": confidence,
         }).execute()
-        logger.info(f"Inserted new Bio-Net v4 embedding for student {student_id}")
+        logger.info(f"Inserted face embedding for student {student_id}")
     except Exception as e:
         logger.error(f"Failed to insert into face_embeddings: {e}")
 
@@ -173,20 +171,39 @@ def fetch_student_embeddings(student_id: str) -> list[dict]:
 
 def search_similar_faces(probe: list[float], threshold: float = 0.5, limit: int = 5) -> list[dict]:
     """
-    Bio-Net v4: Perform 1:N search directly in the database using match_face_v4 RPC.
+    Bio-Net v4: Perform 1:N search using pgvector HNSW index via search_similar_faces RPC.
     Returns matched students with similarity scores.
     """
     sb = get_supabase()
     try:
-        res = sb.rpc("match_face_v4", {
-            "probe_embedding": str(probe),
-            "match_threshold": threshold,
-            "match_count": limit
+        # Use the new pgvector-backed RPC function
+        res = sb.rpc("search_similar_faces", {
+            "query_embedding": probe,
+            "similarity_threshold": threshold,
+            "max_results": limit
         }).execute()
         return res.data or []
     except Exception as e:
-        logger.error(f"RPC match_face_v4 failed: {e}")
-        return []
+        logger.error(f"RPC search_similar_faces failed: {e}")
+        # Fallback: cosine similarity in Python over all embeddings
+        try:
+            all_emb = sb.table("face_embeddings").select("student_id, embedding_vector, id").execute()
+            if not all_emb.data:
+                return []
+            import numpy as np
+            probe_arr = np.array(probe, dtype=np.float64)
+            results = []
+            for row in all_emb.data:
+                stored = np.array(row["embedding_vector"], dtype=np.float64)
+                norm = np.linalg.norm(probe_arr) * np.linalg.norm(stored)
+                sim = float(np.dot(probe_arr, stored) / norm) if norm > 0 else 0.0
+                if sim >= threshold:
+                    results.append({"student_id": row["student_id"], "similarity": sim, "embedding_id": row["id"]})
+            results.sort(key=lambda x: x["similarity"], reverse=True)
+            return results[:limit]
+        except Exception as e2:
+            logger.error(f"Fallback face search also failed: {e2}")
+            return []
 
 
 def log_face_verification(student_id: str, similarity_score: float, device_id: str | None = None, metadata: dict | None = None):

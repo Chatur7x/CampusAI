@@ -15,7 +15,7 @@ export const getAdminDashboardStats = async (req: AuthenticatedRequest, res: Res
     ] = await Promise.all([
       prisma.student.count(),
       prisma.faculty.count(),
-      prisma.department.count(),
+      prisma.department?.count(),
       getTodayAttendanceStats(),
       prisma.securityAlert.count({ where: { resolved: false } }),
       prisma.leaveRequest.count({ where: { status: 'PENDING' } }),
@@ -78,11 +78,11 @@ export const getFacultyDashboardStats = async (req: AuthenticatedRequest, res: R
       totalStudentsCount,
       pendingLeaves,
     ] = await Promise.all([
-      prisma.class.count({ where: { incharge_id: faculty.id } }),
+      prisma.class?.count({ where: { incharge_id: faculty.id } }),
       prisma.timetableEntry.count({
         where: {
-          faculty_id: faculty.id,
-          day_of_week: todayDay,
+          facultyId: faculty.id,
+          dayOfWeek: todayDay,
         },
       }),
       prisma.student.count({
@@ -137,8 +137,8 @@ export const getStudentDashboardStats = async (req: AuthenticatedRequest, res: R
         classes: {
           include: {
             timetable: {
-              where: { is_active: true },
-              include: { subjects: true },
+              where: { isActive: true },
+              include: { subject: true },
             }
           }
         },
@@ -236,7 +236,7 @@ export const getStudentDashboardStats = async (req: AuthenticatedRequest, res: R
     // 4. Today's Timetable
     const today = new Date();
     const todayDay = today.getDay();
-    const schedule = student.classes.timetable.filter(t => t.day_of_week === todayDay);
+    const schedule = student.classes.timetable.filter(t => t.dayOfWeek === todayDay);
 
     // 5. Recent Notices
     const notices = await prisma.notice.findMany({
@@ -295,17 +295,17 @@ export const getStudentDashboardStats = async (req: AuthenticatedRequest, res: R
           }
         },
         timetable: schedule.map(s => ({
-          subject: s.subjects?.name || 'Unknown',
-          startTime: s.start_time,
-          endTime: s.end_time,
-          room: s.room_number || student.classes.room_number,
-          type: (s as any).session_type || 'CLASS'
+          subject: s.subject?.name || 'Unknown',
+          startTime: s.startTime,
+          endTime: s.endTime,
+          room: s.roomNumber || student.classes.room_number,
+          type: s.sessionType || 'CLASS'
         })),
         notices: notices.map(n => ({
           id: n.id,
           title: n.title,
           priority: n.priority,
-          createdAt: n.created_at
+          created_at: n.created_at
         }))
       },
     });
@@ -402,11 +402,11 @@ export const getDepartmentAnalytics = async (req: AuthenticatedRequest, res: Res
   try {
     const { departmentId } = req.params;
 
-    const department = await prisma.department.findUnique({
+    const department = await prisma.department?.findUnique({
       where: { id: departmentId },
       include: {
         students: { include: { attendance: true } },
-        faculty: true,
+        faculty_faculty_department_idTodepartments: true,
       },
     });
 
@@ -430,9 +430,9 @@ export const getDepartmentAnalytics = async (req: AuthenticatedRequest, res: Res
       totalPresent += present;
 
       if (percentage < 60) {
-        atRiskStudents.push({ studentId: student.id, percentage: Math.round(percentage * 10) / 10 });
+        atRiskStudents.push({ student_id: student.id, percentage: Math.round(percentage * 10) / 10 });
       } else if (percentage > 90) {
-        topPerformers.push({ studentId: student.id, percentage: Math.round(percentage * 10) / 10 });
+        topPerformers.push({ student_id: student.id, percentage: Math.round(percentage * 10) / 10 });
       }
     }
 
@@ -446,7 +446,7 @@ export const getDepartmentAnalytics = async (req: AuthenticatedRequest, res: Res
       data: {
         departmentName: department.name,
         totalStudents: department.students.length,
-        totalFaculty: department.faculty.length,
+        totalFaculty: department.faculty_faculty_department_idTodepartments.length,
         averageAttendance: Math.round(averageAttendance * 100) / 100,
         atRiskStudents: atRiskStudents.sort((a, b) => a.percentage - b.percentage).slice(0, 10),
         topPerformers: topPerformers.sort((a, b) => b.percentage - a.percentage).slice(0, 10),
@@ -511,10 +511,10 @@ async function getDepartmentStats(): Promise<any[]> {
     let present = 0;
     for (const student of dept.students) {
       total += student.attendance.length;
-      present += student.attendance.filter(a => a.status === 'PRESENT').length;
+      present += student.attendance.filter((a: any) => a.status === 'PRESENT').length;
     }
     return {
-      departmentId: dept.id,
+      department_id: dept.id,
       departmentName: dept.name,
       studentCount: dept.students.length,
       attendancePercentage: total > 0 ? Math.round((present / total) * 1000) / 10 : 0,
@@ -522,9 +522,9 @@ async function getDepartmentStats(): Promise<any[]> {
   });
 }
 
-async function getClassPerformance(facultyId: string): Promise<any[]> {
+async function getClassPerformance(faculty_id: string): Promise<any[]> {
   const classes = await prisma.class.findMany({
-    where: { incharge_id: facultyId },
+    where: { incharge_id: faculty_id },
     include: {
       students: { include: { attendance: true } },
     },
@@ -538,7 +538,7 @@ async function getClassPerformance(facultyId: string): Promise<any[]> {
       present += student.attendance.filter(a => a.status === 'PRESENT').length;
     }
     return {
-      classId: cls.id,
+      class_id: cls.id,
       className: `${cls.name} - ${cls.section}`,
       studentCount: cls.students.length,
       attendancePercentage: total > 0 ? Math.round((present / total) * 1000) / 10 : 0,
@@ -546,14 +546,14 @@ async function getClassPerformance(facultyId: string): Promise<any[]> {
   });
 }
 
-async function getWeeklyTrend(departmentId: string): Promise<{ date: string; percentage: number }[]> {
+async function getWeeklyTrend(department_id: string): Promise<{ date: string; percentage: number }[]> {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
   const attendance = await prisma.attendance.findMany({
     where: {
       date: { gte: sevenDaysAgo },
-      students: { department_id: departmentId },
+      students: { department_id },
     },
   });
 

@@ -6,7 +6,7 @@ export const createNotification = async (data: NotificationCreate): Promise<void
   try {
     const notification = await prisma.notification.create({
       data: {
-        userId: data.userId,
+        user_id: data.userId,
         title: data.title,
         message: data.message,
         type: data.type as any,
@@ -14,7 +14,6 @@ export const createNotification = async (data: NotificationCreate): Promise<void
       },
     });
 
-    // Emit real-time notification via WebSocket
     io.to(`user:${data.userId}`).emit('notification', notification);
   } catch (error) {
     console.error('Failed to create notification:', error);
@@ -24,16 +23,14 @@ export const createNotification = async (data: NotificationCreate): Promise<void
 export const markNotificationAsRead = async (notificationId: string, userId: string): Promise<boolean> => {
   try {
     const notification = await prisma.notification.findFirst({
-      where: { id: notificationId, userId },
+      where: { id: notificationId, user_id: userId },
     });
 
-    if (!notification) {
-      return false;
-    }
+    if (!notification) return false;
 
     await prisma.notification.update({
       where: { id: notificationId },
-      data: { isRead: true },
+      data: { is_read: true },
     });
 
     return true;
@@ -46,8 +43,8 @@ export const markNotificationAsRead = async (notificationId: string, userId: str
 export const getUnreadNotifications = async (userId: string) => {
   try {
     return await prisma.notification.findMany({
-      where: { userId, isRead: false },
-      orderBy: { createdAt: 'desc' },
+      where: { user_id: userId, is_read: false },
+      orderBy: { created_at: 'desc' },
       take: 20,
     });
   } catch (error) {
@@ -60,22 +57,17 @@ export const getAllNotifications = async (userId: string, page: number = 1, limi
   try {
     const [notifications, total] = await Promise.all([
       prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.notification.count({ where: { userId } }),
+      prisma.notification.count({ where: { user_id: userId } }),
     ]);
 
     return {
       notifications,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   } catch (error) {
     console.error('Failed to get notifications:', error);
@@ -86,12 +78,10 @@ export const getAllNotifications = async (userId: string, page: number = 1, limi
 export const deleteNotification = async (notificationId: string, userId: string): Promise<boolean> => {
   try {
     const notification = await prisma.notification.findFirst({
-      where: { id: notificationId, userId },
+      where: { id: notificationId, user_id: userId },
     });
 
-    if (!notification) {
-      return false;
-    }
+    if (!notification) return false;
 
     await prisma.notification.delete({ where: { id: notificationId } });
     return true;
@@ -110,18 +100,15 @@ export const broadcastNotification = async (
 ): Promise<void> => {
   try {
     const notifications = userIds.map((userId) => ({
-      userId,
+      user_id: userId,
       title,
       message,
       type: type as any,
       data: (data || undefined) as any,
     }));
 
-    await prisma.notification.createMany({
-      data: notifications as any,
-    });
+    await prisma.notification.createMany({ data: notifications as any });
 
-    // Emit real-time notifications via WebSocket
     for (const userId of userIds) {
       io.to(`user:${userId}`).emit('notification', { title, message, type, data });
     }

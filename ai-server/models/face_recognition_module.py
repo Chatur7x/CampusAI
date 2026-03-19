@@ -26,6 +26,7 @@ from __future__ import annotations
 import base64, io, logging, time
 from typing import List, Optional
 
+import cv2
 import numpy as np
 from PIL import Image
 

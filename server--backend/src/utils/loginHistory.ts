@@ -3,24 +3,24 @@ import { prisma } from './prisma';
 export type LoginStatus = 'success' | 'failed' | 'locked' | 'mfa_required';
 
 export async function logLogin(params: {
-  userId: string;
-  ipAddress?: string;
-  userAgent?: string;
+  user_id: string;
+  ip_address?: string;
+  user_agent?: string;
   deviceHash?: string;
   location?: { lat: number; lng: number; city?: string; country?: string };
   status: LoginStatus;
-  failureReason?: string;
+  failure_reason?: string;
 }): Promise<void> {
   try {
     await prisma.loginHistory.create({
       data: {
-        userId: params.userId,
-        ipAddress: params.ipAddress,
-        userAgent: params.userAgent,
-        deviceHash: params.deviceHash,
+        user_id: params.user_id,
+        ip_address: params.ip_address,
+        user_agent: params.user_agent,
+        device_hash: params.deviceHash,
         location: params.location as any,
         status: params.status,
-        failureReason: params.failureReason,
+        failure_reason: params.failure_reason,
       },
     });
   } catch (error) {
@@ -28,20 +28,14 @@ export async function logLogin(params: {
   }
 }
 
-/**
- * Get login history for a user
- */
 export async function getLoginHistory(userId: string, limit = 20) {
   return prisma.loginHistory.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
     take: limit,
   });
 }
 
-/**
- * Get all login history (admin)
- */
 export async function getAllLoginHistory(filters: {
   userId?: string;
   status?: string;
@@ -51,12 +45,12 @@ export async function getAllLoginHistory(filters: {
   limit?: number;
 }) {
   const where: any = {};
-  if (filters.userId) where.userId = filters.userId;
+  if (filters.userId) where.user_id = filters.userId;
   if (filters.status) where.status = filters.status;
   if (filters.startDate || filters.endDate) {
-    where.createdAt = {};
-    if (filters.startDate) where.createdAt.gte = filters.startDate;
-    if (filters.endDate) where.createdAt.lte = filters.endDate;
+    where.created_at = {};
+    if (filters.startDate) where.created_at.gte = filters.startDate;
+    if (filters.endDate) where.created_at.lte = filters.endDate;
   }
 
   const page = filters.page || 1;
@@ -65,8 +59,8 @@ export async function getAllLoginHistory(filters: {
   const [logs, total] = await Promise.all([
     prisma.loginHistory.findMany({
       where,
-      include: { user: { select: { email: true, role: true } } },
-      orderBy: { createdAt: 'desc' },
+      include: { users: { select: { email: true, role: true } } },
+      orderBy: { created_at: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     }),

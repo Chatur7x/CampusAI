@@ -21,12 +21,13 @@ export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
-    const user = await prisma.user.findUnique({
+    // Profile holds role, mfa_enabled, is_active
+    const profile = await prisma.profile.findUnique({
       where: { email },
-      select: { role: true, mfaEnabled: true, isActive: true },
+      select: { role: true, mfa_enabled: true, is_active: true },
     });
 
-    if (!user) {
+    if (!profile) {
       res.status(200).json({ success: true, data: { exists: false } });
       return;
     }
@@ -35,9 +36,9 @@ export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): 
       success: true,
       data: {
         exists: true,
-        role: user.role,
-        mfaEnabled: user.mfaEnabled,
-        isActive: user.isActive,
+        role: profile.role,
+        mfa_enabled: profile.mfa_enabled,
+        is_active: profile.is_active,
       },
     });
   } catch (error) {
@@ -49,32 +50,45 @@ export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): 
 export const login = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body as LoginRequest;
-    const ipAddress = req.ip;
-    const userAgent = req.headers['user-agent'] || '';
+    const ip_address = req.ip;
+    const user_agent = req.headers['user-agent'] || '';
 
     // Check for brute force from this IP
-    await detectBruteForce(ipAddress || '', undefined);
+    await detectBruteForce(ip_address || '', undefined);
 
-    // Find user
-    const user = await prisma.user.findUnique({
+    // Find user via auth.users (has encrypted_password)
+    const authUser = await prisma.users.findFirst({
       where: { email },
+    });
+
+    if (!authUser) {
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return;
+    }
+
+    // Fetch profile for app-level fields
+    const profile = await prisma.profile.findUnique({
+      where: { user_id: authUser.id },
       include: {
-        profile: true,
-        student: { include: { department: true, class: true } },
-        faculty: { include: { department: true } },
-        admin: true,
+        users: {
+          include: {
+            students: { include: { departments: true, classes: true } },
+            faculty: { include: { departments_faculty_department_idTodepartments: true } },
+            admins: true,
+          },
+        },
       },
     });
 
-    if (!user) {
+    if (!profile) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
       return;
     }
 
     // Check if account is locked
-    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
-      const minutesLeft = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 60000);
-      await logLogin({ userId: user.id, ipAddress, userAgent, status: 'locked' });
+    if (profile.lockout_until && profile.lockout_until > new Date()) {
+      const minutesLeft = Math.ceil((profile.lockout_until.getTime() - Date.now()) / 60000);
+      await logLogin({ user_id: authUser.id, ip_address, user_agent, status: 'locked' });
       res.status(401).json({
         success: false,
         message: `Account locked. Try again in ${minutesLeft} minutes.`,
@@ -82,103 +96,98 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
       return;
     }
 
-    // Verify password
-    const isValidPassword = await comparePassword(password, user.password);
+    // Verify password against encrypted_password on auth.users
+    const isValidPassword = await comparePassword(password, authUser.encrypted_password || '');
     if (!isValidPassword) {
-      // Increment login attempts
-      const attempts = user.loginAttempts + 1;
-      const lockoutUntil = attempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : null;
+      const attempts = (profile.login_attempts || 0) + 1;
+      const lockout_until = attempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : null;
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { loginAttempts: attempts, lockoutUntil },
+      await prisma.profile.update({
+        where: { user_id: authUser.id },
+        data: { login_attempts: attempts, lockout_until },
       });
 
       await logLogin({
-        userId: user.id, ipAddress, userAgent,
-        status: 'failed', failureReason: 'wrong_password',
+        user_id: authUser.id, ip_address, user_agent,
+        status: 'failed', failure_reason: 'wrong_password',
       });
 
-      // Check brute force for this specific user
-      await detectBruteForce(ipAddress || '', user.id);
+      await detectBruteForce(ip_address || '', authUser.id);
 
       res.status(401).json({ success: false, message: 'Invalid credentials' });
       return;
     }
 
     // Reset login attempts
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { loginAttempts: 0, lockoutUntil: null, lastLoginAt: new Date() },
+    await prisma.profile.update({
+      where: { user_id: authUser.id },
+      data: { login_attempts: 0, lockout_until: null, last_login_at: new Date() },
     });
 
     // Register/update device fingerprint
     const deviceFingerprint = req.body.deviceFingerprint;
     if (deviceFingerprint) {
-      const deviceHash = generateDeviceHash(deviceFingerprint);
-      const { isNew } = await registerDevice(user.id, deviceHash, {
+      const device_hash = generateDeviceHash(deviceFingerprint);
+      const { isNew } = await registerDevice(authUser.id, device_hash, {
         ...deviceFingerprint,
-        userAgent,
-      }, ipAddress);
+        user_agent,
+      }, ip_address);
 
-      // New device → security event
       if (isNew) {
-        const { browser, os } = parseUserAgent(userAgent);
+        const { browser, os } = parseUserAgent(user_agent);
         await createSecurityEvent({
-          eventType: 'device_mismatch',
+          event_type: 'device_mismatch',
           severity: 'MEDIUM',
-          userId: user.id,
-          ipAddress,
-          userAgent,
+          user_id: authUser.id,
+          ip_address,
+          user_agent,
           description: `New device detected: ${browser} on ${os}`,
-          metadata: { deviceFingerprint },
+          data: { deviceFingerprint },
         });
       }
     }
 
     // Check if MFA is required
-    if (user.mfaEnabled) {
+    if (profile.mfa_enabled) {
       const otp = generateOTP();
-      storeOTP(user.id, otp, 10);
+      storeOTP(authUser.id, otp, 10);
       await sendOTP(email, otp);
-      await logLogin({ userId: user.id, ipAddress, userAgent, status: 'mfa_required' });
+      await logLogin({ user_id: authUser.id, ip_address, user_agent, status: 'mfa_required' });
 
       res.status(200).json({
         success: true,
         message: 'MFA required',
         requireMFA: true,
-        userId: user.id,
+        userId: authUser.id,
       });
       return;
     }
 
-    // Generate tokens
-    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
+    // Generate tokens — use camelCase userId to match TokenPayload interface
+    const tokenPayload = { userId: authUser.id, email: authUser.email!, role: profile.role };
     const accessToken = generateToken(tokenPayload);
     const refreshToken = generateRefreshToken(tokenPayload);
 
     // Create session
     await prisma.session.create({
       data: {
-        userId: user.id,
+        user_id: authUser.id,
         token: refreshToken,
-        deviceInfo: userAgent,
-        ipAddress,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        device_info: user_agent,
+        ip_address: ip_address as any,
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
 
-    // Log successful login
-    await logLogin({ userId: user.id, ipAddress, userAgent, status: 'success' });
+    await logLogin({ user_id: authUser.id, ip_address, user_agent, status: 'success' });
 
-    // Log action
     await logAction({
-      userId: user.id,
+      userId: authUser.id,
       action: 'LOGIN',
       entityType: 'user',
-      entityId: user.id,
-      ipAddress,
-      userAgent,
+      entityId: authUser.id,
+      ipAddress: ip_address,
+      userAgent: user_agent,
     });
 
     res.status(200).json({
@@ -186,12 +195,12 @@ export const login = async (req: AuthenticatedRequest, res: Response): Promise<v
       message: 'Login successful',
       data: {
         user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          profile: user.profile,
-          student: user.student,
-          faculty: user.faculty,
+          id: authUser.id,
+          email: authUser.email,
+          role: profile.role,
+          profile,
+          student: profile.users.students,
+          faculty: profile.users.faculty,
         },
         accessToken,
         refreshToken,
@@ -212,31 +221,40 @@ export const verifyMFA = async (req: AuthenticatedRequest, res: Response): Promi
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        profile: true,
-        student: { include: { department: true, class: true } },
-        faculty: { include: { department: true } },
-      },
-    });
-
-    if (!user) {
+    const authUser = await prisma.users.findUnique({ where: { id: userId } });
+    if (!authUser) {
       res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
-    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
+    const profile = await prisma.profile.findUnique({
+      where: { user_id: userId },
+      include: {
+        users: {
+          include: {
+            students: { include: { departments: true, classes: true } },
+            faculty: { include: { departments_faculty_department_idTodepartments: true } },
+          },
+        },
+      },
+    });
+
+    if (!profile) {
+      res.status(404).json({ success: false, message: 'Profile not found' });
+      return;
+    }
+
+    const tokenPayload = { userId: authUser.id, email: authUser.email!, role: profile.role };
     const accessToken = generateToken(tokenPayload);
     const refreshToken = generateRefreshToken(tokenPayload);
 
     await prisma.session.create({
       data: {
-        userId: user.id,
+        user_id: authUser.id,
         token: refreshToken,
-        deviceInfo: req.headers['user-agent'],
-        ipAddress: req.ip,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        device_info: req.headers['user-agent'],
+        ip_address: req.ip as any,
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -245,12 +263,12 @@ export const verifyMFA = async (req: AuthenticatedRequest, res: Response): Promi
       message: 'MFA verification successful',
       data: {
         user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          profile: user.profile,
-          student: user.student,
-          faculty: user.faculty,
+          id: authUser.id,
+          email: authUser.email,
+          role: profile.role,
+          profile,
+          student: profile.users.students,
+          faculty: profile.users.faculty,
         },
         accessToken,
         refreshToken,
@@ -264,80 +282,81 @@ export const verifyMFA = async (req: AuthenticatedRequest, res: Response): Promi
 
 export const register = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { email, password, firstName, lastName, role, departmentId, enrollmentId, employeeId } = req.body as RegisterRequest;
+    const { email, password, first_name, last_name, role, departmentId, enrollmentId, employeeId } = req.body as RegisterRequest;
 
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    // Check if email exists on profiles
+    const existingProfile = await prisma.profile.findUnique({ where: { email } });
+    if (existingProfile) {
       res.status(409).json({ success: false, message: 'Email already registered' });
       return;
     }
 
-    // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create user with profile
-    const user = await prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
+    const newUser = await prisma.$transaction(async (tx) => {
+      // Create auth.users entry
+      const authUser = await tx.users.create({
         data: {
+          id: crypto.randomUUID(),
           email,
-          password: hashedPassword,
+          encrypted_password: hashedPassword,
+          email_confirmed_at: new Date(),
+        },
+      });
+
+      // Create profile with app-level fields
+      await tx.profile.create({
+        data: {
+          user_id: authUser.id,
+          email,
+          first_name,
+          last_name,
           role,
         },
       });
 
-      await tx.profile.create({
-        data: {
-          userId: newUser.id,
-          firstName,
-          lastName,
-        },
-      });
-
-      // Create role-specific records
       if (role === 'STUDENT') {
         await tx.student.create({
           data: {
-            userId: newUser.id,
-            enrollmentId: enrollmentId || `STU${Date.now()}`,
-            departmentId: departmentId || '',
-            classId: '',
-            batchYear: new Date().getFullYear(),
+            user_id: authUser.id,
+            enrollment_id: enrollmentId || `STU${Date.now()}`,
+            department_id: departmentId || '',
+            class_id: '',
+            batch_year: new Date().getFullYear(),
             semester: 1,
           },
         });
       } else if (role === 'FACULTY' || role === 'CLASS_INCHARGE') {
         await tx.faculty.create({
           data: {
-            userId: newUser.id,
-            employeeId: employeeId || `EMP${Date.now()}`,
+            user_id: authUser.id,
+            employee_id: employeeId || `EMP${Date.now()}`,
             designation: 'Assistant Professor',
-            departmentId: departmentId || '',
-            joiningDate: new Date(),
+            department_id: departmentId || '',
+            joining_date: new Date(),
           },
         });
       } else if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
         await tx.admin.create({
           data: {
-            userId: newUser.id,
+            user_id: authUser.id,
             permissions: [],
           },
         });
       }
 
-      return newUser;
+      return authUser;
     });
 
-    // Generate verification OTP
     const otp = generateOTP();
-    storeOTP(user.id, otp, 10);
+    storeOTP(newUser.id, otp, 10);
     await sendOTP(email, otp);
 
     await logAction({
-      userId: user.id,
+      userId: newUser.id,
       action: 'REGISTER',
       entityType: 'user',
-      entityId: user.id,
+      entityId: newUser.id,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -345,7 +364,7 @@ export const register = async (req: AuthenticatedRequest, res: Response): Promis
     res.status(201).json({
       success: true,
       message: 'Registration successful. Please verify your email.',
-      data: { userId: user.id },
+      data: { userId: newUser.id },
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -373,23 +392,25 @@ export const refreshToken = async (req: AuthenticatedRequest, res: Response): Pr
 
     const session = await prisma.session.findUnique({
       where: { token },
-      include: { user: true },
+      include: { users: true },
     });
 
-    if (!session || session.expiresAt < new Date()) {
+    if (!session || session.expires_at < new Date()) {
       res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
       return;
     }
 
-    if (session.userId !== payload.userId) {
+    if (session.user_id !== payload.userId) {
       res.status(401).json({ success: false, message: 'Token user mismatch' });
       return;
     }
 
+    const profile = await prisma.profile.findUnique({ where: { user_id: session.user_id } });
+
     const tokenPayload = {
-      userId: session.user.id,
-      email: session.user.email,
-      role: session.user.role,
+      userId: session.users.id,
+      email: session.users.email!,
+      role: profile?.role || 'STUDENT',
     };
 
     const accessToken = generateToken(tokenPayload);
@@ -408,7 +429,6 @@ export const logout = async (req: AuthenticatedRequest, res: Response): Promise<
   try {
     const { refreshToken: token } = req.body;
 
-    // Blacklist the current access token so it can't be reused
     const accessToken = req.headers.authorization?.substring(7);
     if (accessToken && req.user) {
       await blacklistToken(accessToken, req.user.id, 'logout');
@@ -444,21 +464,18 @@ export const setupMFA = async (req: AuthenticatedRequest, res: Response): Promis
     const secret = generateTOTPSecret();
     const backupCodes = generateBackupCodes();
 
-    await prisma.user.update({
+    // Store MFA secret in profile (not auth.users)
+    // For now store in raw_user_meta_data on auth.users since Profile doesn't have mfa_secret
+    await prisma.users.update({
       where: { id: req.user.id },
       data: {
-        mfaSecret: secret,
-        backupCodes,
-        mfaEnabled: false, // Will be enabled after verification
+        raw_user_meta_data: { mfa_secret: secret, backup_codes: backupCodes },
       },
     });
 
     res.status(200).json({
       success: true,
-      data: {
-        secret,
-        backupCodes,
-      },
+      data: { secret, backupCodes },
     });
   } catch (error) {
     console.error('MFA setup error:', error);
@@ -470,23 +487,22 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response): 
   try {
     const { email } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      // Don't reveal if email exists
+    const profile = await prisma.profile.findUnique({ where: { email } });
+    if (!profile) {
       res.status(200).json({ success: true, message: 'If the email exists, a reset link has been sent.' });
       return;
     }
 
     const resetToken = crypto.randomBytes(48).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const expires_at = new Date(Date.now() + 60 * 60 * 1000);
 
     await prisma.$transaction(async (tx) => {
-      await tx.passwordReset.deleteMany({ where: { userId: user.id } });
+      await tx.passwordReset.deleteMany({ where: { user_id: profile.user_id } });
       await tx.passwordReset.create({
         data: {
-          userId: user.id,
+          user_id: profile.user_id,
           token: resetToken,
-          expiresAt,
+          expires_at,
         },
       });
     });
@@ -494,10 +510,10 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response): 
     await sendPasswordReset(email, resetToken);
 
     await logAction({
-      userId: user.id,
+      userId: profile.user_id,
       action: 'REQUEST_PASSWORD_RESET',
       entityType: 'user',
-      entityId: user.id,
+      entityId: profile.user_id,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -520,44 +536,40 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response): P
 
     const reset = await prisma.passwordReset.findUnique({ where: { token } });
 
-    if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
+    if (!reset || reset.used_at || reset.expires_at < new Date()) {
       res.status(400).json({ success: false, message: 'Invalid or expired token' });
-      return;
-    }
-
-    const user = await prisma.user.findUnique({ where: { id: reset.userId } });
-    if (!user) {
-      res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
     const hashedPassword = await hashPassword(newPassword);
 
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: reset.userId },
-        data: {
-          password: hashedPassword,
-          loginAttempts: 0,
-          lockoutUntil: null,
-        },
+      // Update password on auth.users
+      await tx.users.update({
+        where: { id: reset.user_id },
+        data: { encrypted_password: hashedPassword },
       });
 
-      await tx.session.deleteMany({ where: { userId: reset.userId } });
+      // Reset lockout on profile
+      await tx.profile.update({
+        where: { user_id: reset.user_id },
+        data: { login_attempts: 0, lockout_until: null },
+      });
+
+      await tx.session.deleteMany({ where: { user_id: reset.user_id } });
       await tx.passwordReset.update({
         where: { id: reset.id },
-        data: { usedAt: new Date() },
+        data: { used_at: new Date() },
       });
     });
 
-    // Revoke all existing tokens for this user
-    await blacklistAllUserTokens(reset.userId, 'password_change');
+    await blacklistAllUserTokens(reset.user_id, 'password_change');
 
     await logAction({
-      userId: reset.userId,
+      userId: reset.user_id,
       action: 'RESET_PASSWORD',
       entityType: 'user',
-      entityId: reset.userId,
+      entityId: reset.user_id,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -576,22 +588,25 @@ export const getMe = async (req: AuthenticatedRequest, res: Response): Promise<v
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+    const profile = await prisma.profile.findUnique({
+      where: { user_id: req.user.id },
       include: {
-        profile: true,
-        student: { include: { department: true, class: true } },
-        faculty: { include: { department: true } },
-        admin: true,
-        notifications: {
-          where: { isRead: false },
-          take: 5,
-          orderBy: { createdAt: 'desc' },
+        users: {
+          include: {
+            students: { include: { departments: true, classes: true } },
+            faculty: { include: { departments_faculty_department_idTodepartments: true } },
+            admins: true,
+            notifications: {
+              where: { is_read: false },
+              take: 5,
+              orderBy: { created_at: 'desc' },
+            },
+          },
         },
       },
     });
 
-    if (!user) {
+    if (!profile) {
       res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
@@ -599,14 +614,14 @@ export const getMe = async (req: AuthenticatedRequest, res: Response): Promise<v
     res.status(200).json({
       success: true,
       data: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        profile: user.profile,
-        student: user.student,
-        faculty: user.faculty,
-        admin: user.admin,
-        unreadNotifications: user.notifications.length,
+        id: req.user.id,
+        email: profile.email,
+        role: profile.role,
+        profile,
+        student: profile.users.students,
+        faculty: profile.users.faculty,
+        admin: profile.users.admins,
+        unreadNotifications: profile.users.notifications.length,
       },
     });
   } catch (error) {

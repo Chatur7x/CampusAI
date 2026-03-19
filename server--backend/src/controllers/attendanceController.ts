@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../utils/prisma';
 import { logAction } from '../utils/audit';
@@ -24,7 +25,7 @@ const generateAttendanceHash = (payload: Record<string, unknown>): string => {
 // ==================== AI FACE ATTENDANCE ====================
 export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { studentId, faceData, location, deviceInfo, subjectId, sessionId } = req.body;
+    const { studentId, faceData, location, device_info, subjectId, sessionId } = req.body;
 
     // Verify student exists
     const student = await prisma.student.findUnique({
@@ -61,7 +62,7 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
           severity: 'HIGH',
           user_id: student.user_id,
           description: `Face verification failed for student ${student.enrollment_id}`,
-          metadata: { confidence: verificationResult.confidence },
+          data: { confidence: verificationResult.confidence },
         },
       });
 
@@ -83,14 +84,14 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
       return;
     }
 
-    const previousHash = await getPreviousAttendanceHash();
-    const blockchainHash = generateAttendanceHash({
+    const previous_hash = await getPreviousAttendanceHash();
+    const blockchain_hash = generateAttendanceHash({
       studentId,
       subjectId,
       date: new Date().toISOString(),
       method: 'AI_FACE',
       confidence: verificationResult.confidence,
-      previousHash,
+      previous_hash,
     });
 
     // Create attendance record
@@ -109,12 +110,11 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
         status: 'PRESENT',
         method: 'AI_FACE',
         confidence_score: verificationResult.confidence,
-        location_lat: location?.lat || null,
-        location_lng: location?.lng || null,
-        device_info: deviceInfo || req.headers['user-agent'],
+        location: location ? { lat: location.lat, lng: location.lng } : Prisma.JsonNull,
+        device_info: device_info || req.headers['user-agent'],
         session_id: sessionId || null,
-        blockchain_hash: blockchainHash,
-        previous_hash: previousHash,
+        blockchain_hash: blockchain_hash,
+        previous_hash: previous_hash,
       },
       create: {
         student_id: studentId,
@@ -123,12 +123,11 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
         status: 'PRESENT',
         method: 'AI_FACE',
         confidence_score: verificationResult.confidence,
-        location_lat: location?.lat || null,
-        location_lng: location?.lng || null,
-        device_info: deviceInfo || req.headers['user-agent'],
+        location: location ? { lat: location.lat, lng: location.lng } : Prisma.JsonNull,
+        device_info: device_info || req.headers['user-agent'],
         session_id: sessionId || null,
-        blockchain_hash: blockchainHash,
-        previous_hash: previousHash,
+        blockchain_hash: blockchain_hash,
+        previous_hash: previous_hash,
       },
     });
 
@@ -162,8 +161,8 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
           livenessScore: verificationResult.livenessScore,
         },
         blockchain: {
-          hash: blockchainHash,
-          previousHash,
+          hash: blockchain_hash,
+          previous_hash,
         },
       },
     });
@@ -197,16 +196,16 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const previousHash = await getPreviousAttendanceHash();
-    const blockchainHash = generateAttendanceHash({
+    const previous_hash = await getPreviousAttendanceHash();
+    const blockchain_hash = generateAttendanceHash({
       studentId,
       subjectId,
       date: today.toISOString(),
       method: 'MANUAL',
       status,
-      verifiedBy: req.user.id,
+      verified_by: req.user.id,
       justification,
-      previousHash,
+      previous_hash,
     });
 
     const attendance = await prisma.attendance.upsert({
@@ -222,8 +221,8 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
         method: 'MANUAL',
         verified_by: req.user.id,
         justification,
-        blockchain_hash: blockchainHash,
-        previous_hash: previousHash,
+        blockchain_hash: blockchain_hash,
+        previous_hash: previous_hash,
       },
       create: {
         student_id: studentId,
@@ -233,8 +232,8 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
         method: 'MANUAL',
         verified_by: req.user.id,
         justification,
-        blockchain_hash: blockchainHash,
-        previous_hash: previousHash,
+        blockchain_hash: blockchain_hash,
+        previous_hash: previous_hash,
       },
     });
 
@@ -260,7 +259,7 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
     res.status(200).json({
       success: true,
       message: 'Attendance marked successfully',
-      data: { attendance, blockchain: { hash: blockchainHash, previousHash } },
+      data: { attendance, blockchain: { hash: blockchain_hash, previous_hash } },
     });
   } catch (error) {
     console.error('Manual attendance error:', error);
@@ -281,22 +280,22 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
     const results = [];
     const errors = [];
 
-    let previousHash = await getPreviousAttendanceHash();
+    let previous_hash = await getPreviousAttendanceHash();
 
     for (const entry of attendanceList) {
       try {
         const attendanceDate = new Date(date);
         attendanceDate.setHours(0, 0, 0, 0);
 
-        const blockchainHash = generateAttendanceHash({
-          studentId: entry.studentId,
+        const blockchain_hash = generateAttendanceHash({
+          student_id: entry.studentId,
           subjectId,
           date: attendanceDate.toISOString(),
           method: 'MANUAL',
           status: entry.status,
-          verifiedBy: req.user.id,
+          verified_by: req.user.id,
           justification: entry.justification,
-          previousHash,
+          previous_hash,
         });
 
         const attendance = await prisma.attendance.upsert({
@@ -312,8 +311,8 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
             method: 'MANUAL',
             verified_by: req.user.id,
             justification: entry.justification,
-            blockchain_hash: blockchainHash,
-            previous_hash: previousHash,
+            blockchain_hash: blockchain_hash,
+            previous_hash: previous_hash,
           },
           create: {
             student_id: entry.studentId,
@@ -323,15 +322,15 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
             method: 'MANUAL',
             verified_by: req.user.id,
             justification: entry.justification,
-            blockchain_hash: blockchainHash,
-            previous_hash: previousHash,
+            blockchain_hash: blockchain_hash,
+            previous_hash: previous_hash,
           },
         });
 
         results.push(attendance);
-        previousHash = blockchainHash;
+        previous_hash = blockchain_hash;
       } catch (err) {
-        errors.push({ studentId: entry.studentId, error: (err as Error).message });
+        errors.push({ student_id: entry.studentId, error: (err as Error).message });
       }
     }
 
@@ -440,13 +439,13 @@ export const getClassAttendance = async (req: AuthenticatedRequest, res: Respons
     });
 
     const attendanceData = students.map(student => ({
-      studentId: student.id,
-      enrollmentId: student.enrollment_id,
+      student_id: student.id,
+      enrollment_id: student.enrollment_id,
       name: `${student.users.profiles?.first_name} ${student.users.profiles?.last_name}`,
       avatar: student.users.profiles?.avatar_url,
       status: (student.attendance[0]?.status || 'NOT_MARKED') as string,
       method: student.attendance[0]?.method,
-      confidenceScore: student.attendance[0]?.confidence_score,
+      confidence_score: student.attendance[0]?.confidence_score,
     }));
 
     res.status(200).json({
@@ -582,7 +581,7 @@ export const registerFace = async (req: AuthenticatedRequest, res: Response): Pr
     res.status(200).json({
       success: true,
       message: 'Face registered successfully',
-      data: { studentId: student.id, faceRegistered: true },
+      data: { student_id: student.id, face_registered: true },
     });
   } catch (error) {
     console.error('Face registration error:', error);

@@ -1,27 +1,27 @@
 import { Request } from 'express';
-import { UserRole, AttendanceStatus, AttendanceMethod, LeaveType, LeaveStatus, Priority, NotificationType } from '@prisma/client';
+import { user_role, attendance_status, attendance_method, leave_type, leave_status, priority, notification_type } from '@prisma/client';
 
 // Auth Types
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
-    role: UserRole;
+    role: user_role;
   };
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
-  role?: UserRole; // optional: API auto-detects when omitted
+  role?: user_role;
 }
 
 export interface RegisterRequest {
   email: string;
   password: string;
-  firstName: string;
-    lastName: string;
-  role: UserRole;
+  first_name: string;
+  last_name: string;
+  role: user_role;
   departmentId?: string;
   enrollmentId?: string;
   employeeId?: string;
@@ -30,7 +30,7 @@ export interface RegisterRequest {
 export interface TokenPayload {
   userId: string;
   email: string;
-  role: UserRole;
+  role: user_role;
   iat?: number;
   exp?: number;
 }
@@ -41,8 +41,8 @@ export interface AttendanceRecord {
   studentId: string;
   subjectId?: string;
   date: Date;
-  status: AttendanceStatus;
-  method: AttendanceMethod;
+  status: attendance_status;
+  method: attendance_method;
   confidenceScore?: number;
   location?: GeoLocation;
   blockchainHash?: string;
@@ -66,8 +66,8 @@ export interface AIFaceVerification {
 export interface NoticeCreate {
   title: string;
   content: string;
-  priority: Priority;
-  targetRoles: UserRole[];
+  priority: priority;
+  targetRoles: user_role[];
   targetDepartments?: string[];
   targetClasses?: string[];
   attachments?: string[];
@@ -80,7 +80,7 @@ export interface LeaveRequestCreate {
   startDate: Date;
   endDate: Date;
   reason: string;
-  type: LeaveType;
+  type: leave_type;
   documents?: string[];
 }
 
@@ -112,7 +112,7 @@ export interface DepartmentAnalytics {
 }
 
 // Timetable Types
-export interface TimetableEntry {
+export interface TimetableEntryType {
   id: string;
   classId: string;
   subjectId: string;
@@ -138,7 +138,7 @@ export interface NotificationCreate {
   userId: string;
   title: string;
   message: string;
-  type: NotificationType;
+  type: notification_type;
   data?: Record<string, any>;
 }
 

@@ -11,9 +11,6 @@ export interface DeviceInfo {
   userAgent?: string;
 }
 
-/**
- * Generate a deterministic device hash from fingerprint data
- */
 export function generateDeviceHash(info: DeviceInfo): string {
   const raw = [
     info.browser || '',
@@ -26,9 +23,6 @@ export function generateDeviceHash(info: DeviceInfo): string {
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
-/**
- * Parse user-agent into browser + OS
- */
 export function parseUserAgent(ua: string): { browser: string; os: string } {
   let browser = 'Unknown';
   let os = 'Unknown';
@@ -47,9 +41,6 @@ export function parseUserAgent(ua: string): { browser: string; os: string } {
   return { browser, os };
 }
 
-/**
- * Register or update a device for a user. Returns whether the device is new.
- */
 export async function registerDevice(
   userId: string,
   deviceHash: string,
@@ -57,15 +48,15 @@ export async function registerDevice(
   ipAddress?: string
 ): Promise<{ isNew: boolean; isTrusted: boolean }> {
   const existing = await prisma.trustedDevice.findUnique({
-    where: { userId_deviceHash: { userId, deviceHash } },
+    where: { user_id_device_hash: { user_id: userId, device_hash: deviceHash } },
   });
 
   if (existing) {
     await prisma.trustedDevice.update({
       where: { id: existing.id },
-      data: { lastUsedAt: new Date(), ipAddress },
+      data: { last_used_at: new Date(), ip_address: ipAddress },
     });
-    return { isNew: false, isTrusted: existing.isTrusted };
+    return { isNew: false, isTrusted: existing.is_trusted };
   }
 
   const { browser, os } = parseUserAgent(info.userAgent || '');
@@ -73,32 +64,26 @@ export async function registerDevice(
 
   await prisma.trustedDevice.create({
     data: {
-      userId,
-      deviceHash,
-      deviceName,
+      user_id: userId,
+      device_hash: deviceHash,
+      device_name: deviceName,
       browser,
       os,
-      ipAddress,
-      isTrusted: false,
+      ip_address: ipAddress,
+      is_trusted: false,
     },
   });
 
   return { isNew: true, isTrusted: false };
 }
 
-/**
- * Get all devices for a user
- */
 export async function getUserDevices(userId: string) {
   return prisma.trustedDevice.findMany({
-    where: { userId },
-    orderBy: { lastUsedAt: 'desc' },
+    where: { user_id: userId },
+    orderBy: { last_used_at: 'desc' },
   });
 }
 
-/**
- * Trust/untrust a device
- */
 export async function setDeviceTrust(
   deviceId: string,
   userId: string,
@@ -106,37 +91,30 @@ export async function setDeviceTrust(
   ttlDays: number = 90
 ): Promise<void> {
   await prisma.trustedDevice.updateMany({
-    where: { id: deviceId, userId },
+    where: { id: deviceId, user_id: userId },
     data: {
-      isTrusted: trusted,
-      trustExpiresAt: trusted ? new Date(Date.now() + ttlDays * 24 * 3600 * 1000) : null,
+      is_trusted: trusted,
+      trust_expires_at: trusted ? new Date(Date.now() + ttlDays * 24 * 3600 * 1000) : null,
     },
   });
 }
 
-/**
- * Remove a device
- */
 export async function removeDevice(deviceId: string, userId: string): Promise<void> {
   await prisma.trustedDevice.deleteMany({
-    where: { id: deviceId, userId },
+    where: { id: deviceId, user_id: userId },
   });
 }
 
-/**
- * Check if a device is trusted (and not expired)
- */
 export async function isDeviceTrusted(userId: string, deviceHash: string): Promise<boolean> {
   const device = await prisma.trustedDevice.findUnique({
-    where: { userId_deviceHash: { userId, deviceHash } },
+    where: { user_id_device_hash: { user_id: userId, device_hash: deviceHash } },
   });
 
-  if (!device || !device.isTrusted) return false;
-  if (device.trustExpiresAt && device.trustExpiresAt < new Date()) {
-    // Trust expired — mark as untrusted
+  if (!device || !device.is_trusted) return false;
+  if (device.trust_expires_at && device.trust_expires_at < new Date()) {
     await prisma.trustedDevice.update({
       where: { id: device.id },
-      data: { isTrusted: false },
+      data: { is_trusted: false },
     });
     return false;
   }

@@ -11,13 +11,12 @@ export const getBlockchainStatus = async (req: AuthenticatedRequest, res: Respon
 
     // Get attendance records with blockchain hashes
     const attendanceRecords = await prisma.attendance.findMany({
-      where: { blockchainHash: { not: null } },
-      orderBy: { createdAt: 'desc' },
+      where: { blockchain_hash: { not: null } },
+      orderBy: { created_at: 'desc' },
       take: 100,
-      include: {
-        student: {
+      include: { students: {
           include: {
-            user: { include: { profile: true } },
+            users: { include: { profiles: true } },
           },
         },
       },
@@ -64,7 +63,7 @@ export const verifyAttendanceRecord = async (req: AuthenticatedRequest, res: Res
       return;
     }
 
-    if (!attendance.blockchainHash) {
+    if (!attendance.blockchain_hash) {
       res.status(400).json({ success: false, message: 'Record not blockchain verified' });
       return;
     }
@@ -73,7 +72,7 @@ export const verifyAttendanceRecord = async (req: AuthenticatedRequest, res: Res
     const blockchain = getBlockchain();
     const chain = blockchain.getChain();
 
-    const matchingBlock = chain.find(block => block.hash === attendance.blockchainHash);
+    const matchingBlock = chain.find(block => block.hash === attendance.blockchain_hash);
 
     if (!matchingBlock) {
       res.status(400).json({
@@ -122,11 +121,10 @@ export const getBlockByHash = async (req: AuthenticatedRequest, res: Response): 
 
     // Get associated attendance records
     const attendanceRecords = await prisma.attendance.findMany({
-      where: { blockchainHash: hash },
-      include: {
-        student: {
+      where: { blockchain_hash: hash },
+      include: { students: {
           include: {
-            user: { include: { profile: true } },
+            users: { include: { profiles: true } },
           },
         },
       },
@@ -177,10 +175,10 @@ export const getBlockchainAudit = async (req: AuthenticatedRequest, res: Respons
     // Check for missing records in database
     const hashesInChain = chain.map(b => b.hash);
     const recordsInDb = await prisma.attendance.findMany({
-      where: { blockchainHash: { in: hashesInChain } },
-      select: { blockchainHash: true },
+      where: { blockchain_hash: { in: hashesInChain } },
+      select: { blockchain_hash: true },
     });
-    const hashesInDb = recordsInDb.map(r => r.blockchainHash);
+    const hashesInDb = recordsInDb.map(r => r.blockchain_hash);
 
     const orphanedBlocks = hashesInChain.filter(h => !hashesInDb.includes(h) && h !== chain[0].hash);
 
@@ -207,8 +205,8 @@ export const getAttendanceChain = async (req: AuthenticatedRequest, res: Respons
 
     const attendance = await prisma.attendance.findMany({
       where: {
-        studentId,
-        blockchainHash: { not: null },
+        student_id: studentId,
+        blockchain_hash: { not: null },
       },
       orderBy: { date: 'asc' },
     });
@@ -218,15 +216,15 @@ export const getAttendanceChain = async (req: AuthenticatedRequest, res: Respons
       index,
       date: record.date,
       status: record.status,
-      hash: record.blockchainHash,
-      previousHash: record.previousHash,
+      hash: record.blockchain_hash,
+      previous_hash: record.previous_hash,
       method: record.method,
     }));
 
     // Verify chain links
     let isChainValid = true;
     for (let i = 1; i < chain.length; i++) {
-      if (chain[i].previousHash !== chain[i - 1].hash) {
+      if (chain[i].previous_hash !== chain[i - 1].hash) {
         isChainValid = false;
         break;
       }
