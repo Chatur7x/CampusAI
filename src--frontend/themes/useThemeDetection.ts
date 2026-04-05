@@ -12,6 +12,8 @@ const DOMAIN_CONFIGS: DomainConfig[] = [
   { pattern: /\.edu\.in$/i, theme: 'neumorphism', label: 'Educational' },
   { pattern: /\.edu$/i, theme: 'neumorphism', label: 'Educational' },
   { pattern: /\.ac\.in$/i, theme: 'neumorphism', label: 'Educational' },
+  { pattern: /\.bits-pilani\.ac\.in$/i, theme: 'neumorphism', label: 'Educational' },
+  { pattern: /bits-pilani/i, theme: 'neumorphism', label: 'Educational' },
   { pattern: /university/i, theme: 'neumorphism', label: 'Educational' },
   { pattern: /college/i, theme: 'neumorphism', label: 'Educational' },
   { pattern: /school/i, theme: 'neumorphism', label: 'Educational' },
@@ -20,6 +22,7 @@ const DOMAIN_CONFIGS: DomainConfig[] = [
   { pattern: /iit/i, theme: 'neumorphism', label: 'Educational' },
   { pattern: /nit/i, theme: 'neumorphism', label: 'Educational' },
   { pattern: /bits/i, theme: 'neumorphism', label: 'Educational' },
+  { pattern: /anurag/i, theme: 'neumorphism', label: 'Educational' },
 ];
 
 export function useThemeDetection() {
@@ -81,6 +84,8 @@ export function getOrganizationTypeFromDomain(domain: string): 'educational' | '
     /\.edu\.in$/i,
     /\.edu$/i,
     /\.ac\.in$/i,
+    /\.bits-pilani\.ac\.in$/i,
+    /bits-pilani/i,
     /university/i,
     /college/i,
     /school/i,
@@ -89,6 +94,7 @@ export function getOrganizationTypeFromDomain(domain: string): 'educational' | '
     /iit/i,
     /nit/i,
     /bits/i,
+    /anurag/i,
   ];
 
   for (const pattern of educationalPatterns) {

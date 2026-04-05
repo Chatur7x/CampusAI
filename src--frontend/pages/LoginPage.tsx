@@ -8,27 +8,132 @@ import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 
 /* ── Role detection from email ── */
 type DetectedRole = { key: string; label: string; icon: string; color: string };
+type DetectedOrg = { name: string; type: 'company' | 'educational'; theme: string; color: string };
 
 const ROLES: Record<string, DetectedRole> = {
   admin:   { key: "admin",   label: "Admin",   icon: "🛡️", color: "#6366f1" },
+  hr:      { key: "hr",      label: "HR",      icon: "👔", color: "#f59e0b" },
+  it:      { key: "it",      label: "IT",      icon: "💻", color: "#06b6d4" },
+  sales:   { key: "sales",   label: "Sales",   icon: "📈", color: "#10b981" },
+  marketing: { key: "marketing", label: "Marketing", icon: "📢", color: "#ec4899" },
+  finance: { key: "finance", label: "Finance", icon: "💰", color: "#8b5cf6" },
+  manager: { key: "manager", label: "Manager", icon: "👨‍💼", color: "#3b82f6" },
   faculty: { key: "faculty", label: "Faculty", icon: "👨‍🏫", color: "#10b981" },
-  student: { key: "student", label: "Student", icon: "🎓", color: "#3b82f6" },
+  student: { key: "student", label: "Student", icon: "🎓", color: "#f59e0b" },
+};
+
+const ORGANIZATIONS: Record<string, DetectedOrg> = {
+  'google.com': { name: 'Google', type: 'company', theme: 'Glassmorphism', color: '#4285F4' },
+  'microsoft.com': { name: 'Microsoft', type: 'company', theme: 'Glassmorphism', color: '#00A4EF' },
+  'anurag.edu.in': { name: 'Anurag University', type: 'educational', theme: 'Neumorphism', color: '#10b981' },
+  'hyderabad.bits-pilani.ac.in': { name: 'BITS Pilani Hyderabad', type: 'educational', theme: 'Neumorphism', color: '#6366f1' },
 };
 
 function detectRole(email: string): DetectedRole | null {
   const e = email.toLowerCase().trim();
-  if (!e) return null;
+  if (!e.includes('@')) return null;
+  
+  const localPart = e.split('@')[0];
+  const domain = e.split('@')[1] || '';
+  
   // Admin patterns
-  if (e.startsWith("admin") || e.includes("superadmin") || e.includes("principal")) return ROLES.admin;
-  // Faculty patterns — contains "faculty", starts with department keyword + @
-  if (e.includes("faculty") || /^[a-z]+\.[a-z]+@/.test(e) && (e.includes("prof") || e.includes("hod"))) return ROLES.faculty;
-  // Student patterns — roll number-like prefix (digits or alphanumeric enrollment IDs)
-  if (/^\d{2}[a-z]{2,5}\d/.test(e)) return ROLES.student;
-  // Faculty: name-like emails at edu domain (e.g. saikrishnait@anurag.edu.in)
-  if (/^[a-z]{4,}(it|cs|ece|eee|mech|civil|chem)@/.test(e)) return ROLES.faculty;
-  // Fallback: if has edu domain but no roll number pattern → faculty-like
-  if (e.includes("@") && e.includes(".edu") && !/^\d/.test(e)) return ROLES.faculty;
+  if (localPart === 'admin' || localPart.includes('admin') || localPart.includes('superadmin')) {
+    return ROLES.admin;
+  }
+  
+  // HR patterns
+  if (localPart === 'hr' || localPart.includes('hr')) {
+    return ROLES.hr;
+  }
+  
+  // IT patterns
+  if (localPart === 'it' || localPart.includes('it@') || localPart.startsWith('it.')) {
+    return ROLES.it;
+  }
+  
+  // Sales patterns
+  if (localPart === 'sales' || localPart.includes('sales')) {
+    return ROLES.sales;
+  }
+  
+  // Marketing patterns
+  if (localPart === 'marketing' || localPart.includes('marketing')) {
+    return ROLES.marketing;
+  }
+  
+  // Finance patterns
+  if (localPart === 'finance' || localPart.includes('finance')) {
+    return ROLES.finance;
+  }
+  
+  // Manager patterns
+  if (localPart === 'manager' || localPart.includes('manager')) {
+    return ROLES.manager;
+  }
+  
+  // BITS Pilani student pattern: f2024050@hyderabad.bits-pilani.ac.in
+  if (/^f\d{7}@/.test(e)) {
+    return ROLES.student;
+  }
+  
+  // Anurag/General student pattern: 24eg109a28@, 22cs30100@
+  if (/^\d{2}[a-z]{2,5}\d{3,}/.test(localPart)) {
+    return ROLES.student;
+  }
+  
+  // Faculty patterns
+  // name.surname@edu-domain (e.g., saikrishna.it@)
+  if (/^[a-z]+\.[a-z]+@/.test(e)) {
+    return ROLES.faculty;
+  }
+  
+  // nameit/csecs/etc@edu-domain (e.g., saikrishnait@anurag.edu.in)
+  if (/^[a-z]{4,}(it|cs|ece|eee|mech|civil|chem|eee)@/.test(localPart + '@')) {
+    return ROLES.faculty;
+  }
+  
+  // Explicitly faculty email
+  if (localPart.includes('faculty') || localPart.includes('professor') || localPart.includes('hod')) {
+    return ROLES.faculty;
+  }
+  
+  // Faculty at educational domain (no roll number pattern)
+  const eduPatterns = ['.edu', '.ac.in', '.edu.in', 'university', 'college', 'institute', 'bits'];
+  if (eduPatterns.some(p => domain.includes(p)) && !/^\d/.test(localPart)) {
+    return ROLES.faculty;
+  }
+  
   return null;
+}
+
+function detectOrganization(email: string): DetectedOrg | null {
+  const e = email.toLowerCase().trim();
+  if (!e.includes('@')) return null;
+  
+  const domain = e.split('@')[1] || '';
+  
+  // Exact matches
+  if (ORGANIZATIONS[domain]) {
+    return ORGANIZATIONS[domain];
+  }
+  
+  // Partial matches
+  for (const [key, org] of Object.entries(ORGANIZATIONS)) {
+    if (domain.includes(key)) {
+      return org;
+    }
+  }
+  
+  // Generic detection based on domain
+  const eduPatterns = ['.edu', '.ac.in', '.edu.in', 'university', 'college', 'school', 'institute', 'academy', 'bits'];
+  const isEducational = eduPatterns.some(p => domain.includes(p));
+  
+  if (isEducational) {
+    return { name: 'Educational Institution', type: 'educational', theme: 'Neumorphism', color: '#10b981' };
+  }
+  
+  // Default to company
+  return { name: 'Organization', type: 'company', theme: 'Glassmorphism', color: '#6366f1' };
 }
 
 /* ── Blurred background blobs ── */
@@ -62,6 +167,7 @@ export default function LoginPage() {
   const cardRef = useRef<HTMLDivElement>(null);
 
   const detectedRole = useMemo(() => detectRole(email), [email]);
+  const detectedOrg = useMemo(() => detectOrganization(email), [email]);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -252,21 +358,51 @@ export default function LoginPage() {
           <h1 className="text-center text-[22px] font-semibold text-white/90 mb-0.5 tracking-tight">CampusAI</h1>
           <p className="text-center text-white/35 text-[13px] mb-7">Sign in to your account</p>
 
-          {/* Auto-detected role badge */}
-          {detectedRole && (
-            <div className="flex justify-center mb-5" style={{ animation: "roleBadgeIn 0.3s ease-out forwards" }}>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-[12px] font-medium"
-                style={{
-                  background: `${detectedRole.color}15`,
-                  borderColor: `${detectedRole.color}30`,
-                  color: `${detectedRole.color}`,
-                  backdropFilter: "blur(20px)",
-                  boxShadow: `0 4px 20px ${detectedRole.color}10`,
-                }}>
-                <span className="text-sm">{detectedRole.icon}</span>
-                <span>Detected: <strong>{detectedRole.label}</strong></span>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: detectedRole.color }} />
-              </div>
+          {/* Auto-detected role & organization badges */}
+          {(detectedRole || detectedOrg) && (
+            <div className="flex flex-col items-center gap-2 mb-5" style={{ animation: "roleBadgeIn 0.3s ease-out forwards" }}>
+              
+              {/* Organization Badge */}
+              {detectedOrg && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-[12px] font-medium"
+                  style={{
+                    background: `${detectedOrg.color}15`,
+                    borderColor: `${detectedOrg.color}30`,
+                    color: `${detectedOrg.color}`,
+                    backdropFilter: "blur(20px)",
+                    boxShadow: `0 4px 20px ${detectedOrg.color}10`,
+                  }}>
+                  <span>{detectedOrg.type === 'company' ? '🏢' : '🎓'}</span>
+                  <span><strong>{detectedOrg.name}</strong></span>
+                  <span className="opacity-60">•</span>
+                  <span className="opacity-80">{detectedOrg.type === 'company' ? 'Company' : 'Educational'}</span>
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: detectedOrg.color }} />
+                </div>
+              )}
+              
+              {/* Role Badge */}
+              {detectedRole && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-[12px] font-medium"
+                  style={{
+                    background: `${detectedRole.color}15`,
+                    borderColor: `${detectedRole.color}30`,
+                    color: `${detectedRole.color}`,
+                    backdropFilter: "blur(20px)",
+                    boxShadow: `0 4px 20px ${detectedRole.color}10`,
+                  }}>
+                  <span className="text-sm">{detectedRole.icon}</span>
+                  <span>Role: <strong>{detectedRole.label}</strong></span>
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: detectedRole.color }} />
+                </div>
+              )}
+              
+              {/* Theme Preview */}
+              {detectedOrg && (
+                <div className="flex items-center gap-1 text-[10px] text-white/40">
+                  <span>Theme:</span>
+                  <span style={{ color: detectedOrg.color }}>{detectedOrg.theme}</span>
+                </div>
+              )}
             </div>
           )}
 
