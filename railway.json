@@ -1,13 +1,44 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "name": "aisms-ai-server",
+  "description": "AISMS AI Server - Face Recognition, Predictive Analytics, Anomaly Detection",
+  
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "ai-server/Dockerfile"
   },
+  
   "deploy": {
-    "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2 --limit-concurrency 100",
     "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "healthcheckInterval": 15,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 5
+    "restartPolicyMaxRetries": 10,
+    "numReplicas": 1,
+    "region": "us-east1"
+  },
+  
+  "environmentVariables": {
+    "ENVIRONMENT": "production",
+    "LOG_LEVEL": "INFO",
+    "CORS_ORIGINS": "https://aisms.vercel.app,https://aisms-frontend.vercel.app,http://localhost:5173",
+    "PYTHONUNBUFFERED": "1",
+    "FASTAPI_RELOAD": "false",
+    "WORKERS": "2",
+    "TIMEOUT": "120"
+  },
+  
+  "domains": [
+    {
+      "name": "aisms-ai-server.up.railway.app",
+      "type": "default"
+    }
+  ],
+  
+  "metrics": {
+    "enabled": true,
+    "port": 9090,
+    "path": "/metrics"
   }
 }

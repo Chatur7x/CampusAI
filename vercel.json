@@ -1,27 +1,178 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "name": "campusai",
+  "name": "aisms",
   "framework": "vite",
-  "buildCommand": "npx vite build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "regions": ["fra1", "sgp1", "iad1"],
+  
   "rewrites": [
-    { "source": "/api/ai/(.*)", "destination": "https://web-production-3c7fb.up.railway.app/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/ai/:path*",
+      "destination": "https://aisms-ai-server.up.railway.app/:path*"
+    },
+    {
+      "source": "/api/backend/:path*",
+      "destination": "https://aisms-backend.up.railway.app/:path*"
+    },
+    {
+      "source": "/api/supabase/:path*",
+      "destination": "https://akgjpqvpcugbmdenpxny.supabase.co/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
+  
   "headers": [
     {
       "source": "/assets/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/javascript; charset=utf-8"
+        }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(self), geolocation=(self), interest-cohort=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://*.railway.app https://aisms-ai-server.up.railway.app wss://*.supabase.co; frame-ancestors 'none';"
+        }
       ]
+    },
+    {
+      "source": "/api/ai/:path*",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://aisms.vercel.app,https://aisms-frontend.vercel.app"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization, X-Requested-With"
+        },
+        {
+          "key": "Access-Control-Max-Age",
+          "value": "86400"
+        }
+      ]
+    },
+    {
+      "source": "/api/backend/:path*",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://aisms.vercel.app,https://aisms-frontend.vercel.app"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization, X-Requested-With"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    }
+  ],
+  
+  "env": {
+    "VITE_SUPABASE_URL": "@supabase_url",
+    "VITE_SUPABASE_ANON_KEY": "@supabase_anon_key",
+    "VITE_AI_SERVER_URL": "@ai_server_url",
+    "VITE_APP_ENV": "production",
+    "VITE_APP_NAME": "AISMS",
+    "VITE_COMPANY_DOMAINS": "@company_domains"
+  },
+  
+  "github": {
+    "silent": false,
+    "autoJobCancelInProgress": true,
+    "enablePullRequestPreview": true
+  },
+  
+  "redirects": [
+    {
+      "source": "/home",
+      "destination": "/"
+    },
+    {
+      "source": "/index",
+      "destination": "/"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin/dashboard"
+    },
+    {
+      "source": "/faculty",
+      "destination": "/faculty/dashboard"
+    },
+    {
+      "source": "/student",
+      "destination": "/student/dashboard"
+    }
+  ],
+  
+  "crons": [
+    {
+      "path": "/api/cron/cleanup",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/sync",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
