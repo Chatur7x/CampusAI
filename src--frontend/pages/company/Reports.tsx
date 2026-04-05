@@ -7,6 +7,7 @@ import {
   FileText, Download, BarChart3, Users, Calendar,
   TrendingUp, PieChart, Clock, CheckCircle, Eye
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const reportTypes = [
   { id: 1, name: 'Attendance Summary', icon: Calendar, description: 'Daily/Weekly/Monthly attendance reports', lastGenerated: '2 hours ago' },
@@ -26,6 +27,21 @@ const recentReports = [
 export default function CompanyReports() {
   const { theme } = useTheme();
   const [selectedType, setSelectedType] = useState('all');
+
+  const handleGenerateReport = (report: typeof reportTypes[0]) => {
+    toast.success(`Generating ${report.name}...`);
+    setTimeout(() => {
+      toast.success(`${report.name} generated successfully`);
+    }, 2000);
+  };
+
+  const handleViewReport = (report: typeof reportTypes[0] | typeof recentReports[0]) => {
+    toast.info(`Viewing ${report.name}`);
+  };
+
+  const handleDownloadReport = (report: typeof recentReports[0]) => {
+    toast.success(`Downloading ${report.name}...`);
+  };
 
   return (
     <div className="space-y-6">
@@ -94,10 +110,10 @@ export default function CompanyReports() {
                   </p>
                   
                   <div className="flex gap-2 pt-4 border-t border-white/10">
-                    <Button size="sm" className={`flex-1 ${theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}`}>
+                    <Button size="sm" className={`flex-1 ${theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}`} onClick={() => handleGenerateReport(report)}>
                       <Download className="w-4 h-4 mr-1" /> Generate
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                    <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleViewReport(report)}>
                       <Eye className="w-4 h-4" />
                     </Button>
                   </div>
@@ -173,10 +189,10 @@ export default function CompanyReports() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                          <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleViewReport(report)}>
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-emerald-400/50 hover:text-emerald-400">
+                          <Button variant="ghost" size="sm" className="text-emerald-400/50 hover:text-emerald-400" onClick={() => handleDownloadReport(report)}>
                             <Download className="w-4 h-4" />
                           </Button>
                         </div>

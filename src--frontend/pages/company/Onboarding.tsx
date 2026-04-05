@@ -8,6 +8,7 @@ import {
   UserPlus, Search, Upload, FileText, CheckCircle,
   Clock, AlertCircle, ArrowRight, Users, Mail, Phone
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const onboardingSteps = [
   { id: 1, name: 'Document Verification', status: 'completed', count: 45 },
@@ -28,6 +29,25 @@ export default function CompanyOnboarding() {
   const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
 
+  const handleAddNewHire = () => {
+    toast.info('Opening new hire onboarding wizard...');
+  };
+
+  const handleViewEmployee = (employee: typeof pendingOnboarding[0]) => {
+    toast.info(`Viewing ${employee.name}'s onboarding progress`);
+  };
+
+  const handleBrowseFiles = () => {
+    toast.info('Opening file browser...');
+  };
+
+  const handleUploadDoc = (docName: string) => {
+    toast.success(`Uploading ${docName}...`);
+    setTimeout(() => {
+      toast.success(`${docName} uploaded successfully`);
+    }, 2000);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -41,6 +61,7 @@ export default function CompanyOnboarding() {
         </div>
         <Button 
           className={theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}
+          onClick={handleAddNewHire}
         >
           <UserPlus className="w-4 h-4 mr-2" />
           Add New Hire
@@ -170,7 +191,7 @@ export default function CompanyOnboarding() {
                       </span>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                  <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleViewEmployee(employee)}>
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </div>
@@ -196,7 +217,7 @@ export default function CompanyOnboarding() {
               <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
                 Supports PDF, DOC, JPG up to 10MB
               </p>
-              <Button variant="outline" className={`mt-4 ${theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}`}>
+              <Button variant="outline" className={`mt-4 ${theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}`} onClick={handleBrowseFiles}>
                 Browse Files
               </Button>
             </div>
@@ -227,9 +248,9 @@ export default function CompanyOnboarding() {
                       <Badge className="bg-red-500/20 text-red-400 text-xs">Required</Badge>
                     )}
                   </div>
-                  <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
-                    Upload
-                  </Button>
+<Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleUploadDoc(doc.name)}>
+                      Upload
+                    </Button>
                 </div>
               ))}
             </div>

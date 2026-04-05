@@ -8,6 +8,7 @@ import {
   Users, Search, Plus, Crown, MoreVertical,
   UserPlus, Mail, Calendar, Edit, Trash2, Eye
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const mockTeams = [
   { id: 1, name: 'Frontend Warriors', lead: 'Sarah Smith', members: 8, department: 'Engineering', projects: 3, status: 'active' },
@@ -31,6 +32,14 @@ export default function CompanyTeams() {
     const matchesDepartment = selectedDepartment === 'All' || team.department === selectedDepartment;
     return matchesSearch && matchesDepartment;
   });
+
+  const handleViewTeam = (team: typeof mockTeams[0]) => {
+    toast.info(`Viewing ${team.name} team`);
+  };
+
+  const handleEditTeam = (team: typeof mockTeams[0]) => {
+    toast.info(`Editing ${team.name}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -154,10 +163,10 @@ export default function CompanyTeams() {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                  <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleViewTeam(team)}>
                     <Eye className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                  <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleEditTeam(team)}>
                     <Edit className="w-4 h-4" />
                   </Button>
                 </div>

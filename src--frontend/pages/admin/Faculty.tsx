@@ -242,6 +242,72 @@ export default function FacultyPage() {
     }
   };
 
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    toast.info(`Parsing ${file.name}...`);
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+      const requiredHeaders = ['firstname', 'lastname', 'email', 'employeeid'];
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+
+      if (missingHeaders.length > 0) {
+        toast.error(`Missing required columns: ${missingHeaders.join(', ')}`);
+        return;
+      }
+
+      const rows = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+        const row: Record<string, string> = {};
+        headers.forEach((h, i) => {
+          row[h] = values[i] || '';
+        });
+        return row;
+      }).filter(row => row.firstname && row.email);
+
+      if (rows.length === 0) {
+        toast.error('No valid faculty found in CSV');
+        return;
+      }
+
+      toast.info(`Importing ${rows.length} faculty members...`);
+
+      const { data, error } = await supabase.functions.invoke('bulk-operations', {
+        body: {
+          operation: 'import_faculty',
+          data: rows.map(row => ({
+            email: row.email,
+            firstName: row.firstname,
+            lastName: row.lastname || 'Faculty',
+            employeeId: row.employeeid || row.employee_id || '',
+            departmentId: row.departmentid || row.department_id || departments[0]?.id || '',
+            designation: row.designation || 'Assistant Professor',
+            joiningDate: row.joiningdate || row.joining_date || new Date().toISOString().split('T')[0],
+            specialization: row.specialization || '',
+          })),
+          options: { skipDuplicates: true },
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.message || 'Import failed');
+
+      toast.success(`Successfully imported ${rows.length} faculty members`);
+      queryClient.invalidateQueries({ queryKey: ['faculty'] });
+      auditLogService.log('BULK_IMPORT', 'faculty', '', { newValues: { count: rows.length } });
+    } catch (err) {
+      console.error('Import error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to import faculty');
+    }
+
+    e.target.value = '';
+  };
+
   const renderFacultyForm = (onSubmit: () => void, submitLabel: string) => (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
@@ -316,13 +382,7 @@ export default function FacultyPage() {
             accept=".csv"
             id="faculty-csv-upload"
             className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                toast.success(`Importing ${file.name}...`);
-                setTimeout(() => toast.success('Faculty imported successfully'), 1500);
-              }
-            }}
+            onChange={handleImportCSV}
           />
           <label htmlFor="faculty-csv-upload">
             <Button variant="outline" className="border-slate-700 cursor-pointer" asChild>

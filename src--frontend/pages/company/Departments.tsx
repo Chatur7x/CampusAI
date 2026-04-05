@@ -8,6 +8,7 @@ import {
   Building2, Search, Plus, Users, Briefcase,
   Edit, Trash2, Eye, MoreVertical, TrendingUp
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const mockDepartments = [
   { id: 1, name: 'Engineering', head: 'Sarah Smith', employees: 45, teams: 5, budget: '$2.4M', status: 'active' },
@@ -27,6 +28,14 @@ export default function CompanyDepartments() {
     dept.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     dept.head.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleViewDept = (dept: typeof mockDepartments[0]) => {
+    toast.info(`Viewing ${dept.name} department`);
+  };
+
+  const handleEditDept = (dept: typeof mockDepartments[0]) => {
+    toast.info(`Editing ${dept.name}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -133,10 +142,10 @@ export default function CompanyDepartments() {
               </div>
               
               <div className="flex gap-2 pt-4 border-t border-white/10">
-                <Button variant="ghost" size="sm" className="flex-1 text-white/50 hover:text-white">
+                <Button variant="ghost" size="sm" className="flex-1 text-white/50 hover:text-white" onClick={() => handleViewDept(dept)}>
                   <Eye className="w-4 h-4 mr-1" /> View
                 </Button>
-                <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleEditDept(dept)}>
                   <Edit className="w-4 h-4" />
                 </Button>
               </div>

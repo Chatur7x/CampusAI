@@ -258,6 +258,74 @@ export default function StudentsPage() {
     overscan: 10,
   });
 
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    toast.info(`Parsing ${file.name}...`);
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+      const requiredHeaders = ['firstname', 'lastname', 'email', 'enrollmentid'];
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+
+      if (missingHeaders.length > 0) {
+        toast.error(`Missing required columns: ${missingHeaders.join(', ')}`);
+        return;
+      }
+
+      const rows = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+        const row: Record<string, string> = {};
+        headers.forEach((h, i) => {
+          row[h] = values[i] || '';
+        });
+        return row;
+      }).filter(row => row.firstname && row.email);
+
+      if (rows.length === 0) {
+        toast.error('No valid students found in CSV');
+        return;
+      }
+
+      toast.info(`Importing ${rows.length} students...`);
+
+      // Use bulk operations to import
+      const { data, error } = await supabase.functions.invoke('bulk-operations', {
+        body: {
+          operation: 'import_students',
+          data: rows.map(row => ({
+            email: row.email,
+            firstName: row.firstname,
+            lastName: row.lastname || 'Student',
+            enrollmentId: row.enrollmentid || row.enrollment_id || '',
+            departmentId: row.departmentid || row.department_id || departments[0]?.id || '',
+            classId: row.classid || row.class_id || classes[0]?.id || '',
+            batchYear: parseInt(row.batchyear || row.batch_year) || new Date().getFullYear(),
+            semester: parseInt(row.semester) || 1,
+          })),
+          options: { sendNotifications: true, skipDuplicates: true },
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.message || 'Import failed');
+
+      toast.success(`Successfully imported ${rows.length} students`);
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      auditLogService.log('BULK_IMPORT', 'students', '', { newValues: { count: rows.length } });
+    } catch (err) {
+      console.error('Import error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to import students');
+    }
+
+    // Reset the file input
+    e.target.value = '';
+  };
+
   const renderStudentForm = (formValues: any, setFormValues: any, onSubmit: () => void, submitLabel: string) => (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
@@ -350,14 +418,7 @@ export default function StudentsPage() {
             accept=".csv"
             id="student-csv-upload"
             className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                toast.success(`Importing ${file.name}...`);
-                // CSV import logic would go here
-                setTimeout(() => toast.success('Students imported successfully'), 1500);
-              }
-            }}
+            onChange={handleImportCSV}
           />
           <label htmlFor="student-csv-upload">
             <Button variant="outline" className="border-slate-700 cursor-pointer" asChild>

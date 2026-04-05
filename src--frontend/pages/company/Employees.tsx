@@ -9,6 +9,7 @@ import {
   Mail, Phone, MapPin, Calendar, Eye, Edit, Trash2,
   CheckCircle, Clock, AlertTriangle
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const mockEmployees = [
   { id: 1, name: 'John Doe', email: 'john@google.com', role: 'Software Engineer', department: 'Engineering', employeeId: 'GOOG-001', status: 'active', avatar: 'JD', checkIn: '9:02 AM' },
@@ -30,6 +31,42 @@ export default function CompanyEmployees() {
   const [selectedRole, setSelectedRole] = useState('All Roles');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<typeof mockEmployees[0] | null>(null);
+  const [editEmployee, setEditEmployee] = useState<typeof mockEmployees[0] | null>(null);
+
+  const handleViewEmployee = (employee: typeof mockEmployees[0]) => {
+    setSelectedEmployee(employee);
+    toast.info(`Viewing ${employee.name}`);
+  };
+
+  const handleEditEmployee = (employee: typeof mockEmployees[0]) => {
+    setEditEmployee(employee);
+    toast.info(`Editing ${employee.name}`);
+  };
+
+  const handleDeleteEmployee = (employee: typeof mockEmployees[0]) => {
+    if (confirm(`Are you sure you want to delete ${employee.name}?`)) {
+      toast.success(`${employee.name} has been deleted`);
+    }
+  };
+
+  const handleExport = () => {
+    const csvContent = [
+      ['ID', 'Name', 'Email', 'Role', 'Department', 'Employee ID', 'Status'].join(','),
+      ...mockEmployees.map(emp => [
+        emp.id, emp.name, emp.email, emp.role, emp.department, emp.employeeId, emp.status
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'employees.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Employees exported successfully');
+  };
 
   const filteredEmployees = mockEmployees.filter(emp => {
     const matchesSearch = emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -150,7 +187,7 @@ export default function CompanyEmployees() {
                 {statuses.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}>
+            <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
@@ -232,13 +269,13 @@ export default function CompanyEmployees() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                        <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleViewEmployee(emp)}>
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                        <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleEditEmployee(emp)}>
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-red-400/50 hover:text-red-400">
+                        <Button variant="ghost" size="sm" className="text-red-400/50 hover:text-red-400" onClick={() => handleDeleteEmployee(emp)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

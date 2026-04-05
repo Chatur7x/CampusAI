@@ -8,6 +8,7 @@ import {
   Clock, Search, Download, MapPin, CheckCircle,
   AlertCircle, Calendar, Filter, Eye, Wifi, WifiOff
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const mockAttendance = [
   { id: 1, name: 'John Doe', employeeId: 'GOOG-001', checkIn: '9:02 AM', checkOut: '6:15 PM', hours: 9.2, status: 'present', location: 'Office' },
@@ -27,6 +28,28 @@ export default function CompanyAttendance() {
   const [selectedLocation, setSelectedLocation] = useState('All Locations');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const handleExportReport = () => {
+    const csvContent = [
+      ['ID', 'Name', 'Employee ID', 'Check In', 'Check Out', 'Hours', 'Location', 'Status'].join(','),
+      ...mockAttendance.map(emp => [
+        emp.id, emp.name, emp.employeeId, emp.checkIn, emp.checkOut, emp.hours, emp.location, emp.status
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance-${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Attendance report exported successfully');
+  };
+
+  const handleViewAttendance = (emp: typeof mockAttendance[0]) => {
+    toast.info(`Viewing attendance details for ${emp.name}`);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -71,7 +94,7 @@ export default function CompanyAttendance() {
             Track employee attendance and work hours
           </p>
         </div>
-        <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}>
+        <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={handleExportReport}>
           <Download className="w-4 h-4 mr-2" />
           Export Report
         </Button>
@@ -229,7 +252,7 @@ export default function CompanyAttendance() {
                       {getStatusBadge(emp.status)}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                      <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleViewAttendance(emp)}>
                         <Eye className="w-4 h-4" />
                       </Button>
                     </td>

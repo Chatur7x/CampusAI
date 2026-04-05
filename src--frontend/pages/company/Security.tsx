@@ -7,6 +7,7 @@ import {
   Shield, ShieldAlert, ShieldCheck, Users, AlertTriangle,
   Lock, Eye, Clock, CheckCircle, XCircle, Bell
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const securityEvents = [
   { id: 1, type: 'login', severity: 'low', message: 'Successful login from new device', user: 'john@google.com', time: '2 min ago', ip: '192.168.1.1' },
@@ -50,6 +51,18 @@ export default function CompanySecurity() {
     const newControls = [...controls];
     newControls[index].enabled = !newControls[index].enabled;
     setControls(newControls);
+    toast.success(`${newControls[index].name} ${newControls[index].enabled ? 'enabled' : 'disabled'}`);
+  };
+
+  const handleRunSecurityScan = () => {
+    toast.info('Running security scan...');
+    setTimeout(() => {
+      toast.success('Security scan completed. All checks passed!');
+    }, 3000);
+  };
+
+  const handleViewEvent = (event: typeof securityEvents[0]) => {
+    toast.info(`Viewing security event: ${event.message}`);
   };
 
   const highSeverityCount = securityEvents.filter(e => e.severity === 'high').length;
@@ -65,7 +78,7 @@ export default function CompanySecurity() {
             Monitor and manage security settings
           </p>
         </div>
-        <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost border-red-500/30 text-red-400' : 'border-red-300 text-red-600'}>
+        <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost border-red-500/30 text-red-400' : 'border-red-300 text-red-600'} onClick={handleRunSecurityScan}>
           <ShieldAlert className="w-4 h-4 mr-2" />
           Run Security Scan
         </Button>
@@ -127,7 +140,7 @@ export default function CompanySecurity() {
                         <span>{event.time}</span>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+                    <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => handleViewEvent(event)}>
                       <Eye className="w-4 h-4" />
                     </Button>
                   </div>

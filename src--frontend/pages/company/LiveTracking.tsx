@@ -8,6 +8,7 @@ import {
   CheckCircle, Radio, Route, Smartphone, Car, Pause, Play
 } from 'lucide-react';
 import { useGeoLocation, isWithinCampus, type Location } from '@/lib/geolocation';
+import { toast } from 'sonner';
 
 interface TrackedEmployee {
   id: string;
@@ -32,6 +33,16 @@ export default function LiveTracking() {
   const geo = useGeoLocation();
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
+
+  const handleTrack = (employeeId: string, employeeName: string) => {
+    setIsFollowing(true);
+    setSelectedEmployee(employeeId);
+    toast.info(`Now tracking ${employeeName}`);
+  };
+
+  const handleContact = (employeeId: string, employeeName: string) => {
+    toast.success(`Contacting ${employeeName}...`);
+  };
 
   const employeesWithLocation = useMemo(() => {
     return mockTrackedEmployees.map(emp => {
@@ -270,7 +281,7 @@ export default function LiveTracking() {
                         className={`flex-1 ${theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setIsFollowing(true);
+                          handleTrack(employee.id, employee.name);
                         }}
                       >
                         <Route className="w-4 h-4 mr-1" />
@@ -282,6 +293,7 @@ export default function LiveTracking() {
                         className={`flex-1 ${theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}`}
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleContact(employee.id, employee.name);
                         }}
                       >
                         <Smartphone className="w-4 h-4 mr-1" />

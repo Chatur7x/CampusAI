@@ -8,6 +8,7 @@ import {
   Calendar, Search, Plus, CheckCircle, XCircle,
   Clock, AlertCircle, Filter, Download, Eye
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const mockLeaveRequests = [
   { id: 1, employee: 'John Doe', type: 'Annual Leave', days: 5, startDate: '2026-04-10', endDate: '2026-04-14', status: 'pending', reason: 'Family vacation' },
@@ -26,8 +27,41 @@ export default function CompanyLeaveManagement() {
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [leaveRequests, setLeaveRequests] = useState(mockLeaveRequests);
 
-  const filteredRequests = mockLeaveRequests.filter(req => {
+  const handleApprove = (id: number) => {
+    setLeaveRequests(prev => prev.map(req => 
+      req.id === id ? { ...req, status: 'approved' } : req
+    ));
+    toast.success('Leave request approved');
+  };
+
+  const handleReject = (id: number) => {
+    setLeaveRequests(prev => prev.map(req => 
+      req.id === id ? { ...req, status: 'rejected' } : req
+    ));
+    toast.success('Leave request rejected');
+  };
+
+  const handleExport = () => {
+    const csvContent = [
+      ['ID', 'Employee', 'Type', 'Days', 'Start Date', 'End Date', 'Status', 'Reason'].join(','),
+      ...leaveRequests.map(req => [
+        req.id, req.employee, req.type, req.days, req.startDate, req.endDate, req.status, req.reason
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'leave-requests.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Leave requests exported successfully');
+  };
+
+  const filteredRequests = leaveRequests.filter(req => {
     const matchesSearch = req.employee.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = selectedType === 'All Types' || req.type === selectedType;
     const matchesStatus = selectedStatus === 'All Status' || req.status === selectedStatus.toLowerCase();
@@ -51,7 +85,7 @@ export default function CompanyLeaveManagement() {
     }
   };
 
-  const pendingCount = mockLeaveRequests.filter(r => r.status === 'pending').length;
+  const pendingCount = leaveRequests.filter(r => r.status === 'pending').length;
 
   return (
     <div className="space-y-6">
@@ -136,7 +170,7 @@ export default function CompanyLeaveManagement() {
                 {statuses.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}>
+            <Button variant="outline" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
@@ -176,10 +210,10 @@ export default function CompanyLeaveManagement() {
                 </div>
                 {req.status === 'pending' && (
                   <div className="flex gap-2 ml-4">
-                    <Button size="sm" className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30">
+                    <Button size="sm" className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30" onClick={() => handleApprove(req.id)}>
                       <CheckCircle className="w-4 h-4 mr-1" /> Approve
                     </Button>
-                    <Button size="sm" className="bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30">
+                    <Button size="sm" className="bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30" onClick={() => handleReject(req.id)}>
                       <XCircle className="w-4 h-4 mr-1" /> Reject
                     </Button>
                   </div>

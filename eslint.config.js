@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   // Exclude the server (separate Node.js project) and build output
-  { ignores: ['dist', 'server--backend/**'] },
+  { ignores: ['dist', 'server--backend/**', 'ai-server/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

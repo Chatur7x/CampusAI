@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +11,7 @@ import {
   ArrowUpRight, ArrowDownRight, Crown, Shield,
   Eye, BarChart3, Map
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const stats = [
   { label: 'Total Employees', value: '1,247', change: '+12%', positive: true, icon: Users, color: 'violet' },
@@ -44,6 +46,34 @@ export default function CompanyOverview() {
   const { organization } = useOrganization();
   const { theme } = useTheme();
   const [timeRange, setTimeRange] = useState('today');
+  const navigate = useNavigate();
+
+  const handleQuickAction = (action: string) => {
+    switch (action) {
+      case 'add-employee':
+        navigate('/company/employees');
+        break;
+      case 'reports':
+        navigate('/company/reports');
+        break;
+      case 'tracking':
+        navigate('/company/live-tracking');
+        break;
+      case 'security':
+        navigate('/company/security');
+        break;
+      default:
+        toast.info(`Action: ${action}`);
+    }
+  };
+
+  const handleViewAll = () => {
+    toast.info('Viewing all recent activity');
+  };
+
+  const handleTeamLeadAction = (leadName: string) => {
+    toast.info(`Opening ${leadName}'s analytics`);
+  };
 
   return (
     <div className="space-y-6">
@@ -120,7 +150,7 @@ export default function CompanyOverview() {
             <CardTitle className={`${theme === 'glassmorphism' ? 'text-white' : 'text-slate-800'}`}>
               Recent Activity
             </CardTitle>
-            <Button variant="ghost" size="sm" className={theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-400'}>
+            <Button variant="ghost" size="sm" className={theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-400'} onClick={handleViewAll}>
               View All
             </Button>
           </CardHeader>
@@ -209,7 +239,7 @@ export default function CompanyOverview() {
                     <p className="font-medium text-white">{lead.name}</p>
                     <p className="text-sm text-white/50">{lead.role}</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-white/50">
+                  <Button variant="ghost" size="sm" className="text-white/50" onClick={() => handleTeamLeadAction(lead.name)}>
                     <BarChart3 className="w-4 h-4" />
                   </Button>
                 </div>
@@ -227,22 +257,22 @@ export default function CompanyOverview() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
-              <button className="p-4 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 hover:border-violet-500/50 transition-all text-left">
+              <button className="p-4 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 hover:border-violet-500/50 transition-all text-left" onClick={() => handleQuickAction('add-employee')}>
                 <UserPlus className="w-6 h-6 text-violet-400 mb-2" />
                 <p className="font-medium text-white">Add Employee</p>
                 <p className="text-xs text-white/50">Onboard new staff</p>
               </button>
-              <button className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:border-emerald-500/50 transition-all text-left">
+              <button className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:border-emerald-500/50 transition-all text-left" onClick={() => handleQuickAction('reports')}>
                 <BarChart3 className="w-6 h-6 text-emerald-400 mb-2" />
                 <p className="font-medium text-white">View Reports</p>
                 <p className="text-xs text-white/50">Analytics dashboard</p>
               </button>
-              <button className="p-4 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:border-amber-500/50 transition-all text-left">
+              <button className="p-4 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:border-amber-500/50 transition-all text-left" onClick={() => handleQuickAction('tracking')}>
                 <Map className="w-6 h-6 text-amber-400 mb-2" />
                 <p className="font-medium text-white">Live Tracking</p>
                 <p className="text-xs text-white/50">Field employees</p>
               </button>
-              <button className="p-4 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 hover:border-blue-500/50 transition-all text-left">
+              <button className="p-4 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 hover:border-blue-500/50 transition-all text-left" onClick={() => handleQuickAction('security')}>
                 <Shield className="w-6 h-6 text-blue-400 mb-2" />
                 <p className="font-medium text-white">Security</p>
                 <p className="text-xs text-white/50">Monitor alerts</p>
