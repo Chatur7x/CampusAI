@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, createContext, useContext, type ReactNode, useEffect } from 'react';
+import { useState, useCallback, createContext, useContext, type ReactNode, useEffect } from 'react';
 import { supabase } from './supabase';
 
 export type WorkflowTrigger = 'manual' | 'scheduled' | 'event' | 'webhook';
@@ -81,15 +81,6 @@ interface WorkflowEngineContextValue {
 }
 
 const WorkflowEngineContext = createContext<WorkflowEngineContextValue | null>(null);
-
-const DEFAULT_STEPS: WorkflowStep[] = [
-  {
-    id: 'trigger',
-    type: 'trigger' as WorkflowStepType,
-    name: 'Start',
-    config: {},
-  },
-];
 
 export function WorkflowEngineProvider({ children }: { children: ReactNode }) {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -435,7 +426,7 @@ export function useWorkflowBuilder(initialWorkflow?: Workflow) {
       conditions: n.data.conditions,
     }));
 
-    state.edges.forEach((edge, i) => {
+    state.edges.forEach((edge) => {
       const sourceNode = steps.find(s => s.id === edge.source);
       if (sourceNode) {
         sourceNode.nextStepId = edge.target;

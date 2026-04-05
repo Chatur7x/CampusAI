@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
   MapPin, Navigation, Clock, Users, Activity, AlertCircle,
-  CheckCircle, Radio, Route, Smartphone, Car, Pause, Play
+  CheckCircle, Radio, Route, Smartphone, Pause, Play
 } from 'lucide-react';
 import { useGeoLocation, isWithinCampus, type Location } from '@/lib/geolocation';
 import { toast } from 'sonner';
@@ -32,10 +32,8 @@ export default function LiveTracking() {
   const { theme } = useTheme();
   const geo = useGeoLocation();
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
 
   const handleTrack = (employeeId: string, employeeName: string) => {
-    setIsFollowing(true);
     setSelectedEmployee(employeeId);
     toast.info(`Now tracking ${employeeName}`);
   };

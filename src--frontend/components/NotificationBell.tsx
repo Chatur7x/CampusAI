@@ -48,21 +48,17 @@ export function NotificationBell({ accentColor = 'emerald' }: NotificationBellPr
   const { user } = useSupabaseAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
   const userId = user?.id;
 
   // Fetch real notifications from Supabase
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
-    setIsLoading(true);
     try {
       const data = await notificationService.getForUser(userId);
       setNotifications(data.map(mapDbNotification));
     } catch (err) {
       console.warn('Failed to fetch notifications:', err);
-    } finally {
-      setIsLoading(false);
     }
   }, [userId]);
 

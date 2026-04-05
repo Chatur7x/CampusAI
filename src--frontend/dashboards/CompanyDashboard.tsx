@@ -1,18 +1,13 @@
-import { useState, lazy, Suspense, memo, type ReactNode } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { useOrganization } from '@/lib/organization';
-import { useTheme, useThemeDetection } from '@/themes';
+import { useTheme } from '@/themes';
 import {
-  LayoutDashboard, Building2, Users, UserPlus, Crown, Shield,
-  BarChart3, Settings, LogOut, Menu, Bell, Search,
-  ChevronRight, Eye, MapPin, Calendar, Clock, 
-  CheckCircle, AlertTriangle, TrendingUp, Briefcase,
-  GraduationCap, UserCog, FileText, Download, 
-  Map, Activity, ShieldAlert, Search as SearchIcon,
-  Plus, Filter, MoreVertical
+  LayoutDashboard, Building2, Users, UserPlus, Crown,
+  BarChart3, Settings, LogOut, Menu, Bell,
+  ChevronRight, Calendar, Clock, TrendingUp, Activity, ShieldAlert, Search as SearchIcon
 } from 'lucide-react';
-import { toast } from 'sonner';
 
 const CompanyOverview = lazy(() => import('@/pages/company/Overview'));
 const CompanyEmployees = lazy(() => import('@/pages/company/Employees'));
@@ -92,7 +87,6 @@ export default function CompanyDashboard() {
   const { user, signOut: logout } = useSupabaseAuth();
   const { organization } = useOrganization();
   const { theme } = useTheme();
-  const { isEducational } = useThemeDetection();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

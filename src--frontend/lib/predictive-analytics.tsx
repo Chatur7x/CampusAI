@@ -65,7 +65,7 @@ const AI_BASE_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000
 export function PredictiveAnalyticsProvider({ children }: { children: ReactNode }) {
   const [atRiskStudents, setAtRiskStudents] = useState<AtRiskStudent[]>([]);
   const [forecasts, setForecasts] = useState<Record<string, AttendanceForecast[]>>({});
-  const [trends, setTrends] = useState<PerformanceTrend[]>([]);
+  const [trends] = useState<PerformanceTrend[]>([]);
   const [insights, setInsights] = useState<PredictiveInsight[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 

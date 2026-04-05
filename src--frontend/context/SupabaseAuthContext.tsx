@@ -334,7 +334,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   // Sign in with email/password
   const signIn = useCallback(async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) {
         if (isSchemaError(error.message)) {

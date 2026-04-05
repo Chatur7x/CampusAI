@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
-  Settings as SettingsIcon, Building2, Bell, Shield, Key,
-  Palette, Globe, Save, User, Mail, Phone, MapPin, Hash, Eye
+  Building2, Bell, Shield,
+  Palette, Save, User, Mail, Phone, MapPin, Hash, Eye
 } from 'lucide-react';
 import { PRESET_FORMATS, generateEmployeeId } from '@/lib/employeeId';
 
@@ -51,7 +51,7 @@ export default function CompanySettings() {
     nextSequence: 247,
   });
   const [selectedPreset, setSelectedPreset] = useState<string>('');
-  const [previewId, setPreviewId] = useState('');
+  const [previewId, setPreviewId] = useState<string>('');
 
   const handleSave = () => {
     alert('Settings saved successfully!');

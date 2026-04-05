@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
-  Shield, ShieldAlert, ShieldCheck, Users, AlertTriangle,
-  Lock, Eye, Clock, CheckCircle, XCircle, Bell
+  Shield, ShieldAlert, ShieldCheck, AlertTriangle,
+  Lock, Eye, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 

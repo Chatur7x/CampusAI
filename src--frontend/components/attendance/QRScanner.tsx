@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { X, Camera, RefreshCw } from 'lucide-react';
@@ -9,7 +9,6 @@ interface QRScannerProps {
 }
 
 export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
-  const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
@@ -29,7 +28,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         scanner.clear();
         onScanSuccess(decodedText);
       },
-      (errorMessage) => {
+      (_errorMessage) => {
         // Scan failed (usually just "no QR code found in frame")
         // We don't want to spam the UI with this
       }

@@ -68,10 +68,6 @@ export default function SettingsPage() {
     load();
   }, []);
 
-  const saveSetting = async (key: keyof SettingState, value: string | number | boolean) => {
-    await settingsService.set(String(key), String(value));
-  };
-
   const handleSave = async () => {
     try {
       setSaving(true);

@@ -122,7 +122,7 @@ export function validateEmployeeId(
 
 export async function getNextSequence(
   organizationId: string,
-  config: EmployeeIdConfig = DEFAULT_CONFIG
+  _config: EmployeeIdConfig = DEFAULT_CONFIG
 ): Promise<number> {
   const { data, error } = await supabase
     .from('employee_id_sequences')
@@ -163,13 +163,13 @@ export async function generateAndAssignEmployeeId(
     name?: string;
   }
 ): Promise<GeneratedEmployeeId> {
-  const { data: configData } = await supabase
+  const { data } = await supabase
     .from('organizations')
     .select('employee_id_config')
     .eq('id', organizationId)
     .single();
 
-  const config: EmployeeIdConfig = configData?.employee_id_config || DEFAULT_CONFIG;
+  const config: EmployeeIdConfig = data?.employee_id_config || DEFAULT_CONFIG;
   const sequence = await getNextSequence(organizationId, config);
   const employeeId = generateEmployeeId(config, sequence, metadata);
 

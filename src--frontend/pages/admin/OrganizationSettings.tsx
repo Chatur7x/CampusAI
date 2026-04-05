@@ -6,13 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { 
-  Building2, Users, Shield, Settings, Plus, 
-  Check, X, Mail, Globe, Phone, MapPin,
-  Crown, UserPlus, Trash2, Edit, Copy, CheckCircle
+  Building2, Shield, Settings, Plus, 
+  Edit, Copy
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrganization, defaultSettings } from '@/lib/organization';
-import { supabase } from '@/lib/supabase';
 
 export default function OrganizationSettingsPage() {
   const { organization, organizations, updateOrganization, createOrganization, switchOrganization } = useOrganization();

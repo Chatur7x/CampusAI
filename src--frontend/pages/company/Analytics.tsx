@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
-  BarChart3, TrendingUp, TrendingDown, Users, Calendar,
-  Download, PieChart, Activity, Target, Eye
+  BarChart3, TrendingUp, TrendingDown, Users,
+  Download, PieChart, Activity, Target
 } from 'lucide-react';
 
 const analyticsData = {

@@ -1,13 +1,5 @@
-import { useState, lazy, Suspense, memo } from 'react';
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { NotificationBell } from '@/components/NotificationBell';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { CommandPaletteTrigger } from '@/components/CommandPalette';
+import { lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -23,18 +15,13 @@ import {
   BarChart3,
   Bell,
   Settings,
-  Menu,
-  LogOut,
   User,
   Loader2,
   Brain,
   MessageSquare,
   UserPlus,
-  ScrollText,
   Eye,
-  ClipboardCheck,
 } from 'lucide-react';
-import { toast } from 'sonner';
 
 // Lazy load all admin pages for consistency
 const AdminOverview = lazy(() => import('@/pages/admin/Overview'));
@@ -99,49 +86,9 @@ const sidebarItems = [
   { icon: Settings, label: 'Settings', path: '/admin/settings', color: 'slate' },
 ];
 
-// Memoized Sidebar Link Component
-const SidebarLink = memo(({ item, isActive, onClick }: { item: typeof sidebarItems[0], isActive: boolean, onClick: () => void }) => {
-  const Icon = item.icon;
-  return (
-    <Link
-      to={item.path}
-      onClick={onClick}
-      className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ease-in-out ${
-        isActive
-          ? 'bg-gradient-to-r from-blue-600/20 to-emerald-500/20 text-blue-300 shadow-lg shadow-blue-500/10 scale-[1.02]'
-          : 'text-slate-400 hover:text-white hover:bg-slate-800/60 hover:scale-[1.01]'
-      }`}
-    >
-      {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-gradient-to-b from-blue-500 to-emerald-400 rounded-r-full shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
-      )}
-      <Icon className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-blue-400' : ''}`} />
-      <span className="font-medium tracking-wide">{item.label}</span>
-      {isActive && (
-        <div className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-      )}
-    </Link>
-  );
-});
-
 export default function AdminDashboard() {
-  const { user, signOut: logout } = useSupabaseAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const handleLogout = () => {
-    logout();
-    toast.success('Logged out successfully');
-    navigate('/login', { replace: true });
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase();
+  const _handleLogout = () => {
+    // Placeholder for future logout implementation
   };
 
   return (

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
   UserPlus, Search, Upload, FileText, CheckCircle,
-  Clock, AlertCircle, ArrowRight, Users, Mail, Phone
+  Clock, ArrowRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 

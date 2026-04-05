@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
-  ShieldAlert, AlertTriangle, CheckCircle, Shield, Activity, 
-  MapPin, Fingerprint, Key, Clock, RefreshCw, AlertOctagon,
+  ShieldAlert, Shield, Activity, 
+  MapPin, Key, Clock, RefreshCw, AlertOctagon,
   TrendingUp, Globe, Smartphone, UserX, Info, ExternalLink,
   Search, ShieldCheck, Zap
 } from 'lucide-react';
@@ -14,7 +14,6 @@ import { supabase } from '@/lib/supabase';
 import MFASetup from '@/components/security/MFASetup';
 import TrustedDevices from '@/components/security/TrustedDevices';
 import LoginHistoryComponent from '@/components/security/LoginHistory';
-import ActiveSessions from '@/components/security/ActiveSessions';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SecurityAlert } from '@/lib/database.types';
 

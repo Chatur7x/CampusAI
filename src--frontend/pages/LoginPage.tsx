@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Navigate } from "react-router-dom";
 import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 
 /* ================================================================
@@ -82,17 +81,7 @@ export default function LoginPage() {
     return () => { card.removeEventListener("mousemove", handleMove); card.removeEventListener("mouseleave", handleLeave); };
   }, []);
 
-  /* Redirect logic — Modified to show "Continue as" identity card instead of auto-redirecting if a session is found on the login page hit */
-  const [skipAutoRedirect, setSkipAutoRedirect] = useState(false);
 
-  // If already authenticated, we still show the login page BUT with a "Continue as" identity card 
-  // unless we are already redirecting.
-  useEffect(() => {
-    if (isAuthenticated && !skipAutoRedirect) {
-      // Small delay to show the transition or we could just show the card
-      // For now, let's keep the user on the login page so they can see the "Switch Account" option
-    }
-  }, [isAuthenticated, skipAutoRedirect]);
 
   const handleContinueAs = () => {
     if (!user) return;

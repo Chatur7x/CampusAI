@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
-  Users, Search, Filter, Download, UserPlus, MoreVertical,
-  Mail, Phone, MapPin, Calendar, Eye, Edit, Trash2,
-  CheckCircle, Clock, AlertTriangle
+  Search, Download, UserPlus,
+  Eye, Edit, Trash2,
+  CheckCircle, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,18 +30,13 @@ export default function CompanyEmployees() {
   const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [selectedRole, setSelectedRole] = useState('All Roles');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<typeof mockEmployees[0] | null>(null);
-  const [editEmployee, setEditEmployee] = useState<typeof mockEmployees[0] | null>(null);
 
-  const handleViewEmployee = (employee: typeof mockEmployees[0]) => {
-    setSelectedEmployee(employee);
-    toast.info(`Viewing ${employee.name}`);
+  const handleViewEmployee = (_employee: typeof mockEmployees[0]) => {
+    toast.info(`Viewing ${_employee.name}`);
   };
 
-  const handleEditEmployee = (employee: typeof mockEmployees[0]) => {
-    setEditEmployee(employee);
-    toast.info(`Editing ${employee.name}`);
+  const handleEditEmployee = (_employee: typeof mockEmployees[0]) => {
+    toast.info(`Editing ${_employee.name}`);
   };
 
   const handleDeleteEmployee = (employee: typeof mockEmployees[0]) => {
@@ -103,7 +98,7 @@ export default function CompanyEmployees() {
           </p>
         </div>
         <Button 
-          onClick={() => setShowAddModal(true)}
+          onClick={() => toast.info('Add employee modal coming soon')}
           className={theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}
         >
           <UserPlus className="w-4 h-4 mr-2" />

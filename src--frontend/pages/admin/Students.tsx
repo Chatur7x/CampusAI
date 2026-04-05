@@ -73,12 +73,12 @@ export default function StudentsPage() {
     queryFn: () => studentService.getAll(),
   });
 
-  const { data: departments = [], isLoading: isDepartmentsLoading } = useQuery<Department[]>({
+  const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ['departments'],
     queryFn: () => departmentService.getAll(),
   });
 
-  const { data: classes = [], isLoading: isClassesLoading } = useQuery<Class[]>({
+  const { data: classes = [] } = useQuery<Class[]>({
     queryKey: ['classes'],
     queryFn: () => classService.getAll(),
   });

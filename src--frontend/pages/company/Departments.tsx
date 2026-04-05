@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
-  Building2, Search, Plus, Users, Briefcase,
-  Edit, Trash2, Eye, MoreVertical, TrendingUp
+  Building2, Search, Plus, Users,
+  Edit, Eye, TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 

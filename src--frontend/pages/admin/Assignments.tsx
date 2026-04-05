@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { assignmentService, type Assignment } from '@/lib/api';
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { 
   Plus, Search, BookOpen, Calendar, Clock, 
   CheckCircle, AlertCircle, FileText, Download 
@@ -12,7 +11,6 @@ import {
 import { toast } from 'sonner';
 
 export default function AdminAssignmentsPage() {
-  const { user } = useSupabaseAuth();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

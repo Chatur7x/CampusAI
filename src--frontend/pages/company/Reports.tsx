@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
-  FileText, Download, BarChart3, Users, Calendar,
-  TrendingUp, PieChart, Clock, CheckCircle, Eye
+  FileText, Download, Users, Calendar,
+  TrendingUp, PieChart, Clock, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,7 +25,6 @@ const recentReports = [
 
 export default function CompanyReports() {
   const { theme } = useTheme();
-  const [selectedType, setSelectedType] = useState('all');
 
   const handleGenerateReport = (report: typeof reportTypes[0]) => {
     toast.success(`Generating ${report.name}...`);

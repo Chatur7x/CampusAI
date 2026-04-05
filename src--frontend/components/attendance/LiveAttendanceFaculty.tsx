@@ -7,7 +7,7 @@ import { QrCode, Play, StopCircle, CheckCircle2, XCircle, ShieldAlert, Timer, Us
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
-import { studentService, attendanceService, auditLogService, sessionService } from '@/lib/api';
+import { studentService, auditLogService, sessionService } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
@@ -43,7 +43,6 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
   const [bleScannerActive, setBleScannerActive] = useState(false);
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('');
 
   // Fetch enrolled students when component mounts
   useEffect(() => {
@@ -62,7 +61,6 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
     if (!classId) return;
     
     setSaving(true);
-    setStatusMsg('Initializing Secure Session...');
 
     try {
       // 1. Get faculty location for geo-fencing anchor
@@ -121,7 +119,6 @@ export default function LiveAttendanceFaculty({ classId, subjectId, timetableEnt
       toast.error(err.message || 'Failed to start secure session. Please check location permissions.');
     } finally {
       setSaving(false);
-      setStatusMsg('');
     }
   };
 

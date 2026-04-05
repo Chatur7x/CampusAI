@@ -46,7 +46,6 @@ async function main() {
   const CYBER_CLASS_SECTION = 'A';
   const CYBER_ACADEMIC_YEAR = '2024-2025';
   const CYBER_COURSE_CODE = 'BTCS';
-  const SAIKRISHNA_EMAIL = 'saikrishnait@anurag.edu.in';
   const SAIKRISHNA_UID = '3d70b8b0-81d8-4c9d-ae5e-046dd803ae62';
   const SAIKRISHNA_EMP_ID = 'FAC-CS-001';
   const STUDENTS = [
@@ -157,8 +156,8 @@ async function main() {
   // ── 1. Check what columns courses actually has ──
   console.log('\n── Checking existing data ──');
   const existingCourse = await selectOne('courses', 'code', 'BTIT');
-  const existingFaculty = await selectOne('faculty', 'userId', FACULTY_UID);
-  const existingStudent = await selectOne('students', 'userId', STUDENT_UID);
+  const existingFaculty = await selectOne('faculty', 'userId', SAIKRISHNA_UID);
+  const existingStudent = await selectOne('students', 'userId', STUDENTS[0].uid);
 
   // ── 2. Create Course (without 'semester' since it might not exist) ──
   let courseId;
@@ -220,7 +219,7 @@ async function main() {
     console.log(`  Student row already exists: ${existingStudent.id}`);
   } else if (classId) {
     await rest('POST', 'students', {
-      userId: STUDENT_UID,
+      userId: STUDENTS[0].uid,
       enrollmentId: '24EG109A28',
       departmentId: DEPT_ID,
       classId,

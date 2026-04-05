@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
-  Clock, Search, Download, MapPin, CheckCircle,
-  AlertCircle, Calendar, Filter, Eye, Wifi, WifiOff
+  Search, Download, MapPin, CheckCircle,
+  AlertCircle, Calendar, Eye, Wifi, WifiOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 

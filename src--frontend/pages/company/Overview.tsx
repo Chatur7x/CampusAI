@@ -6,12 +6,16 @@ import { Badge } from '@/components/ui/badge';
 import { useOrganization } from '@/lib/organization';
 import { useTheme } from '@/themes';
 import {
-  Users, Clock, TrendingUp, CheckCircle, AlertTriangle,
-  MapPin, Calendar, Activity, UserPlus, Briefcase,
-  ArrowUpRight, ArrowDownRight, Crown, Shield,
-  Eye, BarChart3, Map
+  Users, Clock, CheckCircle, AlertTriangle,
+  Calendar, UserPlus,
+  ArrowUpRight, ArrowDownRight, Shield,
+  BarChart3, Map
 } from 'lucide-react';
-import { toast } from 'sonner';
+
+const _toast = {
+  info: (msg: string) => console.log(msg),
+  success: (msg: string) => console.log(msg),
+};
 
 const stats = [
   { label: 'Total Employees', value: '1,247', change: '+12%', positive: true, icon: Users, color: 'violet' },
@@ -63,16 +67,16 @@ export default function CompanyOverview() {
         navigate('/company/security');
         break;
       default:
-        toast.info(`Action: ${action}`);
+        _toast.info(`Action: ${action}`);
     }
   };
 
   const handleViewAll = () => {
-    toast.info('Viewing all recent activity');
+    _toast.info('Viewing all recent activity');
   };
 
   const handleTeamLeadAction = (leadName: string) => {
-    toast.info(`Opening ${leadName}'s analytics`);
+    _toast.info(`Opening ${leadName}'s analytics`);
   };
 
   return (

@@ -46,7 +46,6 @@ export function useCollaborationHub(options: UseCollaborationOptions) {
   const [typingUsers, setTypingUsers] = useState<TypingIndicator[]>([]);
   const [collaborators, setCollaborators] = useState<PresenceUser[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Fetch recent activities
   const fetchActivities = useCallback(async () => {
@@ -239,12 +238,10 @@ export function useCollaborationHub(options: UseCollaborationOptions) {
 export const CollaborationActivityFeed = memo(({ 
   activities, 
   maxItems = 10,
-  showAvatars = true,
   className = ''
 }: { 
   activities: ActivityItem[];
   maxItems?: number;
-  showAvatars?: boolean;
   className?: string;
 }) => {
   const getTypeIcon = (type: ActivityItem['type']) => {

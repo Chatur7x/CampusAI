@@ -20,13 +20,6 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
       lg: "h-4",
     }
 
-    const variants = {
-      default: "bg-slate-700",
-      gradient: "",
-      glow: "",
-      striped: "",
-    }
-
     const indicatorVariants = {
       default: "bg-slate-400",
       gradient: "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500",

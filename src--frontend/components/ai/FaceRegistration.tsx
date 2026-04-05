@@ -1,16 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import {
   Camera, CheckCircle2, AlertTriangle, RotateCcw,
-  ScanFace, Shield, Loader2, ChevronRight, Eye,
+  ScanFace, Shield, Loader2, ChevronRight,
   Lock, Zap, Sparkles, Orbit
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
-import { registerFace, checkLiveness, captureFrame, getLivenessChallenge } from '@/lib/ai/apiClient';
+import { registerFace, captureFrame, getLivenessChallenge } from '@/lib/ai/apiClient';
 import { studentService } from '@/lib/api';
 import type { LivenessChallenge } from '@/lib/ai/apiClient';
 import * as faceMeshModule from '@mediapipe/face_mesh';
@@ -37,7 +35,7 @@ const LIVENESS_FRAMES = 5;
 export default function FaceRegistration() {
   const { user } = useSupabaseAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const _canvasRef = useRef<HTMLCanvasElement>(null);
   const meshCanvasRef = useRef<HTMLCanvasElement>(null);
   const faceMeshRef = useRef<any>(null);
   const landmarksRef = useRef<any[] | null>(null);
@@ -53,26 +51,21 @@ export default function FaceRegistration() {
   const [errorMsg, setErrorMsg] = useState('');
   const [livenessProgress, setLivenessProgress] = useState(0);
   const [livenessInstruction, setLivenessInstruction] = useState('');
-  const [lightingScore, setLightingScore] = useState(100);
+  const [_lightingScore, setLightingScore] = useState(100);
   const [lightingLabel, setLightingLabel] = useState<'GOOD' | 'TOO DARK' | 'TOO BRIGHT'>('GOOD');
-  const [activeChallenge, setActiveChallenge] = useState<LivenessChallenge | null>(null);
   const [meshLoaded, setMeshLoaded] = useState(false);
 
   // ── Camera ──
 
   const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          width: { ideal: 1280 }, 
-          height: { ideal: 720 }, 
-          facingMode: 'user' 
-        },
-      });
-      streamRef.current = stream;
-    } catch (err) {
-      throw err;
-    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { 
+        width: { ideal: 1280 }, 
+        height: { ideal: 720 }, 
+        facingMode: 'user' 
+      },
+    });
+    streamRef.current = stream;
   };
 
   const stopCamera = () => {
@@ -135,7 +128,7 @@ export default function FaceRegistration() {
         canvasCtx.lineWidth = 0.5;
 
         // Simplify mesh drawing by drawing primary contours
-        const drawConnectors = (indices: number[][]) => {
+        const _drawConnectors = (indices: number[][]) => {
           indices.forEach(([start, end]) => {
             const s = landmarks[start];
             const e = landmarks[end];
@@ -330,7 +323,6 @@ export default function FaceRegistration() {
     setStatusMsg('Initializing biometric scanner...');
     try {
       const challenge = await getLivenessChallenge();
-      setActiveChallenge(challenge);
       setStep('liveness');
       startLivenessCapture(capturedPhotos, challenge);
     } catch (err) {

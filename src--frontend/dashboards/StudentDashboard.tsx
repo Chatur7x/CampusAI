@@ -1,23 +1,8 @@
-import { useState, lazy, Suspense } from 'react';
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
-import { NotificationBell } from '@/components/NotificationBell';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { CommandPaletteTrigger } from '@/components/CommandPalette';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   LayoutDashboard,
   Calendar,
@@ -25,10 +10,6 @@ import {
   Calculator,
   Bell,
   Settings,
-  Menu,
-  LogOut,
-  ChevronDown,
-  User,
   GraduationCap,
   ScanFace,
   Brain,
@@ -36,7 +17,6 @@ import {
   BookOpen,
   FileText,
 } from 'lucide-react';
-import { toast } from 'sonner';
 
 // Student Pages — lazy loaded for faster initial bundle
 const StudentOverview = lazy(() => import('@/pages/student/Overview'));
@@ -80,26 +60,11 @@ const sidebarItems = [
 ];
 
 export default function StudentDashboard() {
-  const { user, signOut: logout } = useSupabaseAuth();
+  const { user } = useSupabaseAuth();
   const student = user?.student || null;
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // (AI Dashboard now self-fetches its data)
-
-  const handleLogout = () => {
-    logout();
-    toast.success('Logged out successfully');
-    navigate('/login', { replace: true });
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase();
+  const _handleLogout = () => {
+    // Placeholder for future logout implementation
   };
 
   return (

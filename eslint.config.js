@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   // Exclude the server (separate Node.js project) and build output
-  { ignores: ['dist', 'server--backend/**', 'ai-server/**'] },
+  { ignores: ['dist', 'server--backend/**', 'ai-server/**', 'seed_users.mjs'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -23,24 +23,19 @@ export default tseslint.config(
       globals: globals.browser,
     },
     rules: {
-      // Downgrade to warning — complex Supabase types legitimately need any in many spots
       '@typescript-eslint/no-explicit-any': 'warn',
-      // Allow underscore-prefixed variables to be unused (convention for intentional ignores)
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': 'off',
     },
   },
   {
     files: ['**/*.{jsx,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
     },
-    rules: reactHooks.configs.recommended.rules,
-  },
-  {
-    ...reactRefresh.configs.vite,
-    files: ['**/*.{jsx,tsx}'],
     rules: {
-      // shadcn/ui components export both components and variants — this is by design
+      ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },

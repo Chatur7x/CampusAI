@@ -6,9 +6,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
 import {
   CheckCircle2, AlertTriangle, ScanFace, Shield,
   Loader2, MapPin, Lock, Eye, ShieldAlert,
@@ -74,17 +74,10 @@ export default function FaceAttendance() {
   // ── Camera ──
 
   const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
-      });
-      streamRef.current = stream;
-      // We do NOT attach to videoRef here because the `<video>` element
-      // is only rendered when step is 'face' or 'liveness'.
-      // The stream will be attached via another useEffect when the step changes.
-    } catch (err) {
-      throw err;
-    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: 'user' },
+    });
+    streamRef.current = stream;
   };
 
   const stopCamera = () => {

@@ -3,17 +3,16 @@
 // =============================================================
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
 import {
-    CheckCircle2, AlertTriangle, ScanFace, Shield,
-    Loader2, MapPin, Lock, Eye, ShieldAlert,
+    CheckCircle2, ScanFace, Shield,
+    MapPin, Lock, Eye, ShieldAlert,
     Maximize, Brain, CheckSquare, Clock3,
-    QrCode as QrIcon,
+    QrCode as QrIcon
   } from 'lucide-react';
 import QRScanner from './QRScanner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -57,14 +56,14 @@ export default function SecureAttendanceStudent() {
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [sessionCode, setSessionCode] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [_errorMsg, setErrorMsg] = useState('');
   const [isFocusLocked, setIsFocusLocked] = useState(false);
   const [focusViolations, setFocusViolations] = useState(0);
   const [showScanner, setShowScanner] = useState(false);
 
   // Stats
   const [locationData, setLocationData] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
-  const [faceVisible, setFaceVisible] = useState(false);
+  const [_faceVisible, setFaceVisible] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [activeSession, setActiveSession] = useState<any | null>(null);
   const [livenessProgress, setLivenessProgress] = useState(0);
