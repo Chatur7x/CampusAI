@@ -35,6 +35,9 @@ import {
   ClipboardList,
   BookOpen,
   MessageSquare,
+  UserPlus,
+  Eye,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -52,6 +55,7 @@ const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistra
 const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
 const FacultyLeaveRequestsPage = lazy(() => import('@/pages/faculty/LeaveRequests'));
 const FacultyAssignmentsPage = lazy(() => import('@/pages/faculty/Assignments'));
+const FacultyReportsPage = lazy(() => import('@/pages/faculty/Reports'));
 const ChatPage = lazy(() => import('@/pages/Chat'));
 
 // Loading spinner for lazy-loaded pages
@@ -65,20 +69,21 @@ const PageLoader = () => (
 );
 
 const sidebarItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/faculty' },
-  { icon: ClipboardCheck, label: 'Live Session', path: '/faculty/live-attendance' },
-  { icon: Users, label: 'My Classes', path: '/faculty/classes' },
-  { icon: GraduationCap, label: 'My Students', path: '/faculty/students' },
-  { icon: Calendar, label: 'Timetable', path: '/faculty/timetable' },
-  { icon: ClipboardCheck, label: 'Attendance', path: '/faculty/attendance' },
-  { icon: BarChart3, label: 'Analytics', path: '/faculty/analytics' },
-  { icon: BookOpen, label: 'Assignments', path: '/faculty/assignments' },
-  { icon: Bell, label: 'Notices', path: '/faculty/notices' },
-  { icon: ClipboardList, label: 'Leave Approvals', path: '/faculty/leaves' },
-  { icon: MessageSquare, label: 'Messages', path: '/faculty/chat' },
-  { icon: User, label: 'Register Student', path: '/faculty/register-student' },
-  { icon: Settings, label: 'Settings', path: '/faculty/settings' },
-  { icon: Brain, label: 'AI Analytics', path: '/faculty/ai-analytics' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/faculty', color: 'violet' },
+  { icon: Eye, label: 'Live Session', path: '/faculty/live-attendance', color: 'emerald' },
+  { icon: Users, label: 'My Classes', path: '/faculty/classes', color: 'blue' },
+  { icon: GraduationCap, label: 'My Students', path: '/faculty/students', color: 'cyan' },
+  { icon: Calendar, label: 'Timetable', path: '/faculty/timetable', color: 'amber' },
+  { icon: ClipboardCheck, label: 'Attendance', path: '/faculty/attendance', color: 'pink' },
+  { icon: BarChart3, label: 'Analytics', path: '/faculty/analytics', color: 'teal' },
+  { icon: BookOpen, label: 'Assignments', path: '/faculty/assignments', color: 'orange' },
+  { icon: Bell, label: 'Notices', path: '/faculty/notices', color: 'yellow' },
+  { icon: ClipboardList, label: 'Leave Approvals', path: '/faculty/leaves', color: 'indigo' },
+  { icon: MessageSquare, label: 'Messages', path: '/faculty/chat', color: 'purple' },
+  { icon: UserPlus, label: 'Register Student', path: '/faculty/register-student', color: 'rose' },
+  { icon: FileText, label: 'Reports', path: '/faculty/reports', color: 'slate' },
+  { icon: Settings, label: 'Settings', path: '/faculty/settings', color: 'gray' },
+  { icon: Brain, label: 'AI Analytics', path: '/faculty/ai-analytics', color: 'violet' },
 ];
 
 export default function FacultyDashboard() {
@@ -122,6 +127,7 @@ export default function FacultyDashboard() {
             <Route path="/settings" element={<FacultySettingsPage />} />
             <Route path="/register-student" element={<StudentRegistrationPage />} />
             <Route path="/leaves" element={<FacultyLeaveRequestsPage />} />
+            <Route path="/reports" element={<FacultyReportsPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/ai-analytics" element={<AIDashboard role="faculty" />} />
           </Routes>

@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 // =============================================================
-// CAMPUSAI - SUPABASE EDGE FUNCTION  
+// AISMS - SUPABASE EDGE FUNCTION  
 // Advanced Analytics & Reporting
 // =============================================================
 
@@ -215,14 +213,19 @@ Deno.serve(async (req) => {
           .eq('is_active', true)
 
         // Calculate workload metrics
-        const workloadAnalysis = facultyData?.map(f => ({
-          id: f.id,
-          employeeId: f.employee_id,
-          name: `${f.profile?.first_name} ${f.profile?.last_name}`,
-          designation: f.designation,
-          classesAssigned: (f.classes as unknown[])?.[0]?.count || 0,
-          periodsPerWeek: (f.timetable as unknown[])?.[0]?.count || 0,
-        }))
+        const workloadAnalysis = facultyData?.map(f => {
+          const profile = f.profile as { first_name?: string; last_name?: string } | undefined;
+          const classes = f.classes as unknown as { count?: number }[] | undefined;
+          const timetable = f.timetable as unknown as { count?: number }[] | undefined;
+          return {
+            id: f.id,
+            employeeId: f.employee_id,
+            name: `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || 'Unknown',
+            designation: f.designation,
+            classesAssigned: classes?.[0]?.count || 0,
+            periodsPerWeek: timetable?.[0]?.count || 0,
+          };
+        })
 
         const avgPeriods = workloadAnalysis?.reduce((sum, f) => sum + f.periodsPerWeek, 0) / (workloadAnalysis?.length || 1)
 
@@ -267,12 +270,37 @@ Deno.serve(async (req) => {
         // Day of week analysis
         const { data: dayOfWeekData } = await supabase.rpc('get_attendance_by_day_of_week')
 
+        // Auto-generate insights
+        const insights: string[] = []
+        const avgMonthly = monthlyAverages.length > 0 
+          ? monthlyAverages.reduce((sum, m) => sum + parseFloat(m.averageAttendance as string), 0) / monthlyAverages.length 
+          : 0;
+        
+        if (avgMonthly >= 85) {
+          insights.push('Excellent attendance trend - consistently above 85%');
+        } else if (avgMonthly >= 75) {
+          insights.push('Good attendance maintained with room for improvement');
+        } else if (avgMonthly >= 65) {
+          insights.push('Attendance below target - intervention recommended');
+        } else {
+          insights.push('Critical attendance levels - immediate action required');
+        }
+
+        if (monthlyAverages.length >= 2) {
+          const lastMonth = parseFloat(monthlyAverages[monthlyAverages.length - 1].averageAttendance as string);
+          const prevMonth = parseFloat(monthlyAverages[monthlyAverages.length - 2].averageAttendance as string);
+          const trend = lastMonth - prevMonth;
+          if (trend > 2) {
+            insights.push(`Improving trend: +${trend.toFixed(1)}% compared to previous month`);
+          } else if (trend < -2) {
+            insights.push(`Declining trend: ${trend.toFixed(1)}% compared to previous month`);
+          }
+        }
+
         reportData = {
           monthlyTrend: monthlyAverages,
           dayOfWeekAnalysis: dayOfWeekData,
-          insights: [
-            // Auto-generate insights
-          ],
+          insights,
         }
         break
       }

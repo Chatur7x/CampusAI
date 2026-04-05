@@ -303,7 +303,6 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, newSession: Session | null) => {
         if (!mounted) return;
-        console.log('Auth event:', event);
         setSession(newSession);
         setSupabaseUser(newSession?.user ?? null);
 
@@ -335,20 +334,12 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   // Sign in with email/password
   const signIn = useCallback(async (email: string, password: string) => {
     try {
-      console.log('[AUTH] Attempting signInWithPassword for:', email);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      console.log('[AUTH] signInWithPassword result - data:', !!data?.session, 'error:', error?.message);
       
       if (error) {
-        // Schema error = Supabase server-side crash (500). 
-        // GoTrue does NOT create a session in this case, so there's nothing to recover.
-        // Show a clear, actionable error to the user.
         if (isSchemaError(error.message)) {
-          console.error('[AUTH] Supabase 500 schema error — server cannot authenticate:', error.message);
-          // Try to check if somehow a session was created despite the error
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session) {
-            console.warn('[AUTH] Found session despite schema error — recovering');
             setSession(sessionData.session);
             setUser(userFromSession(sessionData.session.user));
             fetchUserData(sessionData.session.user).then(fullUser => {
@@ -361,22 +352,17 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
             error: '⚠️ Database schema error on Supabase server. Please run the FIX_LOGIN_FINAL.sql script in your Supabase SQL Editor to repair the schema cache.' 
           };
         }
-        console.error('[AUTH] Real auth error:', error.message);
         return { success: false, error: error.message };
       }
       
-      console.log('[AUTH] Login successful, session:', !!data?.session);
       return { success: true };
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error('[AUTH] Exception during signIn:', msg);
+      const errorMsg = error instanceof Error ? error.message : String(error);
       
       // PostgREST schema cache error — check if session exists anyway
-      if (isSchemaError(msg)) {
+      if (isSchemaError(errorMsg)) {
         const { data: sessionData } = await supabase.auth.getSession();
         if (sessionData?.session) {
-          console.warn('[AUTH] Schema error exception but session found — login succeeded');
-          // Fix: Manually update context state since event listener is bypassed
           setSession(sessionData.session);
           setUser(userFromSession(sessionData.session.user));
           fetchUserData(sessionData.session.user).then(fullUser => {
@@ -386,13 +372,13 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         }
       }
       // Network-level failures
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ERR_CONNECTION') || msg.includes('TIMEOUT')) {
+      if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('ERR_CONNECTION') || errorMsg.includes('TIMEOUT')) {
         return {
           success: false,
           error: 'Cannot reach the server. The Supabase project may be paused — please restore it at supabase.com/dashboard, or check your internet connection.',
         };
       }
-      return { success: false, error: msg || 'An unexpected error occurred' };
+      return { success: false, error: errorMsg || 'An unexpected error occurred' };
     }
   }, []);
 
@@ -448,7 +434,6 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
   // Sign out
   const signOut = useCallback(async () => {
-    console.log('[AUTH] Signing out and clearing local session');
     await supabase.auth.signOut();
     
     // Force clear any remaining auth keys from localStorage to prevent auto-login loops

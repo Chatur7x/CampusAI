@@ -29,6 +29,10 @@ import {
   Loader2,
   Brain,
   MessageSquare,
+  UserPlus,
+  ScrollText,
+  Eye,
+  ClipboardCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,8 +50,12 @@ const AnalyticsPage = lazy(() => import('@/pages/admin/Analytics'));
 const NoticesPage = lazy(() => import('@/pages/admin/Notices'));
 const SettingsPage = lazy(() => import('@/pages/admin/Settings'));
 const StudentRegistrationPage = lazy(() => import('@/pages/admin/StudentRegistration'));
+const AdminAssignmentsPage = lazy(() => import('@/pages/admin/Assignments'));
+const LiveAttendanceAdmin = lazy(() => import('@/components/attendance/LiveAttendanceFaculty'));
 const AIDashboard = lazy(() => import('@/components/ai/AIDashboard'));
 const ChatPage = lazy(() => import('@/pages/Chat'));
+const OrganizationSettingsPage = lazy(() => import('@/pages/admin/OrganizationSettings'));
+const OrganizationMembersPage = lazy(() => import('@/pages/admin/OrganizationMembers'));
 
 // Premium Loading Component (Optimized)
 const PageLoader = () => (
@@ -71,19 +79,23 @@ const PageLoader = () => (
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', color: 'violet' },
-  { icon: Building2, label: 'Departments', path: '/admin/departments', color: 'blue' },
+  { icon: Building2, label: 'Organization', path: '/admin/organization', color: 'rose' },
+  { icon: Users, label: 'Members', path: '/admin/organization/members', color: 'pink' },
+  { icon: BookOpen, label: 'Departments', path: '/admin/departments', color: 'blue' },
   { icon: BookOpen, label: 'Courses', path: '/admin/courses', color: 'emerald' },
   { icon: Users, label: 'Classes', path: '/admin/classes', color: 'cyan' },
   { icon: GraduationCap, label: 'Students', path: '/admin/students', color: 'pink' },
-  { icon: User, label: 'Register Student', path: '/admin/register-student', color: 'indigo' },
+  { icon: UserPlus, label: 'Register Student', path: '/admin/register-student', color: 'indigo' },
   { icon: User, label: 'Faculty', path: '/admin/faculty', color: 'purple' },
   { icon: Calendar, label: 'Timetable', path: '/admin/timetable', color: 'amber' },
+  { icon: Eye, label: 'Live Attendance', path: '/admin/live-attendance', color: 'emerald' },
   { icon: ShieldAlert, label: 'Security', path: '/admin/security', color: 'red' },
   { icon: Link2, label: 'Blockchain', path: '/admin/blockchain', color: 'orange' },
   { icon: BarChart3, label: 'Analytics', path: '/admin/analytics', color: 'teal' },
   { icon: Brain, label: 'AI Analytics', path: '/admin/ai-analytics', color: 'violet' },
   { icon: MessageSquare, label: 'Messages', path: '/admin/chat', color: 'blue' },
   { icon: Bell, label: 'Notices', path: '/admin/notices', color: 'yellow' },
+  { icon: BookOpen, label: 'Assignments', path: '/admin/assignments', color: 'orange' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', color: 'slate' },
 ];
 
@@ -145,13 +157,17 @@ export default function AdminDashboard() {
             <Route path="/register-student" element={<StudentRegistrationPage />} />
             <Route path="/faculty" element={<FacultyPage />} />
             <Route path="/timetable" element={<TimetablePage />} />
+            <Route path="/live-attendance" element={<LiveAttendanceAdmin />} />
             <Route path="/security" element={<SecurityPage />} />
             <Route path="/blockchain" element={<BlockchainPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/ai-analytics" element={<AIDashboard role="admin" />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/notices" element={<NoticesPage />} />
+            <Route path="/assignments" element={<AdminAssignmentsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/organization" element={<OrganizationSettingsPage />} />
+            <Route path="/organization/members" element={<OrganizationMembersPage />} />
           </Routes>
         </ErrorBoundary>
       </Suspense>

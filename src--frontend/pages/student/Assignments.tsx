@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { studentService } from '@/lib/api';
+import { assignmentService } from '@/lib/api';
+import type { Assignment } from '@/lib/api';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { Input } from '@/components/ui/input';
 
@@ -27,42 +28,22 @@ export default function StudentAssignmentsPage() {
   const { user } = useSupabaseAuth();
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Real data would come from assignmentService (to be implemented)
-  // For now using mock high-fidelity data to show the UI
-  const [assignments] = useState([
-    {
-      id: "a1",
-      title: 'Database Normalization',
-      subject: 'DBMS (CSE-3A)',
-      deadline: '2026-10-12',
-      status: 'PENDING',
-      priority: 'HIGH',
-      description: 'Normalize the given schema to 3rd Normal Form. Show all functional dependencies.',
-      points: 20
-    },
-    {
-      id: "a2",
-      title: 'Kernel Memory Management',
-      subject: 'Operating Systems',
-      deadline: '2026-10-15',
-      status: 'SUBMITTED',
-      priority: 'MEDIUM',
-      description: 'Implement a basic paging algorithm in C++. Documentation must be attached.',
-      submittedAt: '2026-10-10',
-      points: 50
-    },
-    {
-      id: "a3",
-      title: 'UI Component Design',
-      subject: 'Web Technologies',
-      deadline: '2026-03-25',
-      status: 'LATE',
-      priority: 'URGENT',
-      description: 'Create a reusable modal component using React and Tailwind CSS.',
-      points: 15
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+
+  useEffect(() => {
+    async function loadAssignments() {
+      if (!user?.id) return;
+      try {
+        const data = await assignmentService.getForStudent(user.id);
+        setAssignments(data);
+      } catch (err) {
+        console.error('Failed to load assignments:', err);
+      } finally {
+        setLoading(false);
+      }
     }
-  ]);
+    loadAssignments();
+  }, [user?.id]);
 
   const filteredAssignments = assignments.filter(a => 
     a.title.toLowerCase().includes(searchQuery.toLowerCase()) || 

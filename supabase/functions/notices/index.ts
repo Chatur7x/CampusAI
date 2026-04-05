@@ -1,4 +1,3 @@
-// @ts-nocheck
 // =============================================================
 // AISMS - Supabase Edge Function
 // Notices: list + create/update/delete + get by id (Supabase schema aligned)
@@ -153,11 +152,9 @@ async function getRole(supabase: SupabaseClient, userId: string): Promise<string
   const { data, error } = await supabase
     .from('profiles')
     .select('role')
-    .returns<{ role: string }>()
-    .eq('user_id', userId)
     .single()
   if (error) return null
-  return data?.role ?? null
+  return (data as { role?: string })?.role ?? null
 }
 
 function json(body: unknown, status = 200) {

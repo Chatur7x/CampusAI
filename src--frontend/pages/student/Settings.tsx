@@ -22,6 +22,11 @@ export default function StudentSettingsPage() {
   const [changingPw, setChangingPw] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.profile?.avatar_url || '');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [notifications, setNotifications] = useState({
+    email: true,
+    attendance: true,
+    notices: true,
+  });
 
   const faceRegistered = user?.student?.face_registered || false;
 
@@ -198,21 +203,39 @@ export default function StudentSettingsPage() {
                 <p className="text-sm text-white">Email Notifications</p>
                 <p className="text-xs text-slate-400">Receive email alerts</p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={notifications.email} 
+                onCheckedChange={(checked) => {
+                  setNotifications(prev => ({ ...prev, email: checked }));
+                  toast.success('Email notifications ' + (checked ? 'enabled' : 'disabled'));
+                }} 
+              />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white">Attendance Alerts</p>
                 <p className="text-xs text-slate-400">Get notified when attendance is marked</p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={notifications.attendance} 
+                onCheckedChange={(checked) => {
+                  setNotifications(prev => ({ ...prev, attendance: checked }));
+                  toast.success('Attendance alerts ' + (checked ? 'enabled' : 'disabled'));
+                }} 
+              />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white">Notice Updates</p>
                 <p className="text-xs text-slate-400">Receive new notice notifications</p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={notifications.notices} 
+                onCheckedChange={(checked) => {
+                  setNotifications(prev => ({ ...prev, notices: checked }));
+                  toast.success('Notice updates ' + (checked ? 'enabled' : 'disabled'));
+                }} 
+              />
             </div>
           </CardContent>
         </Card>

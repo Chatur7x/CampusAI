@@ -18,6 +18,11 @@ export default function FacultySettingsPage() {
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [changingPw, setChangingPw] = useState(false);
+  const [notifications, setNotifications] = useState({
+    email: true,
+    attendance: true,
+    leaves: true,
+  });
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -106,21 +111,39 @@ export default function FacultySettingsPage() {
                 <p className="text-sm text-white">Email Notifications</p>
                 <p className="text-xs text-slate-400">Receive email alerts</p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={notifications.email} 
+                onCheckedChange={(checked) => {
+                  setNotifications(prev => ({ ...prev, email: checked }));
+                  toast.success('Email notifications ' + (checked ? 'enabled' : 'disabled'));
+                }} 
+              />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white">Attendance Alerts</p>
                 <p className="text-xs text-slate-400">Get notified about attendance</p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={notifications.attendance} 
+                onCheckedChange={(checked) => {
+                  setNotifications(prev => ({ ...prev, attendance: checked }));
+                  toast.success('Attendance alerts ' + (checked ? 'enabled' : 'disabled'));
+                }} 
+              />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white">Leave Requests</p>
                 <p className="text-xs text-slate-400">Notify on new leave requests</p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={notifications.leaves} 
+                onCheckedChange={(checked) => {
+                  setNotifications(prev => ({ ...prev, leaves: checked }));
+                  toast.success('Leave request notifications ' + (checked ? 'enabled' : 'disabled'));
+                }} 
+              />
             </div>
           </CardContent>
         </Card>

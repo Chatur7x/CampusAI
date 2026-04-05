@@ -24,6 +24,14 @@ import {
   Moon,
   Sun,
   LogOut,
+  Eye,
+  FileText,
+  ClipboardList,
+  MessageSquare,
+  Brain,
+  ShieldAlert,
+  Link2,
+  UserPlus,
 } from 'lucide-react';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -134,19 +142,32 @@ export function CommandPalette() {
         { icon: GraduationCap, label: 'Students', action: () => navigate('/admin/students'), keywords: ['learners'] },
         { icon: Users, label: 'Faculty', action: () => navigate('/admin/faculty'), keywords: ['teachers', 'staff'] },
         { icon: Calendar, label: 'Timetable', action: () => navigate('/admin/timetable'), keywords: ['schedule'] },
+        { icon: Eye, label: 'Live Attendance', action: () => navigate('/admin/live-attendance'), keywords: ['realtime'] },
         { icon: BarChart3, label: 'Analytics', action: () => navigate('/admin/analytics'), keywords: ['reports', 'stats'] },
+        { icon: Brain, label: 'AI Analytics', action: () => navigate('/admin/ai-analytics'), keywords: ['ml', 'predictions'] },
         { icon: Bell, label: 'Notices', action: () => navigate('/admin/notices'), keywords: ['announcements'] },
+        { icon: MessageSquare, label: 'Messages', action: () => navigate('/admin/chat'), keywords: ['chat', 'messaging'] },
+        { icon: ShieldAlert, label: 'Security', action: () => navigate('/admin/security'), keywords: ['protection'] },
+        { icon: Link2, label: 'Blockchain', action: () => navigate('/admin/blockchain'), keywords: ['ledger', 'verify'] },
+        { icon: FileText, label: 'Assignments', action: () => navigate('/admin/assignments'), keywords: ['tasks', 'homework'] },
+        { icon: UserPlus, label: 'Register Student', action: () => navigate('/admin/register-student'), keywords: ['enroll'] },
         { icon: Settings, label: 'Settings', action: () => navigate('/admin/settings'), keywords: ['config', 'preferences'] },
       );
     } else if (user?.role === 'FACULTY') {
       baseItems.push(
         { icon: LayoutDashboard, label: 'Dashboard', action: () => navigate('/faculty'), keywords: ['home', 'overview'] },
+        { icon: Eye, label: 'Live Session', action: () => navigate('/faculty/live-attendance'), keywords: ['realtime'] },
         { icon: Users, label: 'My Classes', action: () => navigate('/faculty/classes'), keywords: ['sections'] },
         { icon: GraduationCap, label: 'My Students', action: () => navigate('/faculty/students'), keywords: ['learners'] },
         { icon: Calendar, label: 'Timetable', action: () => navigate('/faculty/timetable'), keywords: ['schedule'] },
         { icon: ClipboardCheck, label: 'Attendance', action: () => navigate('/faculty/attendance'), keywords: ['presence'] },
         { icon: BarChart3, label: 'Analytics', action: () => navigate('/faculty/analytics'), keywords: ['reports'] },
+        { icon: Brain, label: 'AI Analytics', action: () => navigate('/faculty/ai-analytics'), keywords: ['ml', 'predictions'] },
+        { icon: BookOpen, label: 'Assignments', action: () => navigate('/faculty/assignments'), keywords: ['tasks'] },
+        { icon: ClipboardList, label: 'Leave Approvals', action: () => navigate('/faculty/leaves'), keywords: ['requests'] },
         { icon: Bell, label: 'Notices', action: () => navigate('/faculty/notices'), keywords: ['announcements'] },
+        { icon: MessageSquare, label: 'Messages', action: () => navigate('/faculty/chat'), keywords: ['chat'] },
+        { icon: UserPlus, label: 'Register Student', action: () => navigate('/faculty/register-student'), keywords: ['enroll'] },
         { icon: Settings, label: 'Settings', action: () => navigate('/faculty/settings'), keywords: ['config'] },
       );
     } else {
@@ -154,7 +175,11 @@ export function CommandPalette() {
         { icon: LayoutDashboard, label: 'Dashboard', action: () => navigate('/student'), keywords: ['home', 'overview'] },
         { icon: Calendar, label: 'Timetable', action: () => navigate('/student/timetable'), keywords: ['schedule'] },
         { icon: ClipboardCheck, label: 'My Attendance', action: () => navigate('/student/attendance'), keywords: ['presence'] },
+        { icon: Eye, label: 'Live Attendance', action: () => navigate('/student/live-attendance'), keywords: ['realtime'] },
+        { icon: BookOpen, label: 'Assignments', action: () => navigate('/student/assignments'), keywords: ['tasks'] },
+        { icon: Brain, label: 'AI Analytics', action: () => navigate('/student/ai-analytics'), keywords: ['ml', 'predictions'] },
         { icon: Bell, label: 'Notices', action: () => navigate('/student/notices'), keywords: ['announcements'] },
+        { icon: MessageSquare, label: 'Messages', action: () => navigate('/student/chat'), keywords: ['chat'] },
         { icon: Settings, label: 'Settings', action: () => navigate('/student/settings'), keywords: ['config'] },
       );
     }

@@ -200,7 +200,6 @@ export async function loadChainFromDB(): Promise<void> {
       };
       chain.getChain().push(restored);
     }
-    console.log(`[Blockchain] Loaded ${rows.length} blocks from DB`);
   } catch (err) {
     console.error('[Blockchain] DB load failed, starting fresh:', err);
   }

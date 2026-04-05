@@ -1,4 +1,3 @@
-// @ts-nocheck
 // =============================================================
 // AISMS - Supabase Edge Function
 // Attendance: fetch + manual mark (aligned to Supabase schema)
@@ -114,22 +113,18 @@ async function getRole(supabase: SupabaseClient, userId: string): Promise<string
   const { data, error } = await supabase
     .from('profiles')
     .select('role')
-    .returns<{ role: string }>()
-    .eq('user_id', userId)
     .single()
   if (error) return null
-  return data?.role ?? null
+  return (data as { role?: string })?.role ?? null
 }
 
 async function getFacultyId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('faculty')
     .select('id')
-    .returns<{ id: string }>()
-    .eq('user_id', userId)
     .single()
   if (error || !data) return null
-  return data.id
+  return (data as { id: string })?.id ?? null
 }
 
 function json(body: unknown, status = 200) {

@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 // =============================================================
-// CAMPUSAI - SUPABASE EDGE FUNCTION
+// AISMS - SUPABASE EDGE FUNCTION
 // Bulk Operations (Import Students, Mark Attendance, etc.)
 // =============================================================
 
@@ -355,9 +353,36 @@ Deno.serve(async (req) => {
       }
 
       case 'export_report': {
-        // This would generate a report and return a download URL
-        // For now, return success
-        processed = 1
+        const { format = 'csv', reportType = 'attendance' } = (data[0] as Record<string, unknown>) || {};
+        const reportData = data.length > 1 ? data.slice(1) : [];
+        
+        let csvContent = '';
+        if (reportData.length > 0) {
+          const headers = Object.keys(reportData[0] as Record<string, unknown>);
+          csvContent = headers.join(',') + '\n';
+          csvContent += reportData.map((row: unknown) => {
+            return headers.map((h: string) => {
+              const val = (row as Record<string, unknown>)[h];
+              const str = val === null || val === undefined ? '' : String(val);
+              return str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+            }).join(',');
+          }).join('\n');
+        }
+
+        const storagePath = `reports/${reportType}_${Date.now()}.${format}`;
+        const { error: uploadError } = await supabase.storage
+          .from('reports')
+          .upload(storagePath, new TextEncoder().encode(csvContent), {
+            contentType: format === 'csv' ? 'text/csv' : 'application/json',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          errors.push({ row: 0, error: `Failed to upload report: ${uploadError.message}` });
+        } else {
+          const { data: urlData } = supabase.storage.from('reports').getPublicUrl(storagePath);
+          processed = 1;
+        }
         break
       }
 

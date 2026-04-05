@@ -87,7 +87,7 @@ def train_profiles(records: list[dict], max_clusters: int = 5) -> dict:
     logger.info(f"Bio-Net v4 KMeans optimized: K={best_k}, score={best_score:.4f}")
 
     return {
-        "n_clusters": n_clusters,
+        "n_clusters": best_k,
         "cluster_labels": _cluster_labels,
         "centres": [
             {"cluster": _cluster_labels.get(i, f"Cluster {i}"),
@@ -95,9 +95,10 @@ def train_profiles(records: list[dict], max_clusters: int = 5) -> dict:
              "absence_streak_max": round(centres[i][1], 2),
              "late_pct": round(centres[i][2], 2),
              "variance_weekly": round(centres[i][3], 2)}
-            for i in range(n_clusters)
+            for i in range(best_k)
         ],
         "total_records": len(records),
+        "silhouette_score": round(best_score, 4),
     }
 
 

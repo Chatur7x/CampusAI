@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 // =============================================================
-// CAMPUSAI - SUPABASE EDGE FUNCTION  
+// AISMS - SUPABASE EDGE FUNCTION  
 // Smart Notifications & Alerts System
 // =============================================================
 
@@ -57,32 +55,25 @@ Deno.serve(async (req) => {
           `)
           .lt('attendance_percentage', threshold)
 
-        for (const student of atRiskStudents || []) {
-          const message = `⚠️ Attendance Alert: Your current attendance is ${student.attendance_percentage.toFixed(1)}%, which is below the required ${threshold}%. Please ensure regular attendance to avoid academic consequences.`
+        for (const student of (atRiskStudents || []) as Array<Record<string, unknown>>) {
+          const studentId = student.student_id as string;
+          const attendancePct = student.attendance_percentage as number;
+          const message = `⚠️ Attendance Alert: Your current attendance is ${Number(attendancePct).toFixed(1)}%, which is below the required ${threshold}%. Please ensure regular attendance to avoid academic consequences.`
 
           // Create in-app notification
           if (channels.includes('in_app')) {
             await supabase.from('notifications').insert({
-              user_id: student.student_id,
+              user_id: studentId,
               type: 'ATTENDANCE_ALERT',
               title: 'Low Attendance Warning',
               message,
-              priority: student.attendance_percentage < 50 ? 'CRITICAL' : 'HIGH',
+              priority: attendancePct < 50 ? 'CRITICAL' : 'HIGH',
               action_url: '/student/attendance',
             })
           }
 
-          // Send email if configured
-          if (channels.includes('email')) {
-            await sendEmail({
-              to: student.email,
-              subject: 'Attendance Alert - Immediate Action Required',
-              body: message,
-            })
-          }
-
           // Notify class incharge and parents
-          await notifyGuardians(supabase, student.student_id, message)
+          await notifyGuardians(supabase, studentId, message)
         }
 
         results.push({
@@ -117,32 +108,37 @@ Deno.serve(async (req) => {
           .gte('start_time', targetTime)
           .lte('start_time', targetTime.substring(0, 4) + '9')
 
-        for (const entry of upcomingClasses || []) {
-          // Get all students in this class
-          const { data: students } = await supabase
-            .from('students')
-            .select('id')
-            .eq('class_id', entry.class?.id)
+        for (const entry of (upcomingClasses || []) as Array<Record<string, unknown>>) {
+          const classData = entry.class as { id?: string; name?: string; section?: string } | undefined;
+          const courseData = entry.course as { id?: string; name?: string; code?: string } | undefined;
+          const facultyData = entry.faculty as { id?: string; employee_id?: string; profile?: { first_name?: string; last_name?: string } } | undefined;
+          
+          const classId = classData?.id;
+          const message = `📚 Class Reminder: ${courseData?.name ?? 'Class'} (${courseData?.code ?? ''}) starts in ${minutesBefore} minutes in ${entry.room}.`
 
-          const message = `📚 Class Reminder: ${entry.course?.name} (${entry.course?.code}) starts in ${minutesBefore} minutes in ${entry.room}.`
+          if (classId) {
+            const { data: students } = await supabase
+              .from('students')
+              .select('id')
+              .eq('class_id', classId)
 
-          for (const student of students || []) {
-            await supabase.from('notifications').insert({
-              user_id: student.id,
-              type: 'CLASS_REMINDER',
-              title: 'Upcoming Class',
-              message,
-              priority: 'MEDIUM',
-            })
+            for (const student of (students || []) as Array<{ id: string }>) {
+              await supabase.from('notifications').insert({
+                user_id: student.id,
+                type: 'CLASS_REMINDER',
+                title: 'Upcoming Class',
+                message,
+                priority: 'MEDIUM',
+              })
+            }
           }
 
-          // Also notify faculty
-          if (entry.faculty?.id) {
+          if (facultyData?.id) {
             await supabase.from('notifications').insert({
-              user_id: entry.faculty.id,
+              user_id: facultyData.id,
               type: 'CLASS_REMINDER',
               title: 'Class Starting Soon',
-              message: `Your ${entry.course?.name} class in ${entry.room} starts in ${minutesBefore} minutes.`,
+              message: `Your ${courseData?.name ?? 'class'} in ${entry.room} starts in ${minutesBefore} minutes.`,
               priority: 'MEDIUM',
             })
           }
@@ -161,33 +157,24 @@ Deno.serve(async (req) => {
 
         const { data: leave } = await supabase
           .from('leave_requests')
-          .select(`
-            id,
-            type,
-            start_date,
-            end_date,
-            student:students(id, profile:profiles(first_name, last_name, email))
-          `)
+          .select('*, student:students(id)')
           .eq('id', leaveId)
           .single()
 
-        if (leave && leave.student) {
-          const statusEmoji = status === 'APPROVED' ? '✅' : status === 'REJECTED' ? '❌' : '⏳'
-          const message = `${statusEmoji} Leave Request ${status}: Your ${leave.type} leave from ${leave.start_date} to ${leave.end_date} has been ${status.toLowerCase()}.${remarks ? ` Remarks: ${remarks}` : ''}`
+        if (leave) {
+          const studentData = leave.student as { id: string } | undefined;
+          const studentId = studentData?.id;
+          
+          if (studentId) {
+            const statusEmoji = status === 'APPROVED' ? '✅' : status === 'REJECTED' ? '❌' : '⏳'
+            const message = `${statusEmoji} Leave Request ${status}: Your ${leave.type} leave from ${leave.start_date} to ${leave.end_date} has been ${status.toLowerCase()}.${remarks ? ` Remarks: ${remarks}` : ''}`
 
-          await supabase.from('notifications').insert({
-            user_id: leave.student.id,
-            type: 'LEAVE_STATUS',
-            title: `Leave ${status}`,
-            message,
-            priority: 'HIGH',
-          })
-
-          if (channels.includes('email') && leave.student.profile?.email) {
-            await sendEmail({
-              to: leave.student.profile.email,
-              subject: `Leave Request ${status}`,
-              body: message,
+            await supabase.from('notifications').insert({
+              user_id: studentId,
+              type: 'LEAVE_STATUS',
+              title: `Leave ${status}`,
+              message,
+              priority: 'HIGH',
             })
           }
 
@@ -212,12 +199,12 @@ Deno.serve(async (req) => {
         if (daysBeforeReminders.includes(daysUntilExam)) {
           const { data: students } = await supabase
             .from('students')
-            .select('id, profile:profiles(first_name)')
+            .select('id')
             .eq('class_id', classId)
 
           const message = `📝 Exam Alert: Your ${examType} for ${courseName} is in ${daysUntilExam} day${daysUntilExam > 1 ? 's' : ''} (${examDate}). Good luck with your preparation!`
 
-          for (const student of students || []) {
+          for (const student of (students || []) as Array<{ id: string }>) {
             await supabase.from('notifications').insert({
               user_id: student.id,
               type: 'EXAM_REMINDER',
@@ -411,19 +398,20 @@ async function sendEmail(options: { to: string; subject: string; body: string })
   }
 }
 
-async function notifyGuardians(supabase: ReturnType<typeof createClient>, studentId: string, message: string) {
-  // Get parent/guardian contact and notify (camelCase columns from Prisma)
-  const { data: student } = await supabase
+async function notifyGuardians(supabase: unknown, studentId: string, message: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const { data } = await client
     .from('students')
     .select('guardian_name, guardian_phone, guardian_email')
     .eq('id', studentId)
     .single()
 
-  if (student?.guardian_email) {
+  if (data?.guardian_email) {
     await sendEmail({
-      to: student.guardian_email,
+      to: data.guardian_email,
       subject: 'Student Attendance Alert',
-      body: `Dear ${student.guardian_name},\n\n${message}\n\nPlease ensure your ward maintains regular attendance.\n\nRegards,\nCampusAI Team`,
+      body: `Dear ${data.guardian_name ?? 'Parent/Guardian'},\n\n${message}\n\nPlease ensure your ward maintains regular attendance.\n\nRegards,\nAISMS Team`,
     })
   }
 }

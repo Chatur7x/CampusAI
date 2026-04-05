@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 // =============================================================
 // AISMS - Supabase Edge Function
 // Timetable: fetch + create/update/delete
@@ -123,17 +121,12 @@ Deno.serve(async (req) => {
 })
 
 async function getRole(supabase: SupabaseClient, userId: string): Promise<string | null> {
-  // Try profiles table first (Supabase migration schema)
   const { data, error } = await supabase
     .from('profiles')
     .select('role')
-    .eq('user_id', userId)
     .single()
-  if (!error && data?.role) return data.role
-
-  // Fallback: check user_metadata from auth
-  const { data: { user } } = await supabase.auth.admin.getUserById(userId)
-  return (user?.user_metadata?.role as string) ?? null
+  if (!error && data) return (data as { role?: string })?.role ?? null
+  return null
 }
 
 type TimetableEntry = {

@@ -65,18 +65,18 @@ const PageLoader = () => (
 );
 
 const sidebarItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/student' },
-  { icon: ClipboardList, label: 'Live Attendance', path: '/student/live-attendance' },
-  { icon: Calendar, label: 'Timetable', path: '/student/timetable' },
-  { icon: GraduationCap, label: 'My Records', path: '/student/attendance' },
-  { icon: BookOpen, label: 'Assignments', path: '/student/assignments' },
-  { icon: FileText, label: 'Leave Requests', path: '/student/leaves' },
-  { icon: Calculator, label: 'Calculator', path: '/student/calculator' },
-  { icon: ScanFace, label: 'Face Registration', path: '/student/face-register' },
-  { icon: Brain, label: 'AI Analytics', path: '/student/ai-analytics' },
-  { icon: MessageSquare, label: 'Messages', path: '/student/chat' },
-  { icon: Bell, label: 'Notices', path: '/student/notices' },
-  { icon: Settings, label: 'Settings', path: '/student/settings' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/student', color: 'violet' },
+  { icon: ClipboardList, label: 'Live Attendance', path: '/student/live-attendance', color: 'emerald' },
+  { icon: Calendar, label: 'Timetable', path: '/student/timetable', color: 'blue' },
+  { icon: GraduationCap, label: 'My Records', path: '/student/attendance', color: 'cyan' },
+  { icon: BookOpen, label: 'Assignments', path: '/student/assignments', color: 'amber' },
+  { icon: FileText, label: 'Leave Requests', path: '/student/leaves', color: 'orange' },
+  { icon: Calculator, label: 'Calculator', path: '/student/calculator', color: 'pink' },
+  { icon: ScanFace, label: 'Face Registration', path: '/student/face-register', color: 'purple' },
+  { icon: Brain, label: 'AI Analytics', path: '/student/ai-analytics', color: 'indigo' },
+  { icon: MessageSquare, label: 'Messages', path: '/student/chat', color: 'teal' },
+  { icon: Bell, label: 'Notices', path: '/student/notices', color: 'yellow' },
+  { icon: Settings, label: 'Settings', path: '/student/settings', color: 'slate' },
 ];
 
 export default function StudentDashboard() {

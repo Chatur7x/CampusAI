@@ -42,7 +42,6 @@ export class ApiError extends Error {
 }
 
 function handleError(error: { message: string; code?: string; status?: number }): never {
-  console.error('API Error:', error);
   throw new ApiError(
     error.message || 'An unknown error occurred',
     error.code || 'UNKNOWN_ERROR',
@@ -67,10 +66,45 @@ async function callEdgeFunction<T>(
     body?: any;
   } = {}
 ): Promise<T> {
-  // FAST DEV OVERRIDE: 
-  // Edge functions are not deployed locally for this user, causing massive 5-10s timeouts 
-  // before falling back to Postgres. We throw instantly to trigger the DB fallback.
-  throw new Error("Bypassing edge functions in strict DEV mode for cheetah speed.");
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Supabase environment variables not configured');
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session?.access_token ?? ''}`,
+  };
+
+  let url = `${SUPABASE_URL}/functions/v1/${name}`;
+  if (options.query) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(options.query)) {
+      if (value !== undefined) params.append(key, String(value));
+    }
+    url += `?${params.toString()}`;
+  }
+
+  const response = await fetch(url, {
+    method: options.method ?? 'GET',
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Edge function error: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json() as FunctionResult<T>;
+  if (!result.success) {
+    throw new Error(result.message ?? 'Edge function returned error');
+  }
+  
+  return result.data as T;
 }
 
 // =============================================================
@@ -1005,6 +1039,119 @@ export const attendanceService = {
     } catch {
       return [];
     }
+  },
+};
+
+// =============================================================
+// ASSIGNMENT SERVICE
+// =============================================================
+
+export interface Assignment {
+  id: string;
+  title: string;
+  subject: string;
+  deadline: string;
+  status: 'PENDING' | 'SUBMITTED' | 'LATE' | 'GRADED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  description: string;
+  points: number;
+  submittedAt?: string;
+  grade?: number;
+}
+
+export const assignmentService = {
+  async getForStudent(studentId: string): Promise<Assignment[]> {
+    try {
+      const { data: student } = await supabase
+        .from('students')
+        .select('class_id')
+        .eq('user_id', studentId)
+        .single();
+      
+      if (!student?.class_id) return [];
+
+      const { data: assignments, error } = await supabase
+        .from('assignments')
+        .select(`
+          *,
+          course:courses(name, code),
+          submissions:submissions(id, submitted_at, grade, status)
+        `)
+        .eq('class_id', student.class_id)
+        .gte('deadline', new Date().toISOString().split('T')[0])
+        .order('deadline', { ascending: true });
+
+      if (error) throw error;
+
+      return (assignments || []).map((a: any) => {
+        const submission = a.submissions?.[0];
+        let status: Assignment['status'] = 'PENDING';
+        if (submission) {
+          status = submission.grade !== null && submission.grade !== undefined ? 'GRADED' : 'SUBMITTED';
+          if (new Date(a.deadline) < new Date(submission.submitted_at)) {
+            status = 'LATE';
+          }
+        }
+
+        return {
+          id: a.id,
+          title: a.title,
+          subject: `${a.course?.name || 'Unknown'} (${a.course?.code || ''})`,
+          deadline: a.deadline,
+          status,
+          priority: a.priority || 'MEDIUM',
+          description: a.description || '',
+          points: a.points || 100,
+          submittedAt: submission?.submitted_at,
+          grade: submission?.grade,
+        };
+      });
+    } catch {
+      return [];
+    }
+  },
+
+  async getAll(filters?: { classId?: string; courseId?: string }): Promise<Assignment[]> {
+    let query = supabase
+      .from('assignments')
+      .select(`
+        *,
+        course:courses(name, code),
+        class:classes(name, section)
+      `)
+      .order('deadline', { ascending: true });
+
+    if (filters?.classId) query = query.eq('class_id', filters.classId);
+    if (filters?.courseId) query = query.eq('course_id', filters.courseId);
+
+    const { data, error } = await query;
+    if (error) handleError(error);
+
+    return (data || []).map((a: any) => ({
+      id: a.id,
+      title: a.title,
+      subject: `${a.course?.name || 'Unknown'} (${a.course?.code || ''})`,
+      deadline: a.deadline,
+      status: a.status || 'PENDING',
+      priority: a.priority || 'MEDIUM',
+      description: a.description || '',
+      points: a.points || 100,
+    }));
+  },
+
+  async submit(assignmentId: string, studentId: string, submission: { content?: string; attachmentUrl?: string }): Promise<void> {
+    const { error } = await supabase
+      .from('submissions')
+      .insert({
+        assignment_id: assignmentId,
+        student_id: studentId,
+        content: submission.content,
+        attachment_url: submission.attachmentUrl,
+        submitted_at: new Date().toISOString(),
+        status: new Date() > new Date() ? 'LATE' : 'ON_TIME',
+      });
+
+    if (error) handleError(error);
   },
 };
 

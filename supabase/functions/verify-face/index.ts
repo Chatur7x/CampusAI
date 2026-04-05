@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 // =============================================================
-// CAMPUSAI - SUPABASE EDGE FUNCTION
+// AISMS - SUPABASE EDGE FUNCTION
 // AI-Powered Face Recognition Attendance
 // =============================================================
 

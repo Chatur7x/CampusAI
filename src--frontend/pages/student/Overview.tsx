@@ -248,7 +248,7 @@ export default function StudentOverview() {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/40 border-white/5 rounded-3xl overflow-hidden hover:border-cyan-500/20 transition-all cursor-pointer group" onClick={() => navigate('/student/history')}>
+          <Card className="bg-slate-900/40 border-white/5 rounded-3xl overflow-hidden hover:border-cyan-500/20 transition-all cursor-pointer group" onClick={() => navigate('/student/attendance')}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2.5 bg-cyan-500/10 rounded-xl group-hover:bg-cyan-500/20 transition-colors">

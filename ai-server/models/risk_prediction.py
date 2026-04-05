@@ -56,7 +56,13 @@ try:
 except ImportError:
     pass
 
-FEATURE_NAMES = ["attendance_pct", "consecutive_absences", "late_count", "monthly_trend"]
+FEATURE_NAMES = [
+    "attendance_pct",
+    "consecutive_absences",
+    "late_count",
+    "monthly_trend",
+    "behavioral_shift"
+]
 
 
 def _extract_features(record: dict) -> np.ndarray:
@@ -75,9 +81,6 @@ def _extract_features(record: dict) -> np.ndarray:
         record.get("monthly_trend", 0),
         shift, # v4 behavioral shift feature
     ], dtype=np.float64).reshape(1, -1)
-
-
-FEATURE_NAMES = ["attendance_pct", "consecutive_absences", "late_count", "monthly_trend", "behavioral_shift"]
 
 
 # ── Isolation Forest (unsupervised) ──────────────────────────

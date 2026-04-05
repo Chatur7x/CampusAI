@@ -23,16 +23,11 @@ class ChatManager {
     });
 
     this.socket.on('connect', () => {
-      console.log('[Chat] Connected to WebSocket');
       this.socket?.emit('join', { userId: this.userId, token: this.token });
     });
 
     this.socket.on('error', (err) => {
       console.error('[Chat] WebSocket Error:', err);
-    });
-
-    this.socket.on('disconnect', () => {
-      console.log('[Chat] Disconnected from WebSocket');
     });
   }
 
