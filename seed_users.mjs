@@ -64,6 +64,35 @@ async function authDeleteUser(uid) {
 }
 
 async function authCreateUser(email, password, metadata = {}) {
+  // First try to get existing user
+  const listUrl = `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`;
+  const listRes = await fetch(listUrl, { headers });
+  const listData = await listRes.json();
+  const existingUser = listData?.users?.find((u) => u.email === email);
+
+  if (existingUser) {
+    // Update password for existing user
+    const updateUrl = `${SUPABASE_URL}/auth/v1/admin/users/${existingUser.id}`;
+    const updateRes = await fetch(updateUrl, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        password,
+        email_confirm: true,
+        user_metadata: metadata,
+      }),
+    });
+    if (updateRes.ok) {
+      console.log(`  ✓ Updated password for: ${email}`);
+      return existingUser;
+    } else {
+      const errData = await updateRes.json();
+      console.log(`  ⚠ ${email}: ${errData.message || 'could not update'}`);
+      return existingUser;
+    }
+  }
+
+  // Create new user
   const url = `${SUPABASE_URL}/auth/v1/admin/users`;
   const res = await fetch(url, {
     method: 'POST',
@@ -77,7 +106,7 @@ async function authCreateUser(email, password, metadata = {}) {
   });
   const data = await res.json();
   if (!res.ok) {
-    console.log(`  ⚠ ${email}: ${data.message || 'already exists'}`);
+    console.log(`  ⚠ ${email}: ${data.message || 'error'}`);
     return null;
   }
   console.log(`  ✓ Created auth user: ${email}`);
@@ -156,6 +185,7 @@ async function upsertCourse(name, code, departmentId) {
     name, code,
     credits: 180,
     department_id: departmentId,
+    semester: 1,
   });
   return result?.[0];
 }
