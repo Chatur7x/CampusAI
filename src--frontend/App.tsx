@@ -1,23 +1,21 @@
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
-import { ThemeProvider } from "@/context/ThemeContext";
+import { ThemeProvider } from "@/themes";
 import { Toaster } from "@/components/ui/sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
 
-// We lazy-load EVERYTHING including LoginPage to prevent large library blocking on boot
 const LoginPage = React.lazy(() => import("@/pages/LoginPage"));
-
-// Everything else is lazy-loaded (only fetched when navigated to)
 const ResetPasswordPage = React.lazy(() => import("@/pages/ResetPasswordPage"));
 const CommandPalette = React.lazy(() => import("@/components/CommandPalette").then(m => ({ default: m.CommandPalette })));
 
 const AdminDashboard = React.lazy(() => import("@/dashboards/AdminDashboard"));
 const FacultyDashboard = React.lazy(() => import("@/dashboards/FacultyDashboard"));
 const StudentDashboard = React.lazy(() => import("@/dashboards/StudentDashboard"));
+const CompanyDashboard = React.lazy(() => import("@/dashboards/CompanyDashboard"));
 
 function Loading() {
   return (
@@ -84,6 +82,11 @@ function dashboardPath(role?: string): string {
     case 'FACULTY':
     case 'CLASS_INCHARGE':
       return '/faculty';
+    case 'COMPANY':
+    case 'OWNER':
+    case 'HR':
+    case 'MANAGER':
+      return '/company';
     default:
       return '/student';
   }
@@ -205,6 +208,24 @@ function AppRoutes() {
                 <>
                   <Suspense fallback={null}><CommandPalette /></Suspense>
                   <StudentDashboard />
+                </>
+              </motion.div>
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/company/*" 
+          element={
+            <ProtectedRoute>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              >
+                <>
+                  <Suspense fallback={null}><CommandPalette /></Suspense>
+                  <CompanyDashboard />
                 </>
               </motion.div>
             </ProtectedRoute>
