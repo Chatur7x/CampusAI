@@ -6,11 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
   Settings as SettingsIcon, Building2, Bell, Shield, Key,
-  Palette, Globe, Save, User, Mail, Phone, MapPin
+  Palette, Globe, Save, User, Mail, Phone, MapPin, Hash, Eye
 } from 'lucide-react';
+import { PRESET_FORMATS, generateEmployeeId } from '@/lib/employeeId';
 
 const tabs = [
   { id: 'general', label: 'General', icon: Building2 },
+  { id: 'employeeId', label: 'Employee ID', icon: Hash },
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'security', label: 'Security', icon: Shield },
@@ -35,6 +37,21 @@ export default function CompanySettings() {
     weeklyDigest: true,
     securityAlerts: true,
   });
+  const [employeeIdConfig, setEmployeeIdConfig] = useState<{
+    prefix: string;
+    format: 'SEQUENTIAL' | 'YEAR_SEQUENTIAL' | 'DEPT_SEQUENTIAL' | 'CUSTOM';
+    separator: string;
+    padding: number;
+    nextSequence: number;
+  }>({
+    prefix: 'GOOG',
+    format: 'SEQUENTIAL',
+    separator: '-',
+    padding: 4,
+    nextSequence: 247,
+  });
+  const [selectedPreset, setSelectedPreset] = useState<string>('');
+  const [previewId, setPreviewId] = useState('');
 
   const handleSave = () => {
     alert('Settings saved successfully!');
@@ -174,6 +191,180 @@ export default function CompanySettings() {
                       <option value="YYYY-MM-DD">YYYY-MM-DD</option>
                     </select>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'employeeId' && (
+            <Card className={theme === 'glassmorphism' ? 'glass-card' : 'neu-card'}>
+              <CardContent className="p-6">
+                <h3 className={`text-lg font-semibold mb-6 ${theme === 'glassmorphism' ? 'text-white' : 'text-slate-800'}`}>
+                  Employee ID Configuration
+                </h3>
+                
+                <div className="mb-6">
+                  <label className={`block text-sm font-medium mb-3 ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
+                    Quick Presets
+                  </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {Object.entries(PRESET_FORMATS).map(([name, config]) => (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          setSelectedPreset(name);
+                          setEmployeeIdConfig({
+                            prefix: config.prefix,
+                            format: config.format as 'SEQUENTIAL' | 'YEAR_SEQUENTIAL' | 'DEPT_SEQUENTIAL' | 'CUSTOM',
+                            separator: config.separator,
+                            padding: config.padding,
+                            nextSequence: 1,
+                          });
+                          const preview = generateEmployeeId({ ...config, prefix: config.prefix || 'EMP' }, 1, { year: 2026 });
+                          setPreviewId(preview);
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          selectedPreset === name
+                            ? 'border-violet-500 bg-violet-500/10'
+                            : theme === 'glassmorphism'
+                              ? 'border-white/10 bg-white/5 hover:bg-white/10'
+                              : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                        }`}
+                      >
+                        <p className={`font-medium text-sm ${theme === 'glassmorphism' ? 'text-white' : 'text-slate-800'}`}>
+                          {name}
+                        </p>
+                        <p className={`text-xs mt-1 ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
+                          {generateEmployeeId({ ...config, prefix: config.prefix || 'EMP' }, 247, { year: 2026 })}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
+                      <Hash className="w-4 h-4 inline mr-1" /> Prefix
+                    </label>
+                    <Input
+                      value={employeeIdConfig.prefix}
+                      onChange={(e) => {
+                        setSelectedPreset('');
+                        setEmployeeIdConfig({ ...employeeIdConfig, prefix: e.target.value.toUpperCase() });
+                      }}
+                      placeholder="e.g., GOOG, MS, EMP"
+                      className={theme === 'glassmorphism' ? 'glass-input' : 'neu-input'}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
+                      Format Type
+                    </label>
+                    <select
+                      value={employeeIdConfig.format}
+                      onChange={(e) => {
+                        setSelectedPreset('');
+                        setEmployeeIdConfig({ ...employeeIdConfig, format: e.target.value as 'SEQUENTIAL' | 'YEAR_SEQUENTIAL' | 'DEPT_SEQUENTIAL' | 'CUSTOM' });
+                      }}
+                      className={`w-full px-4 py-2 rounded-xl border ${
+                        theme === 'glassmorphism' 
+                          ? 'bg-white/5 border-white/10 text-white' 
+                          : 'bg-slate-100 border-slate-200 text-slate-800'
+                      }`}
+                    >
+                      <option value="SEQUENTIAL">Sequential (EMP-0001)</option>
+                      <option value="YEAR_SEQUENTIAL">Year + Sequential (EMP-26-0001)</option>
+                      <option value="DEPT_SEQUENTIAL">Department + Sequential (EMP-ENG-001)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
+                      Separator
+                    </label>
+                    <select
+                      value={employeeIdConfig.separator}
+                      onChange={(e) => {
+                        setSelectedPreset('');
+                        setEmployeeIdConfig({ ...employeeIdConfig, separator: e.target.value });
+                      }}
+                      className={`w-full px-4 py-2 rounded-xl border ${
+                        theme === 'glassmorphism' 
+                          ? 'bg-white/5 border-white/10 text-white' 
+                          : 'bg-slate-100 border-slate-200 text-slate-800'
+                      }`}
+                    >
+                      <option value="-">Dash (-)</option>
+                      <option value="/">Slash (/)</option>
+                      <option value="">None</option>
+                      <option value="_">Underscore (_)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
+                      Sequence Padding
+                    </label>
+                    <select
+                      value={employeeIdConfig.padding}
+                      onChange={(e) => {
+                        setSelectedPreset('');
+                        setEmployeeIdConfig({ ...employeeIdConfig, padding: parseInt(e.target.value) });
+                      }}
+                      className={`w-full px-4 py-2 rounded-xl border ${
+                        theme === 'glassmorphism' 
+                          ? 'bg-white/5 border-white/10 text-white' 
+                          : 'bg-slate-100 border-slate-200 text-slate-800'
+                      }`}
+                    >
+                      <option value="3">3 digits (001)</option>
+                      <option value="4">4 digits (0001)</option>
+                      <option value="5">5 digits (00001)</option>
+                      <option value="6">6 digits (000001)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className={`mt-6 p-4 rounded-xl ${theme === 'glassmorphism' ? 'bg-white/5' : 'bg-slate-100'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className={`text-sm font-medium ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
+                      <Eye className="w-4 h-4 inline mr-1" /> Preview
+                    </span>
+                    <Badge className={theme === 'glassmorphism' ? 'bg-violet-500/20 text-violet-400' : 'bg-violet-100 text-violet-600'}>
+                      Next ID: {employeeIdConfig.prefix}{employeeIdConfig.separator}{employeeIdConfig.nextSequence.toString().padStart(employeeIdConfig.padding, '0')}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[1, 2, 3].map((seq) => (
+                      <div
+                        key={seq}
+                        className={`p-3 rounded-lg text-center font-mono ${
+                          theme === 'glassmorphism' ? 'bg-white/5' : 'bg-white'
+                        }`}
+                      >
+                        <p className={`text-lg font-bold ${theme === 'glassmorphism' ? 'text-white' : 'text-slate-800'}`}>
+                          {generateEmployeeId(employeeIdConfig, seq, { year: 2026, departmentCode: 'ENG' })}
+                        </p>
+                        <p className={`text-xs ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
+                          #{seq}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-white/10">
+                  <Button
+                    onClick={() => {
+                      const newSeq = employeeIdConfig.nextSequence + 1;
+                      setEmployeeIdConfig({ ...employeeIdConfig, nextSequence: newSeq });
+                    }}
+                    className={`mr-3 ${theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}`}
+                  >
+                    Test Generate
+                  </Button>
+                  <span className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
+                    Current sequence: {employeeIdConfig.nextSequence}
+                  </span>
                 </div>
               </CardContent>
             </Card>
