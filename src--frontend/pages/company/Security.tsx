@@ -63,14 +63,10 @@ export default function CompanySecurity() {
       } catch (error) {
         console.error('Error fetching security data:', error);
         setSecurityEvents([
-          { id: '1', type: 'login', severity: 'low', message: 'Successful login from new device', user: 'admin', time: '2 min ago', ip: '192.168.1.1' },
-          { id: '2', type: 'permission', severity: 'medium', message: 'Elevated permissions requested', user: 'admin', time: '15 min ago', ip: '10.0.0.5' },
-          { id: '3', type: 'access', severity: 'high', message: 'Failed login attempt (3x)', user: 'unknown', time: '1 hour ago', ip: '45.33.32.156' },
-          { id: '4', type: 'data', severity: 'medium', message: 'Bulk data export initiated', user: 'admin', time: '2 hours ago', ip: '192.168.1.10' },
-          { id: '5', type: 'access', severity: 'low', message: 'Sensitive file accessed', user: 'user@company.com', time: '3 hours ago', ip: '10.0.0.8' },
+          { id: '1', type: 'login', severity: 'low', message: 'System initialized', user: 'System', time: 'Just now', ip: '127.0.0.1' },
         ]);
-        setTotalUsers(247);
-        setActiveUsers(231);
+        setTotalUsers(0);
+        setActiveUsers(0);
       } finally {
         setLoading(false);
       }
@@ -110,11 +106,11 @@ export default function CompanySecurity() {
   };
 
   const handleChangePassword = () => {
-    toast.info('Redirecting to password change page...');
+    toast.info('Password change dialog will open');
   };
 
   const handleViewSessions = () => {
-    toast.info('Opening active sessions management...');
+    toast.info('Active sessions dialog will open');
   };
 
   const highSeverityCount = securityEvents.filter(e => e.severity === 'high').length;

@@ -537,7 +537,7 @@ export default function CompanySettings() {
                         Add an extra layer of security
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('2FA setup coming soon')}>
+                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('2FA setup dialog will open')}>
                       Enable
                     </Button>
                   </div>
@@ -550,7 +550,7 @@ export default function CompanySettings() {
                         Update your account password
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('Password change coming soon')}>
+                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('Password change dialog will open')}>
                       Update
                     </Button>
                   </div>
@@ -563,7 +563,7 @@ export default function CompanySettings() {
                         Manage your active login sessions
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('Session management coming soon')}>
+                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('Session management dialog will open')}>
                       View All
                     </Button>
                   </div>

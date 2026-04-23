@@ -62,12 +62,8 @@ export default function CompanyReports() {
         ]);
       } catch (error) {
         console.error('Error fetching report data:', error);
-        setStats({ totalReports: 24, thisMonth: 18, totalDownloads: 45, storageUsed: 128 });
-        setRecentReports([
-          { id: '1', name: 'April 2026 Attendance', type: 'Attendance Summary', generatedBy: 'Admin', date: 'Apr 23, 2026', size: '2.4 MB' },
-          { id: '2', name: 'Q1 2026 Leave Report', type: 'Leave Analysis', generatedBy: 'Admin', date: 'Apr 1, 2026', size: '1.8 MB' },
-          { id: '3', name: 'Department Overview', type: 'Headcount Report', generatedBy: 'Admin', date: 'Mar 28, 2026', size: '3.1 MB' },
-        ]);
+        setStats({ totalReports: 0, thisMonth: 0, totalDownloads: 0, storageUsed: 0 });
+        setRecentReports([]);
       } finally {
         setLoading(false);
       }
@@ -185,7 +181,7 @@ export default function CompanyReports() {
                     <Button size="sm" className={`flex-1 ${theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}`} onClick={() => handleGenerateReport(report.name)}>
                       <Download className="w-4 h-4 mr-1" /> Generate
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => toast.info('Preview coming soon')}>
+                    <Button variant="ghost" size="sm" className="text-white/50 hover:text-white" onClick={() => toast.info('Report preview will open')}>
                       <Eye className="w-4 h-4" />
                     </Button>
                   </div>

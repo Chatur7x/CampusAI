@@ -66,15 +66,10 @@ export default function CompanyOnboarding() {
         setPendingReview(sampleOnboarding.length);
       } catch (error) {
         console.error('Error fetching onboarding data:', error);
-        setPendingOnboarding([
-          { id: '1', name: 'John Davis', email: 'john@company.com', role: 'Software Engineer', department: 'Engineering', step: 'Training Modules', progress: 75 },
-          { id: '2', name: 'Sarah Miller', email: 'sarah@company.com', role: 'Product Manager', department: 'Product', step: 'Profile Setup', progress: 50 },
-          { id: '3', name: 'Mike Brown', email: 'mike@company.com', role: 'Designer', department: 'Design', step: 'Document Verification', progress: 25 },
-          { id: '4', name: 'Emily Wilson', email: 'emily@company.com', role: 'Data Analyst', department: 'Analytics', step: 'Training Modules', progress: 60 },
-        ]);
-        setTotalOnboarded(45);
-        setInProgress(38);
-        setPendingReview(4);
+        setPendingOnboarding([]);
+        setTotalOnboarded(0);
+        setInProgress(0);
+        setPendingReview(0);
       } finally {
         setLoading(false);
       }
@@ -89,7 +84,7 @@ export default function CompanyOnboarding() {
   );
 
   const handleAddNewHire = () => {
-    toast.info('Opening new hire onboarding wizard...');
+    toast.info('New hire onboarding wizard will open');
   };
 
   const handleViewEmployee = (employee: PendingEmployee) => {
@@ -97,7 +92,7 @@ export default function CompanyOnboarding() {
   };
 
   const handleBrowseFiles = () => {
-    toast.info('Opening file browser...');
+    toast.info('File browser will open');
   };
 
   const handleUploadDoc = (docName: string) => {

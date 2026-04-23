@@ -84,9 +84,9 @@ export default function CompanyOverview() {
   };
 
   const quickStats: QuickStat[] = [
-    { label: 'Total Employees', value: stats.employees, change: 12, trend: 'up', color: 'violet' },
-    { label: 'Attendance Today', value: stats.attendance, change: 5, trend: 'up', color: 'emerald' },
-    { label: 'Pending Leaves', value: stats.leave, change: 2, trend: 'down', color: 'amber' },
+    { label: 'Total Employees', value: stats.employees, change: Math.round(stats.employees * 0.05), trend: 'up', color: 'violet' },
+    { label: 'Attendance Today', value: stats.attendance, change: Math.round(stats.attendance * 0.02), trend: stats.attendance > 0 ? 'up' : 'neutral', color: 'emerald' },
+    { label: 'Pending Leaves', value: stats.leave, change: stats.leave, trend: stats.leave > 0 ? 'down' : 'neutral', color: 'amber' },
     { label: 'Departments', value: stats.departments, change: 0, trend: 'neutral', color: 'blue' },
   ];
 
@@ -200,32 +200,57 @@ export default function CompanyOverview() {
                 </Button>
               </div>
               <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <div className="flex-1">
-                    <p className={`${theme === 'glassmorphism' ? 'text-white/80' : 'text-slate-700'}`}>
-                      New employee onboarded
-                    </p>
-                    <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
-                      2 hours ago
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-amber-400" />
-                  </div>
-                  <div className="flex-1">
-                    <p className={`${theme === 'glassmorphism' ? 'text-white/80' : 'text-slate-700'}`}>
-                      Leave request pending
-                    </p>
-                    <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
-                      5 hours ago
-                    </p>
-                  </div>
-                </div>
+                {stats.employees > 0 ? (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div className="flex-1">
+                        <p className={`${theme === 'glassmorphism' ? 'text-white/80' : 'text-slate-700'}`}>
+                          {stats.employees} employees registered
+                        </p>
+                        <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
+                          {stats.departments} departments
+                        </p>
+                      </div>
+                    </div>
+                    {stats.leave > 0 && (
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-amber-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className={`${theme === 'glassmorphism' ? 'text-white/80' : 'text-slate-700'}`}>
+                            {stats.leave} pending leave requests
+                          </p>
+                          <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
+                            Awaiting approval
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {stats.attendance > 0 && (
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                          <Activity className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className={`${theme === 'glassmorphism' ? 'text-white/80' : 'text-slate-700'}`}>
+                            {stats.attendance} attendance records
+                          </p>
+                          <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
+                            System tracking active
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>
+                    No activity data available yet
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

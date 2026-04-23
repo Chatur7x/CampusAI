@@ -51,7 +51,7 @@ export default function LiveTracking() {
           location: geo.currentLocation,
           lastUpdate: new Date().toISOString(),
           status: index % 3 === 0 ? 'online' : index % 3 === 1 ? 'on-site' : 'off-site',
-          distance: Math.random() * 500,
+          distance: Math.floor(Math.random() * 500),
           department: ['Engineering', 'Sales', 'Marketing', 'IT'][index % 4],
         }));
         setEmployees(trackedEmployees);
