@@ -331,6 +331,15 @@ export const profileService = {
     await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('user_id', userId);
     return publicUrl;
   },
+
+  async getAll(): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) handleError(error);
+    return data || [];
+  },
 };
 
 // =============================================================

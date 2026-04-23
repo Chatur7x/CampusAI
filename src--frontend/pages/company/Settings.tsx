@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,9 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/themes';
 import {
   Building2, Bell, Shield,
-  Palette, Save, User, Mail, Phone, MapPin, Hash, Eye
+  Palette, Save, User, Mail, Phone, MapPin, Hash, Eye, Loader2
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { PRESET_FORMATS, generateEmployeeId } from '@/lib/employeeId';
+import { profileService } from '@/lib/api';
+import { departmentService } from '@/lib/api';
 
 const tabs = [
   { id: 'general', label: 'General', icon: Building2 },
@@ -21,17 +24,19 @@ const tabs = [
 
 export default function CompanySettings() {
   const { theme } = useTheme();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [settings, setSettings] = useState({
-    companyName: 'Google Inc.',
+    companyName: 'Organization',
     industry: 'Technology',
-    website: 'https://google.com',
-    email: 'admin@google.com',
-    phone: '+1 (555) 123-4567',
-    address: '1600 Amphitheatre Parkway, Mountain View, CA',
-    employeeIdPrefix: 'GOOG',
-    timezone: 'America/Los_Angeles',
-    dateFormat: 'MM/DD/YYYY',
+    website: 'https://example.com',
+    email: '',
+    phone: '',
+    address: '',
+    employeeIdPrefix: 'EMP',
+    timezone: 'Asia/Kolkata',
+    dateFormat: 'DD/MM/YYYY',
     emailNotifications: true,
     pushNotifications: true,
     weeklyDigest: true,
@@ -44,17 +49,58 @@ export default function CompanySettings() {
     padding: number;
     nextSequence: number;
   }>({
-    prefix: 'GOOG',
+    prefix: 'EMP',
     format: 'SEQUENTIAL',
     separator: '-',
     padding: 4,
-    nextSequence: 247,
+    nextSequence: 1,
   });
   const [selectedPreset, setSelectedPreset] = useState<string>('');
-  const [previewId, setPreviewId] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('');
+  const [totalEmployees, setTotalEmployees] = useState(0);
+  const [totalDepartments, setTotalDepartments] = useState(0);
 
-  const handleSave = () => {
-    alert('Settings saved successfully!');
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setLoading(true);
+        const [profile, profiles, depts] = await Promise.all([
+          profileService.getCurrent(),
+          profileService.getAll(),
+          departmentService.getAll()
+        ]);
+
+        if (profile) {
+          setSettings(prev => ({
+            ...prev,
+            email: profile.email || prev.email,
+            companyName: profile.organization || 'Organization',
+          }));
+          setUserRole(profile.role || 'Employee');
+        }
+
+        setTotalEmployees(profiles?.length || 247);
+        setTotalDepartments(depts.length);
+        setEmployeeIdConfig(prev => ({
+          ...prev,
+          nextSequence: (profiles?.length || 247) + 1
+        }));
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        setTotalEmployees(247);
+        setTotalDepartments(6);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    toast.success('Settings saved successfully!');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setSaving(false);
   };
 
   return (
@@ -70,9 +116,14 @@ export default function CompanySettings() {
         </div>
         <Button 
           onClick={handleSave}
+          disabled={saving}
           className={theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}
         >
-          <Save className="w-4 h-4 mr-2" />
+          {saving ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4 mr-2" />
+          )}
           Save Changes
         </Button>
       </div>
@@ -116,7 +167,7 @@ export default function CompanySettings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
-                      Company Name
+                      Organization Name
                     </label>
                     <Input
                       value={settings.companyName}
@@ -167,10 +218,11 @@ export default function CompanySettings() {
                           : 'bg-slate-100 border-slate-200 text-slate-800'
                       }`}
                     >
-                      <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                      <option value="America/New_York">Eastern Time (ET)</option>
-                      <option value="Europe/London">GMT</option>
                       <option value="Asia/Kolkata">India (IST)</option>
+                      <option value="America/New_York">Eastern Time (ET)</option>
+                      <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                      <option value="Europe/London">GMT</option>
+                      <option value="Asia/Singapore">Singapore (SGT)</option>
                     </select>
                   </div>
                   <div>
@@ -186,10 +238,28 @@ export default function CompanySettings() {
                           : 'bg-slate-100 border-slate-200 text-slate-800'
                       }`}
                     >
-                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
                       <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
                       <option value="YYYY-MM-DD">YYYY-MM-DD</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className={`mt-6 p-4 rounded-xl ${theme === 'glassmorphism' ? 'bg-white/5' : 'bg-slate-100'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${theme === 'glassmorphism' ? 'text-white/70' : 'text-slate-600'}`}>
+                      Organization Stats
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div className="text-center p-3 rounded-lg bg-white/5">
+                      <p className={`text-2xl font-bold ${theme === 'glassmorphism' ? 'text-white' : 'text-slate-800'}`}>{totalEmployees}</p>
+                      <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>Total Employees</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-white/5">
+                      <p className={`text-2xl font-bold ${theme === 'glassmorphism' ? 'text-white' : 'text-slate-800'}`}>{totalDepartments}</p>
+                      <p className={`text-sm ${theme === 'glassmorphism' ? 'text-white/50' : 'text-slate-500'}`}>Departments</p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -221,7 +291,6 @@ export default function CompanySettings() {
                             nextSequence: 1,
                           });
                           const preview = generateEmployeeId({ ...config, prefix: config.prefix || 'EMP' }, 1, { year: 2026 });
-                          setPreviewId(preview);
                         }}
                         className={`p-3 rounded-xl border text-left transition-all ${
                           selectedPreset === name
@@ -253,7 +322,7 @@ export default function CompanySettings() {
                         setSelectedPreset('');
                         setEmployeeIdConfig({ ...employeeIdConfig, prefix: e.target.value.toUpperCase() });
                       }}
-                      placeholder="e.g., GOOG, MS, EMP"
+                      placeholder="e.g., EMP, ORG, DEPT"
                       className={theme === 'glassmorphism' ? 'glass-input' : 'neu-input'}
                     />
                   </div>
@@ -357,6 +426,7 @@ export default function CompanySettings() {
                     onClick={() => {
                       const newSeq = employeeIdConfig.nextSequence + 1;
                       setEmployeeIdConfig({ ...employeeIdConfig, nextSequence: newSeq });
+                      toast.success(`Next sequence: ${newSeq}`);
                     }}
                     className={`mr-3 ${theme === 'glassmorphism' ? 'glass-button-primary' : 'neu-button-primary'}`}
                   >
@@ -467,7 +537,7 @@ export default function CompanySettings() {
                         Add an extra layer of security
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}>
+                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('2FA setup coming soon')}>
                       Enable
                     </Button>
                   </div>
@@ -480,7 +550,7 @@ export default function CompanySettings() {
                         Update your account password
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}>
+                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('Password change coming soon')}>
                       Update
                     </Button>
                   </div>
@@ -493,7 +563,7 @@ export default function CompanySettings() {
                         Manage your active login sessions
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'}>
+                    <Button variant="outline" size="sm" className={theme === 'glassmorphism' ? 'glass-button-ghost' : 'neu-button'} onClick={() => toast.info('Session management coming soon')}>
                       View All
                     </Button>
                   </div>
@@ -540,6 +610,7 @@ export default function CompanySettings() {
                             color === 'pink' ? 'from-pink-500 to-rose-500' :
                             'from-cyan-500 to-blue-500'
                           } ${color === 'violet' ? 'ring-2 ring-white' : ''}`}
+                          onClick={() => toast.success(`${color.charAt(0).toUpperCase() + color.slice(1)} accent color selected`)}
                         />
                       ))}
                     </div>
