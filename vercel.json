@@ -79,7 +79,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://aisms.vercel.app,https://aisms-frontend.vercel.app"
+          "value": "https://aisms.vercel.app,https://aisms-frontend.vercel.app,https://ai-smart-attendance-lyart.vercel.app,https://ai-smart-attendance-1umnfemxu-chatur7xs-projects.vercel.app"
         },
         {
           "key": "Access-Control-Allow-Methods",
@@ -100,7 +100,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://aisms.vercel.app,https://aisms-frontend.vercel.app"
+          "value": "https://aisms.vercel.app,https://aisms-frontend.vercel.app,https://ai-smart-attendance-lyart.vercel.app,https://ai-smart-attendance-1umnfemxu-chatur7xs-projects.vercel.app"
         },
         {
           "key": "Access-Control-Allow-Methods",

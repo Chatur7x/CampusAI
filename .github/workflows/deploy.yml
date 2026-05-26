@@ -165,8 +165,8 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 5
-          curl -sf https://aisms.vercel.app/api/health || echo "Health check endpoint not found (expected)"
-          curl -sf https://aisms.vercel.app/ | head -c 100 || echo "Homepage check"
+          curl -sf https://ai-smart-attendance-lyart.vercel.app/api/health || echo "Health check endpoint not found (expected)"
+          curl -sf https://ai-smart-attendance-lyart.vercel.app/ | head -c 100 || echo "Homepage check"
 
   # =============================================================
   # DEPLOY AI SERVER TO RAILWAY
