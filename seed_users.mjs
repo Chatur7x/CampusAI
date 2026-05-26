@@ -115,46 +115,70 @@ async function authCreateUser(email, password, metadata = {}) {
 
 async function upsertProfile(userId, data) {
   const existing = await selectOne('profiles', 'user_id', userId);
+  const payload = { user_id: userId, ...data };
   if (existing) {
-    console.log(`  ⚠ Profile exists for ${data.email}`);
-    return existing;
+    console.log(`  ✓ Updating existing profile for ${data.email}`);
+    const url = `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    const parsed = JSON.parse(text);
+    return parsed?.[0] || parsed;
   }
-  const result = await rest('POST', 'profiles', { user_id: userId, ...data });
+  const result = await rest('POST', 'profiles', payload);
   return result?.[0] || result;
 }
 
 async function upsertAdmin(userId, permissions = ['ALL']) {
   const existing = await selectOne('admins', 'user_id', userId);
+  const payload = { user_id: userId, permissions };
   if (existing) {
-    console.log(`  ⚠ Admin entry exists`);
-    return existing;
+    console.log(`  ✓ Updating existing Admin entry`);
+    const url = `${SUPABASE_URL}/rest/v1/admins?user_id=eq.${userId}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    const parsed = JSON.parse(text);
+    return parsed?.[0] || parsed;
   }
-  return await rest('POST', 'admins', { user_id: userId, permissions });
+  return await rest('POST', 'admins', payload);
 }
 
 async function upsertFaculty(userId, employeeId, designation, departmentId, specialization = '') {
   const existing = await selectOne('faculty', 'user_id', userId);
-  if (existing) {
-    console.log(`  ⚠ Faculty entry exists`);
-    return existing;
-  }
-  return await rest('POST', 'faculty', {
+  const payload = {
     user_id: userId,
     employee_id: employeeId,
     designation,
     department_id: departmentId,
     joining_date: '2024-01-15',
     specialization,
-  });
+  };
+  if (existing) {
+    console.log(`  ✓ Updating existing Faculty entry`);
+    const url = `${SUPABASE_URL}/rest/v1/faculty?user_id=eq.${userId}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    const parsed = JSON.parse(text);
+    return parsed?.[0] || parsed;
+  }
+  const result = await rest('POST', 'faculty', payload);
+  return result?.[0] || result;
 }
 
 async function upsertStudent(userId, enrollmentId, departmentId, classId) {
   const existing = await selectOne('students', 'user_id', userId);
-  if (existing) {
-    console.log(`  ⚠ Student entry exists`);
-    return existing;
-  }
-  return await rest('POST', 'students', {
+  const payload = {
     user_id: userId,
     enrollment_id: enrollmentId,
     department_id: departmentId,
@@ -162,7 +186,20 @@ async function upsertStudent(userId, enrollmentId, departmentId, classId) {
     batch_year: 2024,
     semester: 1,
     face_registered: false,
-  });
+  };
+  if (existing) {
+    console.log(`  ✓ Updating existing Student entry`);
+    const url = `${SUPABASE_URL}/rest/v1/students?user_id=eq.${userId}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    const parsed = JSON.parse(text);
+    return parsed?.[0] || parsed;
+  }
+  return await rest('POST', 'students', payload);
 }
 
 async function upsertDepartment(name, code) {
@@ -190,7 +227,7 @@ async function upsertCourse(name, code, departmentId) {
   return result?.[0];
 }
 
-async function upsertClass(name, departmentId, courseId, inchargeId = null) {
+async function upsertClass(name, departmentId, courseId, inchargeId) {
   let cls = await selectOne('classes', 'name', name);
   if (cls) {
     console.log(`  ⚠ Class ${name} exists`);
@@ -198,9 +235,10 @@ async function upsertClass(name, departmentId, courseId, inchargeId = null) {
   }
   const result = await rest('POST', 'classes', {
     name,
+    section: 'A', // Required column
     department_id: departmentId,
     course_id: courseId,
-    in_charge_id: inchargeId,
+    incharge_id: inchargeId, // Match exact snake_case DB column name
     room_number: 'Room-101',
     capacity: 60,
     academic_year: '2024-2025',
@@ -250,28 +288,39 @@ const USERS = [
 
 async function main() {
   console.log('\n🚀 AISMS - Complete Demo User Seeder\n');
-  console.log('=' .repeat(50));
+  console.log('='.repeat(50));
 
-  // Step 1: Clean up existing demo users
-  console.log('\n📦 Step 1: Cleaning up existing users...');
+  // Step 1: Clean up existing classes to avoid foreign key blocks on faculty deletion
+  console.log('\n🧹 Step 1: Clearing classes for clean slate...');
+  const url = `${SUPABASE_URL}/rest/v1/classes`;
+  await fetch(url, { method: 'DELETE', headers });
+
+  console.log('\n📦 Step 2: Cleaning up existing users...');
   for (const user of USERS) {
     const existing = await selectOne('profiles', 'email', user.email);
     if (existing) {
-      console.log(`  Found existing: ${user.email}`);
+      console.log(`  Found existing profile: ${user.email}`);
       await deleteByEmail('profiles', user.email);
       if (existing.user_id) {
-        await deleteByEmail('admins', existing.user_id);
-        await deleteByEmail('faculty', existing.user_id);
-        await deleteByEmail('students', existing.user_id);
+        // Query delete specific tables using user_id column instead of email query parameter
+        const delAdminUrl = `${SUPABASE_URL}/rest/v1/admins?user_id=eq.${existing.user_id}`;
+        await fetch(delAdminUrl, { method: 'DELETE', headers });
+
+        const delFacultyUrl = `${SUPABASE_URL}/rest/v1/faculty?user_id=eq.${existing.user_id}`;
+        await fetch(delFacultyUrl, { method: 'DELETE', headers });
+
+        const delStudentUrl = `${SUPABASE_URL}/rest/v1/students?user_id=eq.${existing.user_id}`;
+        await fetch(delStudentUrl, { method: 'DELETE', headers });
+
+        // Delete from auth.users via admin endpoint
         await authDeleteUser(existing.user_id);
       }
     }
   }
 
-  // Step 2: Create Departments for Companies
-  console.log('\n🏢 Step 2: Creating departments...');
+  // Step 3: Create Departments and Courses
+  console.log('\n🏢 Step 3: Creating reference departments and courses...');
 
-  // Google departments
   const googleDepts = [
     { name: 'Google - Human Resources', code: 'GGL-HR' },
     { name: 'Google - IT', code: 'GGL-IT' },
@@ -290,122 +339,106 @@ async function main() {
     { name: 'Microsoft - Operations', code: 'MS-OPS' },
   ];
 
-  // Anurag departments
   const anuragDept = await upsertDepartment('CSE-CYBER SECURITY', 'CSE-CS');
   const anuragCourse = await upsertCourse('B.Tech Cyber Security', 'BTCS', anuragDept.id);
-  const anuragClass = await upsertClass('CYBER SECURITY-A', anuragDept.id, anuragCourse.id);
 
-  // BITS Pilani departments
   const bitsDept = await upsertDepartment('Engineering', 'BITS-ENG');
   const bitsCourse = await upsertCourse('B.E. Engineering', 'BITS-BE', bitsDept.id);
-  const bitsClass = await upsertClass('BE-1', bitsDept.id, bitsCourse.id);
 
   for (const d of [...googleDepts, ...microsoftDepts]) {
     await upsertDepartment(d.name, d.code);
   }
 
-  // Step 3: Create all users
-  console.log('\n👤 Step 3: Creating users...');
-  for (const user of USERS) {
-    console.log(`\n  Creating: ${user.email}`);
+  // Step 4: Create Faculty first, to gather their IDs for the classes table
+  console.log('\n👤 Step 4: Creating Faculty users...');
+  const facultyIdMap = {};
 
-    // Create auth user
+  const facultyUsers = USERS.filter(u => u.role === 'FACULTY');
+  for (const user of facultyUsers) {
+    console.log(`\n  Creating Faculty: ${user.email}`);
+    const deptId = user.department.startsWith('anurag') ? anuragDept.id : bitsDept.id;
+    const employeeId = `FAC-${user.department.split('_')[0].toUpperCase()}-${Date.now().toString().slice(-4)}`;
+    
     const authUser = await authCreateUser(user.email, user.password, {
       first_name: user.firstName,
       last_name: user.lastName,
       role: user.role,
+      department_id: deptId,
+      employee_id: employeeId
     });
 
-    if (!authUser) {
-      // User might already exist, try to get their ID
-      const existingProfile = await selectOne('profiles', 'email', user.email);
-      if (existingProfile) {
-        console.log(`  ⚠ User ${user.email} already exists with ID: ${existingProfile.user_id}`);
-        
-        // Create profile entry if missing
-        await upsertProfile(existingProfile.user_id, {
-          email: user.email,
-          role: user.role,
-          first_name: user.firstName,
-          last_name: user.lastName,
-        });
+    if (authUser) {
+      const userId = authUser.id;
+      await upsertProfile(userId, {
+        email: user.email,
+        role: user.role,
+        first_name: user.firstName,
+        last_name: user.lastName,
+      });
 
-        // Create role-specific entries
-        if (user.role === 'ADMIN') {
-          await upsertAdmin(existingProfile.user_id);
-        }
-        continue;
+      const facultyRec = await upsertFaculty(userId, employeeId, 'Faculty', deptId);
+      if (facultyRec) {
+        facultyIdMap[user.email] = facultyRec.id;
       }
-      continue;
     }
-
-    const userId = authUser.id;
-
-    // Create profile
-    await upsertProfile(userId, {
-      email: user.email,
-      role: user.role,
-      first_name: user.firstName,
-      last_name: user.lastName,
-    });
-
-    // Create role-specific entries
-    if (user.role === 'ADMIN') {
-      await upsertAdmin(userId);
-    } else if (user.role === 'FACULTY') {
-      const employeeId = `FAC-${user.department.split('_')[0].toUpperCase()}-001`;
-      await upsertFaculty(userId, employeeId, 'Faculty', anuragDept?.id || bitsDept?.id);
-    } else if (user.role === 'STUDENT') {
-      const enrollmentId = user.email.split('@')[0].toUpperCase();
-      await upsertStudent(userId, enrollmentId, anuragDept?.id || bitsDept?.id, anuragClass?.id || bitsClass?.id);
-    }
-
-    console.log(`  ✓ ${user.email} → ${user.role}`);
   }
 
-  // =============================================================
-  // Summary
-  // =============================================================
+  // Step 5: Create classes using the valid Faculty HOD IDs
+  console.log('\n🏫 Step 5: Creating classes...');
+  const anuragFacultyId = facultyIdMap['saikrishnait@anurag.edu.in'];
+  const anuragClass = await upsertClass('CYBER SECURITY-A', anuragDept.id, anuragCourse.id, anuragFacultyId);
+
+  const bitsFacultyId = facultyIdMap['saikrishna.it@hyderabad.bits-pilani.ac.in'];
+  const bitsClass = await upsertClass('BE-1', bitsDept.id, bitsCourse.id, bitsFacultyId);
+
+  // Step 6: Create remaining Admins and Students (so the triggers find active classes!)
+  console.log('\n👥 Step 6: Creating Admins and Students...');
+  const otherUsers = USERS.filter(u => u.role !== 'FACULTY');
+
+  for (const user of otherUsers) {
+    console.log(`\n  Creating user: ${user.email}`);
+    
+    let metadata = {
+      first_name: user.firstName,
+      last_name: user.lastName,
+      role: user.role,
+    };
+
+    let deptId = null;
+    let classId = null;
+    let enrollmentId = null;
+
+    if (user.role === 'STUDENT') {
+      enrollmentId = user.email.split('@')[0].toUpperCase();
+      deptId = user.department.startsWith('anurag') ? anuragDept.id : bitsDept.id;
+      classId = user.department.startsWith('anurag') ? anuragClass.id : bitsClass.id;
+      metadata.department_id = deptId;
+      metadata.class_id = classId;
+      metadata.enrollment_id = enrollmentId;
+    }
+
+    const authUser = await authCreateUser(user.email, user.password, metadata);
+
+    if (authUser) {
+      const userId = authUser.id;
+      await upsertProfile(userId, {
+        email: user.email,
+        role: user.role,
+        first_name: user.firstName,
+        last_name: user.lastName,
+      });
+
+      if (user.role === 'ADMIN') {
+        await upsertAdmin(userId);
+      } else if (user.role === 'STUDENT') {
+        await upsertStudent(userId, enrollmentId, deptId, classId);
+      }
+      console.log(`  ✓ ${user.email} → ${user.role}`);
+    }
+  }
+
   console.log('\n' + '='.repeat(50));
   console.log('\n✅ Seeding Complete!\n');
-
-  console.log('📋 LOGIN CREDENTIALS:\n');
-  console.log('━'.repeat(50));
-
-  console.log('\n🏢 GOOGLE (Company - Glassmorphism)');
-  console.log('  Admin:   admin@google.com     / google@admin');
-  console.log('  HR:      hr@google.com        / hr@google');
-  console.log('  IT:      it@google.com       / it@google');
-  console.log('  Sales:   sales@google.com     / sales@google');
-  console.log('  Marketing: marketing@google.com / marketing@google');
-  console.log('  Finance: finance@google.com   / finance@google');
-  console.log('  Manager: manager@google.com  / manager@google');
-
-  console.log('\n🏢 MICROSOFT (Company - Glassmorphism)');
-  console.log('  Admin:   admin@microsoft.com      / microsoft@admin');
-  console.log('  HR:      hr@microsoft.com         / hr@microsoft');
-  console.log('  IT:      it@microsoft.com         / it@microsoft');
-  console.log('  Sales:   sales@microsoft.com       / sales@microsoft');
-  console.log('  Marketing: marketing@microsoft.com / marketing@microsoft');
-  console.log('  Finance: finance@microsoft.com     / finance@microsoft');
-  console.log('  Manager: manager@microsoft.com     / manager@microsoft');
-
-  console.log('\n🎓 ANURAG UNIVERSITY (Educational - Neumorphism)');
-  console.log('  Admin:   admin@anurag.edu.in       / admin@anurag');
-  console.log('  Faculty:  saikrishnait@anurag.edu.in / it@saikrish');
-  console.log('  Student: 24eg109a28@anurag.edu.in   / Chatur7');
-  console.log('  Student: 24eg109a50@anurag.edu.in   / Divya7');
-
-  console.log('\n🎓 BITS PILANI HYDERABAD (Educational - Neumorphism)');
-  console.log('  Admin:   admin@hyderabad.bits-pilani.ac.in / admin@hydbits');
-  console.log('  Faculty:  saikrishna.it@hyderabad.bits-pilani.ac.in / it@saikrish');
-  console.log('  Student: f2024050@hyderabad.bits-pilani.ac.in   / Divya7');
-  console.log('  Student: f2024028@hyderabad.bits-pilani.ac.in   / Chatur7');
-
-  console.log('\n' + '━'.repeat(50));
-  console.log('\n💡 Theme Detection:');
-  console.log('   Company emails (.com) → Glassmorphism UI');
-  console.log('   Educational emails (.edu.in, .ac.in, bits-pilani.ac.in) → Neumorphism UI\n');
 }
 
 // Run
