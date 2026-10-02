@@ -33,6 +33,24 @@ npm-debug.log*
 .tmp/
 *.tsbuildinfo
 
+# Scratch / local dev scripts (may contain real credentials — never commit)
+scratch/
+tmp/
+
+# Security scanner output + agent state (binary db, local paths)
+strix_runs/
+AISMS-strix-scan/
+
+audit_out.txt
+aiload.txt
+routes_list.txt
+dbg.txt
+ai_verify.txt
+old_perf.txt
+old_trend.txt
+tmp_*.py
+tmp_*.txt
+
 # Supabase local
 supabase/.temp/
 

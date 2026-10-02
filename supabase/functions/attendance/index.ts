@@ -7,6 +7,7 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const ALLOWED_MARK_ROLES = ['ADMIN', 'SUPER_ADMIN', 'FACULTY', 'CLASS_INCHARGE']
+const ALLOWED_STATUSES = ['PRESENT', 'ABSENT', 'LATE', 'ON_LEAVE', 'EXCUSED']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -76,6 +77,15 @@ Deno.serve(async (req) => {
       if (!studentId || !status) {
         return json({ success: false, message: 'studentId and status are required' }, 400)
       }
+      if (!ALLOWED_STATUSES.includes(status)) {
+        return json({ success: false, message: 'Invalid attendance status' }, 400)
+      }
+
+      // Role check alone was insufficient: any faculty could mark attendance for
+      // any student. Require ownership of the student's class.
+      if (!await staffOwnsStudent(supabase, user.id, userRole, studentId)) {
+        return json({ success: false, message: 'Not authorized to mark attendance for this student' }, 403)
+      }
 
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -97,9 +107,60 @@ Deno.serve(async (req) => {
         .select()
         .single()
 
-      if (error) return json({ success: false, message: error.message }, 500)
+      if (error) return json({ success: false, message: 'Attendance mark failed' }, 500)
 
       return json({ success: true, message: 'Attendance marked', data })
+    }
+
+    if (req.method === 'PUT') {
+      if (!ALLOWED_MARK_ROLES.includes(userRole)) {
+        return json({ success: false, message: 'Insufficient permissions' }, 403)
+      }
+
+      const url = new URL(req.url)
+      const id = url.searchParams.get('id')
+      if (!id) {
+        return json({ success: false, message: 'id is required' }, 400)
+      }
+
+      const body = await req.json()
+      const { status, justification } = body
+
+      if (status && !ALLOWED_STATUSES.includes(status)) {
+        return json({ success: false, message: 'Invalid attendance status' }, 400)
+      }
+
+      const { data: existing, error: readErr } = await supabase
+        .from('attendance')
+        .select('id, student_id')
+        .eq('id', id)
+        .single()
+      if (readErr || !existing) {
+        return json({ success: false, message: 'Attendance record not found' }, 404)
+      }
+
+      // Only staff who own the student's class may amend the record.
+      if (!await staffOwnsStudent(supabase, user.id, userRole, existing.student_id)) {
+        return json({ success: false, message: 'Not authorized to modify this record' }, 403)
+      }
+
+      const patch: Record<string, unknown> = {}
+      if (status) patch.status = status
+      if (justification !== undefined) patch.justification = justification
+
+      if (Object.keys(patch).length === 0) {
+        return json({ success: false, message: 'No updatable fields supplied' }, 400)
+      }
+
+      const { data, error } = await supabase
+        .from('attendance')
+        .update(patch)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) return json({ success: false, message: 'Update failed' }, 500)
+
+      return json({ success: true, message: 'Attendance updated', data })
     }
 
     return json({ success: false, message: 'Method not allowed' }, 405)
@@ -113,15 +174,45 @@ async function getRole(supabase: SupabaseClient, userId: string): Promise<string
   const { data, error } = await supabase
     .from('profiles')
     .select('role')
+    .eq('user_id', userId)
     .single()
   if (error) return null
   return (data as { role?: string })?.role ?? null
+}
+
+/**
+ * True when the caller is allowed to act on this student's attendance.
+ * Admins always pass. Faculty/class-in-charge must be the in-charge faculty of
+ * the student's class — a missing faculty row fails closed rather than
+ * defaulting to "allowed".
+ */
+async function staffOwnsStudent(
+  supabase: SupabaseClient,
+  userId: string,
+  userRole: string,
+  studentId: string,
+): Promise<boolean> {
+  if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') return true
+
+  const facultyId = await getFacultyId(supabase, userId)
+  if (!facultyId) return false
+
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, classes!inner(incharge_id)')
+    .eq('id', studentId)
+    .eq('classes.incharge_id', facultyId)
+    .limit(1)
+    .maybeSingle()
+
+  return !error && !!data
 }
 
 async function getFacultyId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('faculty')
     .select('id')
+    .eq('user_id', userId)
     .single()
   if (error || !data) return null
   return (data as { id: string })?.id ?? null

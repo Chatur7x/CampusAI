@@ -7,7 +7,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.performance_analysis import (
     pearson_correlation, predict_grade, batch_correlation,
@@ -44,45 +44,45 @@ router = APIRouter()
 # ── Schemas ──────────────────────────────────────────────────
 
 class CorrelationRequest(BaseModel):
-    attendances: List[float]
-    grades: List[float]
+    attendances: List[float] = Field(min_length=2, max_length=5000)
+    grades: List[float] = Field(min_length=2, max_length=5000)
 
 
 class GradePredictionRequest(BaseModel):
-    attendance_pct: float
-    historical_attendances: List[float]
-    historical_grades: List[float]
+    attendance_pct: float = Field(ge=0.0, le=100.0, allow_inf_nan=False)
+    historical_attendances: List[float] = Field(min_length=2, max_length=5000)
+    historical_grades: List[float] = Field(min_length=2, max_length=5000)
 
 
 class BatchCorrelationRequest(BaseModel):
-    subjects: List[dict]
+    subjects: List[dict] = Field(min_length=1, max_length=1000)
 
 
 class ProfileTrainRequest(BaseModel):
-    records: List[dict]
-    n_clusters: int = 3
+    records: List[dict] = Field(min_length=1, max_length=5000)
+    n_clusters: int = Field(default=3, ge=2, le=20)
 
 
 class ClassifyRequest(BaseModel):
-    attendance_pct: float = 75
-    absence_streak_max: int = 0
-    late_pct: float = 0
-    variance_weekly: float = 5
-    student_id: Optional[str] = None
+    attendance_pct: float = Field(default=75, ge=0.0, le=100.0, allow_inf_nan=False)
+    absence_streak_max: int = Field(default=0, ge=0, le=3650)
+    late_pct: float = Field(default=0, ge=0.0, le=100.0, allow_inf_nan=False)
+    variance_weekly: float = Field(default=5, ge=0.0, le=1000.0, allow_inf_nan=False)
+    student_id: Optional[str] = Field(default=None, max_length=128)
 
 
 class BatchClassifyRequest(BaseModel):
-    records: List[dict]
+    records: List[dict] = Field(min_length=1, max_length=5000)
 
 
 class DriftCheckRequest(BaseModel):
-    model_name: str
+    model_name: str = Field(min_length=1, max_length=128)
 
 
 class DataDriftRequest(BaseModel):
-    model_name: str
-    baseline_features: List[float]
-    current_features: List[float]
+    model_name: str = Field(min_length=1, max_length=128)
+    baseline_features: List[float] = Field(min_length=1, max_length=1000)
+    current_features: List[float] = Field(min_length=1, max_length=1000)
 
 
 class LogPredictionRequest(BaseModel):
@@ -93,45 +93,45 @@ class LogPredictionRequest(BaseModel):
 
 
 class LogAccuracyRequest(BaseModel):
-    model_name: str
-    accuracy: float
+    model_name: str = Field(min_length=1, max_length=128)
+    accuracy: float = Field(ge=0.0, le=1.0, allow_inf_nan=False)
 
 
 class RiskExplainRequest(BaseModel):
-    attendance_pct: float = 75
-    consecutive_absences: int = 0
-    late_count: int = 0
-    monthly_trend: float = 0
+    attendance_pct: float = Field(default=75, ge=0.0, le=100.0, allow_inf_nan=False)
+    consecutive_absences: int = Field(default=0, ge=0, le=3650)
+    late_count: int = Field(default=0, ge=0, le=100_000)
+    monthly_trend: float = Field(default=0, ge=-100.0, le=100.0, allow_inf_nan=False)
 
 
 class TrendCompareRequest(BaseModel):
-    weekly_rates: List[float]
-    forecast_weeks: int = 4
+    weekly_rates: List[float] = Field(min_length=2, max_length=520)
+    forecast_weeks: int = Field(default=4, ge=1, le=26)
 
 
 class InterventionRequest(BaseModel):
-    weekly_rates: List[float]
+    weekly_rates: List[float] = Field(min_length=2, max_length=520)
 
 
 class PerformanceRiskRequest(BaseModel):
-    attendance_pct: float
-    grade: float
-    prev_grade: Optional[float] = None
-    absence_streak: int = 0
+    attendance_pct: float = Field(ge=0.0, le=100.0, allow_inf_nan=False)
+    grade: float = Field(ge=0.0, le=100.0, allow_inf_nan=False)
+    prev_grade: Optional[float] = Field(default=None, ge=0.0, le=100.0, allow_inf_nan=False)
+    absence_streak: int = Field(default=0, ge=0, le=3650)
 
 
 class TrainRiskModelsRequest(BaseModel):
-    records: List[dict]
+    records: List[dict] = Field(min_length=1, max_length=10000)
 
 
 class DeviceTrackRequest(BaseModel):
-    device_fingerprint: str
-    student_id: str
+    device_fingerprint: str = Field(min_length=1, max_length=256)
+    student_id: str = Field(min_length=1, max_length=128)
 
 
 class AttendanceSpikeRequest(BaseModel):
-    student_id: str
-    window_seconds: float = 3600
+    student_id: str = Field(min_length=1, max_length=128)
+    window_seconds: float = Field(default=3600, gt=0, le=31_536_000)
 
 
 # ── Performance Analysis ─────────────────────────────────────
@@ -163,8 +163,14 @@ async def get_batch_correlation(req: BatchCorrelationRequest):
 @router.post("/performance-risk")
 async def get_performance_risk(req: PerformanceRiskRequest):
     """Detect academic performance risk for a student."""
+    # Model expects historical lists; adapt scalar request fields.
+    # With <3 history points the model skips trend projection and
+    # evaluates attendance/grade thresholds only — no crash, honest output.
+    grades_history = [req.grade] + ([req.prev_grade] if req.prev_grade is not None else [])
     return detect_performance_risk(
-        req.attendance_pct, req.grade, req.prev_grade, req.absence_streak,
+        req.attendance_pct, req.grade,
+        [req.attendance_pct], grades_history,
+        absence_streak=req.absence_streak,
     )
 
 
@@ -383,15 +389,17 @@ async def train_all_models(req: TrainModelsRequest):
         try:
             iso_result = train_isolation_forest(record_dicts)
             results["isolation_forest"] = {"status": "trained", **iso_result}
-        except Exception as e:
-            results["isolation_forest"] = {"status": "failed", "error": str(e)}
+        except Exception:
+            logger.exception("Isolation Forest training failed")
+            results["isolation_forest"] = {"status": "failed", "error": "Training failed"}
 
         # 2. Train fraud detection model
         try:
             fraud_result = train_fraud_model(record_dicts)
             results["fraud_detection"] = {"status": "trained", **fraud_result}
-        except Exception as e:
-            results["fraud_detection"] = {"status": "failed", "error": str(e)}
+        except Exception:
+            logger.exception("Fraud model training failed")
+            results["fraud_detection"] = {"status": "failed", "error": "Training failed"}
 
         # 3. Train behavior profiles
         try:
@@ -424,8 +432,9 @@ async def train_all_models(req: TrainModelsRequest):
                 results["behavior_profiles"] = {"status": "trained", **profile_result}
             else:
                 results["behavior_profiles"] = {"status": "skipped", "reason": "too few students"}
-        except Exception as e:
-            results["behavior_profiles"] = {"status": "failed", "error": str(e)}
+        except Exception:
+            logger.exception("Behaviour profiling failed")
+            results["behavior_profiles"] = {"status": "failed", "error": "Training failed"}
 
         return {
             "success": True,
@@ -435,5 +444,7 @@ async def train_all_models(req: TrainModelsRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Training pipeline failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log the real cause server-side; never echo the exception text (it can
+        # contain connection strings, file paths or model internals).
+        logger.exception("Training pipeline failed")
+        raise HTTPException(status_code=500, detail="Model training failed")

@@ -6,9 +6,9 @@ from __future__ import annotations
 import json, logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.face_recognition_module import (
     generate_embedding, generate_multi_embedding, verify_face, identify_face,
@@ -18,6 +18,7 @@ from models.liveness import analyse_liveness, analyse_liveness_sequence
 from models.confidence import compute_confidence, compute_device_trust
 from models.geo_validation import validate_location, detect_gps_spoof, check_impossible_travel, haversine
 from models.audit_logger import log_ai_decision
+from utils.auth import require_self_or_staff, require_staff, require_user
 from utils.db import (
     fetch_student, fetch_student_by_user, update_face_data,
     fetch_all_students_with_faces, fetch_student_embeddings,
@@ -36,39 +37,44 @@ class Photo(BaseModel):
     imageData: str
     angle: str
 
+# A base64 data URL for a camera frame is a few hundred KB; 8 MB per image is a
+# generous ceiling that still stops a caller streaming an unbounded body.
+_IMAGE = Field(min_length=1, max_length=8 * 1024 * 1024)
+
+
 class RegisterRequest(BaseModel):
-    user_id: str
-    photos: List[Photo]
-    liveness_frames: List[str]
-    challenge_type: Optional[str] = None
+    user_id: str = Field(min_length=1, max_length=128)
+    photos: List[Photo] = Field(min_length=1, max_length=10)
+    liveness_frames: List[str] = Field(default_factory=list, max_length=20)
+    challenge_type: Optional[str] = Field(default=None, max_length=32)
 
 
 class VerifyRequest(BaseModel):
-    user_id: str
-    image: str          # base64 probe
-    class_id: str       # Current class ID for session validation
-    session_code: Optional[str] = None # Dynamic 6-digit code
-    liveness_frames: Optional[List[str]] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    accuracy_m: Optional[float] = None
-    device_fingerprint: Optional[str] = None
-    known_devices: Optional[List[str]] = None
-    ip_address: Optional[str] = None
-    known_ips: Optional[List[str]] = None
+    user_id: str = Field(min_length=1, max_length=128)
+    image: str = _IMAGE          # base64 probe
+    class_id: str = Field(min_length=1, max_length=128)
+    session_code: Optional[str] = Field(default=None, pattern=r"^\d{6}$")
+    liveness_frames: Optional[List[str]] = Field(default=None, max_length=20)
+    latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0, allow_inf_nan=False)
+    longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0, allow_inf_nan=False)
+    accuracy_m: Optional[float] = Field(default=None, ge=0.0, le=100_000.0, allow_inf_nan=False)
+    device_fingerprint: Optional[str] = Field(default=None, max_length=256)
+    known_devices: Optional[List[str]] = Field(default=None, max_length=50)
+    ip_address: Optional[str] = Field(default=None, max_length=64)
+    known_ips: Optional[List[str]] = Field(default=None, max_length=50)
 
 
 class IdentifyRequest(BaseModel):
-    image: str
-    class_id: Optional[str] = None
-    session_code: Optional[str] = None
-    liveness_frames: Optional[List[str]] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    image: str = _IMAGE
+    class_id: Optional[str] = Field(default=None, max_length=128)
+    session_code: Optional[str] = Field(default=None, pattern=r"^\d{6}$")
+    liveness_frames: Optional[List[str]] = Field(default=None, max_length=20)
+    latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0, allow_inf_nan=False)
+    longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0, allow_inf_nan=False)
 
 
 class LivenessRequest(BaseModel):
-    frames: List[str]
+    frames: List[str] = Field(min_length=1, max_length=20)
 
 
 class AgingUpdateRequest(BaseModel):
@@ -80,7 +86,8 @@ class AgingUpdateRequest(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────
 
 @router.post("/register")
-async def register_face(req: RegisterRequest):
+async def register_face(req: RegisterRequest, user: dict = Depends(require_user)):
+    await require_self_or_staff(req.user_id, user)
     """
     Register a new face profile with multi-angle capture and liveness.
     """
@@ -138,17 +145,18 @@ async def register_face(req: RegisterRequest):
             "errors": result.get("errors"),
             "liveness_details": liveness,
         }
-    except Exception as e:
-        logger.error(f"Registration failed for user {req.user_id}: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Face registration failed for user %s", req.user_id)
         raise HTTPException(
             status_code=500,
-            detail=f"Registration Anomaly: {str(e)}"
+            detail="Face registration failed",
         )
 
 
 @router.post("/verify")
-async def verify_face_endpoint(req: VerifyRequest):
+async def verify_face_endpoint(req: VerifyRequest, user: dict = Depends(require_user)):
     """1:1 face verification + liveness + geo → 4-component confidence score."""
+    await require_self_or_staff(req.user_id, user)
     student = fetch_student_by_user(req.user_id)
     if not student:
         raise HTTPException(404, "Student not found")
@@ -319,7 +327,27 @@ async def verify_face_endpoint(req: VerifyRequest):
         approved=conf.auto_approved,
     )
 
+    # Low-confidence fallback (A6). Previously a non-match returned the same
+    # 200 shape as a confident match and left it to the client to interpret a
+    # bare score. Make the "could not verify" outcome explicit and actionable so
+    # a borderline photo never reads as a pass.
+    verified = bool(match_result.get("match")) and bool(conf.auto_approved)
+
+    if not verified:
+        reason = (
+            "No confident face match. Try again in better lighting, without obstructions."
+            if not match_result.get("match")
+            else "Face matched but the combined signals (liveness, geofence, device) were insufficient. Please retry; if this repeats, an admin will need to approve."
+        )
+        logger.info(
+            "[face/verify] not verified user=%s similarity=%.3f confidence=%.3f flags=%s",
+            req.user_id, match_result.get("similarity", 0.0), conf.score, conf.flags,
+        )
+
     return {
+        "verified": verified,
+        "requires_manual_review": bool(conf.requires_reverification or conf.admin_alert),
+        "reason": None if verified else reason,
         "match": match_result,
         "liveness": {k: v for k, v in liveness_result.items() if k != "frames"},
         "geo": geo_result,
@@ -336,10 +364,10 @@ async def verify_face_endpoint(req: VerifyRequest):
 
 
 @router.post("/identify")
-async def identify_face_endpoint(req: IdentifyRequest):
+async def identify_face_endpoint(req: IdentifyRequest, user: dict = Depends(require_staff)):
     """
     Bio-Net v4: 1:N face identification across enrolled students.
-    Native HNSW Vector search.
+    Native HNSW Vector search. Staff-only: scans every enrolled student.
     """
     # Bio-Net v4: No longer pulling all candidates into memory.
     # The database handles the 512-D vector search via match_face_v4.

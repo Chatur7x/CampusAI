@@ -8,7 +8,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src--frontend/*"]
+      "@/*": ["src--frontend/*"],
+      "motion/react": ["./node_modules/framer-motion"]
     },
 
     "types": ["vite/client"],

@@ -9,6 +9,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src--frontend"),
+      // Dedupe: Magic UI components import "motion/react" — map to the
+      // framer-motion copy already in the bundle instead of shipping two
+      // animation libraries (halves animation-vendor, avoids dev re-optimize reloads).
+      "motion/react": path.resolve(__dirname, "./node_modules/framer-motion"),
     },
   },
   // This defines a global 'process' variable to prevent the frontend from crashing
@@ -18,6 +22,17 @@ export default defineConfig({
   },
   server: {
     allowedHosts: ['klk5st-5173.csb.app'],
+    // Pre-transform the app source at server start so first visits are instant
+    warmup: {
+      clientFiles: [
+        './src--frontend/App.tsx',
+        './src--frontend/main.tsx',
+        './src--frontend/components/**/*.tsx',
+        './src--frontend/context/**/*.tsx',
+        './src--frontend/lib/**/*.ts',
+        './src--frontend/dashboards/**/*.tsx',
+      ],
+    },
   },
 
   // ── Build Performance Optimizations ──────────────────────────
@@ -86,7 +101,17 @@ export default defineConfig({
       'date-fns',
       'cmdk',
       'framer-motion',
-      'recharts'
+      'recharts',
+      // Lazy-route deps — bundling upfront prevents mid-navigation
+      // "re-optimizing dependencies → reloading" cycles
+      '@tanstack/react-query',
+      'react-hook-form',
+      'embla-carousel-react',
+      'vaul',
+      'react-day-picker',
+      'input-otp',
+      'qrcode.react',
+      'socket.io-client',
     ],
     // Exclude large WASM/compute-heavy libraries from pre-bundling if they break or slow down initial boot
     exclude: ['@mediapipe/face_mesh']

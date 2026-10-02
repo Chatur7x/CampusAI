@@ -103,6 +103,59 @@ def spearman_correlation(
     }
 
 
+def predict_grade(
+    attendance_pct: float,
+    historical_attendances: list[float],
+    historical_grades: list[float],
+) -> dict:
+    """Predict grade using linear regression on historical data."""
+    import math
+
+    if not math.isfinite(attendance_pct):
+        return {"error": "attendance_pct must be a finite number"}
+    xa = [float(v) for v in (historical_attendances or [])]
+    ya = [float(v) for v in (historical_grades or [])]
+    if (
+        len(xa) < 3
+        or len(xa) != len(ya)
+        or not all(math.isfinite(v) for v in xa + ya)
+    ):
+        return {"error": "Need at least 3 finite paired data points for prediction"}
+
+    x = np.array(xa, dtype=np.float64)
+    y = np.array(ya, dtype=np.float64)
+    slope, intercept, r, p, _se = stats.linregress(x, y)
+    predicted = slope * attendance_pct + intercept
+    predicted = max(0, min(100, predicted))
+
+    # Prediction interval from residual standard error (not the slope SE):
+    # wider when data is noisy or the query point is far from the mean.
+    n = len(x)
+    residuals = y - (slope * x + intercept)
+    s_err = float(np.sqrt(np.sum(residuals ** 2) / max(n - 2, 1)))
+    x_mean = float(np.mean(x))
+    ss_x = float(np.sum((x - x_mean) ** 2))
+    if ss_x > 0 and n > 2:
+        se_pred = s_err * math.sqrt(1 + 1 / n + (attendance_pct - x_mean) ** 2 / ss_x)
+        margin = float(stats.t.ppf(0.975, n - 2)) * se_pred
+    else:
+        margin = 2 * s_err
+
+    return {
+        "predicted_grade": round(float(predicted), 2),
+        "confidence_interval": {
+            "lower": round(float(max(0, predicted - margin)), 2),
+            "upper": round(float(min(100, predicted + margin)), 2),
+        },
+        "model": {
+            "slope": round(float(slope), 4),
+            "intercept": round(float(intercept), 4),
+            "r_squared": round(float(r ** 2), 4),
+        },
+        "input_attendance": attendance_pct,
+    }
+
+
 def predict_performance_v4(
     attendance_pct: float,
     historical_attendances: list[float],
@@ -151,6 +204,7 @@ def detect_performance_risk(
     current_grade: float,
     historical_attendances: list[float],
     historical_grades: list[float],
+    absence_streak: int = 0,
 ) -> dict:
     """
     Detect if a student is at academic performance risk
@@ -158,6 +212,18 @@ def detect_performance_risk(
     """
     risk_factors: list[str] = []
     severity = "LOW"
+
+    # Consecutive-absence streak (F-5: previously dropped by the route adapter)
+    try:
+        streak = int(absence_streak or 0)
+    except (TypeError, ValueError):
+        streak = 0
+    if streak >= 5:
+        risk_factors.append(f"CRITICAL: {streak} consecutive absences")
+        severity = "CRITICAL"
+    elif streak >= 3:
+        risk_factors.append(f"WARNING: {streak} consecutive absences")
+        severity = "HIGH" if severity != "CRITICAL" else severity
 
     # Low attendance
     if attendance_pct < 60:

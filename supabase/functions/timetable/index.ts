@@ -124,6 +124,7 @@ async function getRole(supabase: SupabaseClient, userId: string): Promise<string
   const { data, error } = await supabase
     .from('profiles')
     .select('role')
+    .eq('user_id', userId)
     .single()
   if (!error && data) return (data as { role?: string })?.role ?? null
   return null

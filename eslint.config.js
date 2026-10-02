@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   // Exclude the server (separate Node.js project) and build output
-  { ignores: ['dist', 'server--backend/**', 'ai-server/**', 'seed_users.mjs'] },
+  // scratch/ + tmp/ are throwaway dev scripts — never gate CI on them.
+  // supabase/functions run on Deno, not Node/browser — separate runtime.
+  { ignores: ['dist', 'server--backend/**', 'ai-server/**', 'seed_users.mjs', 'scratch/**', 'tmp/**', 'public/**', 'supabase/functions/**', '.venv/**', 'dist-ssr/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

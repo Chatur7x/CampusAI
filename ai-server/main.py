@@ -7,7 +7,9 @@ import logging, os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from config import (
     AI_SERVER_HOST, AI_SERVER_PORT, CORS_ORIGINS, MLFLOW_TRACKING_URI,
@@ -49,6 +51,9 @@ app = FastAPI(
     version="1.0.0",
     description="Python AI/ML backend for Smart Attendance System",
     lifespan=lifespan,
+    # Never leak internal tracebacks / handler internals to clients.
+    docs_url=None,
+    redoc_url=None,
 )
 
 app.add_middleware(
@@ -61,20 +66,80 @@ app.add_middleware(
 
 
 # ── Routes ────────────────────────────────────────────────────
+from fastapi import Depends
 from routes.face import router as face_router
 from routes.attendance import router as attendance_router
 from routes.analytics import router as analytics_router
 from routes.session import router as session_router
+from utils.auth import require_user
+from utils.ratelimit import analytics_rate_limit, face_rate_limit, session_rate_limit
 
-app.include_router(face_router, prefix="/api/face", tags=["Face Recognition"])
-app.include_router(attendance_router, prefix="/api/attendance", tags=["Attendance"])
-app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
-app.include_router(session_router, prefix="/api/session", tags=["Session Management"])
+# Every /api/* router requires a valid Supabase JWT. Rate-limit dependencies
+# run after auth so they can key on the authenticated subject.
+_authed = [Depends(require_user)]
+
+app.include_router(
+    face_router,
+    prefix="/api/face",
+    tags=["Face Recognition"],
+    dependencies=[Depends(require_user), Depends(face_rate_limit)],
+)
+app.include_router(
+    attendance_router,
+    prefix="/api/attendance",
+    tags=["Attendance"],
+    dependencies=[Depends(require_user), Depends(face_rate_limit)],
+)
+app.include_router(
+    analytics_router,
+    prefix="/api/analytics",
+    tags=["Analytics"],
+    dependencies=[Depends(require_user), Depends(analytics_rate_limit)],
+)
+app.include_router(
+    session_router,
+    prefix="/api/session",
+    tags=["Session Management"],
+    dependencies=[Depends(require_user), Depends(session_rate_limit)],
+)
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "CampusAI"}
+
+
+# ── Centralized error handling ────────────────────────────────
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc: Exception):
+    """Log with context, return a generic message.
+
+    Starlette's default handler returns a plaintext 500 with the exception
+    text in some configurations; this guarantees no stack trace, path or
+    driver detail ever reaches the client.
+    """
+    logger.exception(
+        "Unhandled error on %s %s", getattr(request, "method", "?"), getattr(request, "url", "?")
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    """Return the field errors without echoing the submitted payload."""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Invalid request",
+            "errors": [
+                {"field": ".".join(str(p) for p in err.get("loc", [])[1:]), "message": err.get("msg", "invalid")}
+                for err in exc.errors()
+            ],
+        },
+    )
 
 
 # ── Entrypoint ────────────────────────────────────────────────

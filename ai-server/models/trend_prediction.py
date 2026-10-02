@@ -150,13 +150,56 @@ def _filter_outliers(series: np.ndarray) -> np.ndarray:
     return np.clip(series, lower, upper)
 
 
+def moving_average_trend(weekly_rates: list[float], forecast_weeks: int = 4, window: int = 3) -> dict:
+    """
+    Simple/Exponential Moving Average forecast.
+    Smooths noise and extrapolates recent trend.
+    """
+    if len(weekly_rates) < window:
+        return linear_trend(weekly_rates, forecast_weeks)
+
+    series = np.array(weekly_rates, dtype=np.float64)
+
+    # Simple Moving Average
+    sma = np.convolve(series, np.ones(window) / window, mode="valid")
+
+    # Exponential Moving Average (more weight to recent values)
+    alpha = 2.0 / (window + 1)
+    ema = [series[0]]
+    for val in series[1:]:
+        ema.append(alpha * val + (1 - alpha) * ema[-1])
+    ema = np.array(ema)
+
+    # Forecast using EMA momentum
+    last_ema = ema[-1]
+    momentum = (ema[-1] - ema[-min(window, len(ema))]) / min(window, len(ema))
+    predictions = []
+    for i in range(forecast_weeks):
+        pred = last_ema + momentum * (i + 1)
+        predictions.append(round(max(0, min(100, pred)), 2))
+
+    return {
+        "method": "moving_average",
+        "window": window,
+        "last_sma": round(float(sma[-1]), 2),
+        "last_ema": round(float(last_ema), 2),
+        "momentum": round(float(momentum), 4),
+        "predictions": predictions,
+        "trend": _classify_trend(weekly_rates, predictions),
+    }
+
+
 def compare_methods(weekly_rates: list[float], forecast_weeks: int = 4) -> dict:
     """
     Bio-Net v4: Weighted Ensemble Forecasting.
     Runs all models and blends them using model-specific confidence (R-squared/AIC).
     """
+    forecast_weeks = max(1, min(int(forecast_weeks), 26))
+    clean_rates = [float(v) for v in (weekly_rates or []) if v is not None]
+    if len(clean_rates) < 2:
+        return {"error": "Need at least 2 data points for forecasting"}
     results = {}
-    clean_rates = _filter_outliers(np.array(weekly_rates)).tolist()
+    clean_rates = _filter_outliers(np.array(clean_rates)).tolist()
     
     results["linear"] = linear_trend(clean_rates, forecast_weeks)
     results["moving_average"] = moving_average_trend(clean_rates, forecast_weeks)
@@ -186,11 +229,20 @@ def compare_methods(weekly_rates: list[float], forecast_weeks: int = 4) -> dict:
 
     all_predictions = [r["predictions"] for r in results.values() if "predictions" in r and r["predictions"]]
     if all_predictions:
+        # Only blend methods that produced a full-length forecast.
+        blendable = {
+            k: res
+            for k, res in results.items()
+            if len(res.get("predictions", [])) >= forecast_weeks
+        }
+        if not blendable:
+            return results
+        blend_w = sum(weights[k] for k in blendable)
         ensemble = []
         for i in range(forecast_weeks):
             weighted_sum = 0.0
-            for k, res in results.items():
-                weighted_sum += res["predictions"][i] * (weights[k] / total_w)
+            for k, res in blendable.items():
+                weighted_sum += res["predictions"][i] * (weights[k] / blend_w)
             ensemble.append(round(weighted_sum, 2))
             
         results["ensemble"] = {

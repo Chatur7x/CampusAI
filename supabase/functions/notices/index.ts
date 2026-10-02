@@ -113,15 +113,25 @@ Deno.serve(async (req) => {
       if (!id) return json({ success: false, message: 'id is required' }, 400)
       const body = await req.json()
 
+      // Explicit allowlist — never spread raw body (mass assignment could
+      // overwrite published_by, id, or other server-owned columns).
+      const update: Record<string, unknown> = {}
+      if (body.title !== undefined) update.title = body.title
+      if (body.content !== undefined) update.content = body.content
+      if (body.targetRoles !== undefined) update.target_roles = body.targetRoles
+      else if (body.target_roles !== undefined) update.target_roles = body.target_roles
+      if (body.targetDepartments !== undefined) update.target_departments = body.targetDepartments
+      else if (body.target_departments !== undefined) update.target_departments = body.target_departments
+      if (body.targetClasses !== undefined) update.target_classes = body.targetClasses
+      else if (body.target_classes !== undefined) update.target_classes = body.target_classes
+      if (body.expiryDate !== undefined) update.expiry_date = body.expiryDate ? new Date(body.expiryDate).toISOString() : null
+      else if (body.expiry_date !== undefined) update.expiry_date = body.expiry_date ?? null
+      if (body.is_active !== undefined) update.is_active = body.is_active
+      if (body.is_pinned !== undefined) update.is_pinned = body.is_pinned
+
       const { data, error } = await supabase
         .from('notices')
-        .update({
-          ...body,
-          target_roles: body.targetRoles ?? body.target_roles,
-          target_departments: body.targetDepartments ?? body.target_departments,
-          target_classes: body.targetClasses ?? body.target_classes,
-          expiry_date: body.expiryDate ? new Date(body.expiryDate).toISOString() : body.expiry_date ?? null,
-        })
+        .update(update)
         .eq('id', id)
         .select()
         .single()
@@ -152,6 +162,7 @@ async function getRole(supabase: SupabaseClient, userId: string): Promise<string
   const { data, error } = await supabase
     .from('profiles')
     .select('role')
+    .eq('user_id', userId)
     .single()
   if (error) return null
   return (data as { role?: string })?.role ?? null
