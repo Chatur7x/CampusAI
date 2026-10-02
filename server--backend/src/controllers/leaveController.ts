@@ -284,6 +284,21 @@ export const approveLeaveRequest = async (req: AuthenticatedRequest, res: Respon
       return;
     }
 
+    // Authorization: only faculty in charge of this student's class (or an admin)
+    // may act on the request. Fail closed when there is no faculty record.
+    if (req.user.role !== 'ADMIN') {
+      const ownsClass = faculty
+        ? await prisma.class.findFirst({
+            where: { AND: [{ incharge_id: faculty.id }, { id: leaveRequest.students?.class_id }] },
+          })
+        : null;
+
+      if (!ownsClass) {
+        res.status(403).json({ success: false, message: 'Not authorized to action this leave request' });
+        return;
+      }
+    }
+
     if (leaveRequest.status !== 'PENDING') {
       res.status(400).json({ success: false, message: 'Leave request already processed' });
       return;
@@ -364,6 +379,15 @@ export const approveLeaveRequest = async (req: AuthenticatedRequest, res: Respon
 export const getLeaveStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { studentId } = req.params;
+
+    // Authorization: students can only see their own stats; faculty/admin can see any
+    if (req.user?.role === 'STUDENT') {
+      const student = await prisma.student.findUnique({ where: { user_id: req.user.id } });
+      if (!student || student.id !== studentId) {
+        res.status(403).json({ success: false, message: 'Access denied' });
+        return;
+      }
+    }
 
     const stats = await prisma.leaveRequest.groupBy({
       by: ['status', 'type'],

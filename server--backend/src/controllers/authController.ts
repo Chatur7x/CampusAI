@@ -12,22 +12,21 @@ import { registerDevice, generateDeviceHash, parseUserAgent } from '../utils/dev
 import { detectBruteForce, createSecurityEvent } from '../utils/securityEvents';
 import { blacklistToken, blacklistAllUserTokens } from '../utils/tokenBlacklist';
 
-// Lightweight role lookup for login UI hints
+// Role lookup for the caller's OWN profile only.
+// Previously this accepted any ?email= and was unauthenticated, which let an
+// attacker enumerate every account's email, role, MFA status and active state
+// without ever authenticating. It is now scoped to the authenticated user.
 export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const email = (req.query.email as string | undefined)?.toLowerCase();
-    if (!email || !email.includes('@')) {
-      res.status(400).json({ success: false, message: 'Email query parameter required' });
-      return;
-    }
-
-    // Profile holds role, mfa_enabled, is_active
-    const profile = await prisma.profile.findUnique({
-      where: { email },
-      select: { role: true, mfa_enabled: true, is_active: true },
+    const self = await prisma.profile.findUnique({
+      where: { user_id: req.user!.id },
+      select: { email: true, role: true, mfa_enabled: true, is_active: true },
     });
 
-    if (!profile) {
+    // Only ever answer for the caller's own account. Anything else is reported
+    // identically to an unknown email so the response can't be used as an oracle.
+    if (!self || (email && email !== self.email.toLowerCase())) {
       res.status(200).json({ success: true, data: { exists: false } });
       return;
     }
@@ -36,9 +35,9 @@ export const getRoleByEmail = async (req: AuthenticatedRequest, res: Response): 
       success: true,
       data: {
         exists: true,
-        role: profile.role,
-        mfa_enabled: profile.mfa_enabled,
-        is_active: profile.is_active,
+        role: self.role,
+        mfa_enabled: self.mfa_enabled,
+        is_active: self.is_active,
       },
     });
   } catch (error) {
@@ -283,6 +282,13 @@ export const verifyMFA = async (req: AuthenticatedRequest, res: Response): Promi
 export const register = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { email, password, first_name, last_name, role, departmentId, enrollmentId, employeeId } = req.body as RegisterRequest;
+
+    // Open registration creates STUDENTS only. Staff/admin accounts are
+    // provisioned out-of-band — never trust a client-supplied role.
+    if (role !== 'STUDENT') {
+      res.status(403).json({ success: false, message: 'Self-registration is open for students only' });
+      return;
+    }
 
     // Check if email exists on profiles
     const existingProfile = await prisma.profile.findUnique({ where: { email } });

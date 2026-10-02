@@ -121,6 +121,19 @@ export const registerValidation = validate([
   { field: 'role', required: true, type: 'string' },
 ]);
 
+// Leave approval status must be an explicit enum value. Without this a caller
+// could PUT { status: "ANYTHING" } and write an arbitrary string into the
+// status column.
+export const leaveDecisionValidation = validate([
+  {
+    field: 'status',
+    required: true,
+    type: 'string',
+    custom: (v) => (['APPROVED', 'REJECTED'] as const).includes(v as never) || 'status must be APPROVED or REJECTED',
+  },
+  { field: 'comments', type: 'string', maxLength: 1000 },
+]);
+
 export const attendanceValidation = validate([
   { field: 'studentId', required: true, type: 'string' },
   { field: 'status', required: true, type: 'string' },

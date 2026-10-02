@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middleware/auth';
 import { authRateLimiter, apiRateLimiter } from '../middleware/rateLimiter';
-import { upload } from '../middleware/upload';
-import { loginValidation, registerValidation, attendanceValidation, leaveValidation, noticeValidation } from '../middleware/validation';
+import { upload, verifyUpload } from '../middleware/upload';
+import { uploadRateLimiter } from '../middleware/rateLimiter';
+import { loginValidation, registerValidation, attendanceValidation, leaveValidation, noticeValidation, leaveDecisionValidation } from '../middleware/validation';
 
 // Controllers
 import * as authController from '../controllers/authController';
@@ -29,7 +30,7 @@ router.post('/auth/setup-mfa', authenticate, authController.setupMFA);
 router.post('/auth/forgot-password', authController.forgotPassword);
 router.post('/auth/reset-password', authController.resetPassword);
 router.get('/auth/me', authenticate, authController.getMe);
-router.get('/auth/role', authRateLimiter, authController.getRoleByEmail);
+router.get('/auth/role', authenticate, authRateLimiter, authController.getRoleByEmail);
 
 // ==================== ATTENDANCE ROUTES ====================
 router.post('/attendance/face', authenticate, attendanceValidation, attendanceController.markAttendanceWithFace);
@@ -53,7 +54,7 @@ router.post('/leaves', authenticate, requireRole('STUDENT'), leaveValidation, le
 router.get('/leaves/my', authenticate, requireRole('STUDENT'), leaveController.getMyLeaveRequests);
 router.put('/leaves/:id/cancel', authenticate, requireRole('STUDENT'), leaveController.cancelLeaveRequest);
 router.get('/leaves/pending', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), leaveController.getPendingLeaveRequests);
-router.put('/leaves/:id/approve', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), leaveController.approveLeaveRequest);
+router.put('/leaves/:id/approve', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), leaveDecisionValidation, leaveController.approveLeaveRequest);
 router.get('/leaves/stats/:studentId', authenticate, leaveController.getLeaveStats);
 
 // ==================== ANALYTICS ROUTES ====================
@@ -75,13 +76,17 @@ router.post('/timetable/bulk', authenticate, requireRole('ADMIN', 'SUPER_ADMIN')
 router.post('/bulk/upload-students', 
   authenticate, 
   requireRole('ADMIN', 'SUPER_ADMIN'), 
+  uploadRateLimiter,
   upload.single('csv'), 
+  verifyUpload,
   bulkController.uploadStudentsCSV
 );
 router.post('/bulk/upload-faculty', 
   authenticate, 
   requireRole('ADMIN', 'SUPER_ADMIN'), 
+  uploadRateLimiter,
   upload.single('csv'), 
+  verifyUpload,
   bulkController.uploadFacultyCSV
 );
 router.get('/bulk/export-students', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), bulkController.exportStudents);

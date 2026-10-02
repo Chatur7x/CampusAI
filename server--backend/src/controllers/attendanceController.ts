@@ -27,6 +27,11 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
   try {
     const { studentId, faceData, location, device_info, subjectId, sessionId } = req.body;
 
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
+    }
+
     // Verify student exists
     const student = await prisma.student.findUnique({
       where: { id: studentId },
@@ -36,6 +41,31 @@ export const markAttendanceWithFace = async (req: AuthenticatedRequest, res: Res
     if (!student) {
       res.status(404).json({ success: false, message: 'Student not found' });
       return;
+    }
+
+    // Authorization: a student may only mark their own attendance; faculty may
+    // only mark for a class they are in charge of; admin/super_admin may do both.
+    const isSelf = student.user_id === req.user.id;
+    const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN';
+
+    if (!isSelf && !isAdmin) {
+      if (req.user.role !== 'FACULTY' && req.user.role !== 'CLASS_INCHARGE') {
+        res.status(403).json({ success: false, message: 'Not authorized to mark attendance for this student' });
+        return;
+      }
+
+      const faculty = await prisma.faculty.findUnique({ where: { user_id: req.user.id } });
+      // Fail closed: a faculty record is required to prove class ownership.
+      const teachesClass = faculty
+        ? await prisma.class.findFirst({
+            where: { AND: [{ incharge_id: faculty.id }, { id: student.class_id }] },
+          })
+        : null;
+
+      if (!teachesClass) {
+        res.status(403).json({ success: false, message: 'Not authorized to mark attendance for this student' });
+        return;
+      }
     }
 
     // Check if face is registered
@@ -193,6 +223,21 @@ export const markAttendanceManual = async (req: AuthenticatedRequest, res: Respo
       return;
     }
 
+    // Authorization: admin may mark for anyone; faculty only for a class they own.
+    if (req.user.role !== 'ADMIN') {
+      const faculty = await prisma.faculty.findUnique({ where: { user_id: req.user.id } });
+      const teachesClass = faculty
+        ? await prisma.class.findFirst({
+            where: { AND: [{ incharge_id: faculty.id }, { id: student.class_id }] },
+          })
+        : null;
+
+      if (!teachesClass) {
+        res.status(403).json({ success: false, message: 'Not authorized to mark attendance for this student' });
+        return;
+      }
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -275,6 +320,21 @@ export const markBulkAttendance = async (req: AuthenticatedRequest, res: Respons
     if (!req.user || (req.user.role !== 'FACULTY' && req.user.role !== 'CLASS_INCHARGE' && req.user.role !== 'ADMIN')) {
       res.status(403).json({ success: false, message: 'Insufficient permissions' });
       return;
+    }
+
+    // Authorization: admin may mark any class; faculty only a class they own.
+    if (req.user.role !== 'ADMIN') {
+      const faculty = await prisma.faculty.findUnique({ where: { user_id: req.user.id } });
+      const teachesClass = faculty
+        ? await prisma.class.findFirst({
+            where: { AND: [{ incharge_id: faculty.id }, { id: classId }] },
+          })
+        : null;
+
+      if (!teachesClass) {
+        res.status(403).json({ success: false, message: 'Not authorized to mark attendance for this class' });
+        return;
+      }
     }
 
     const results = [];
@@ -555,10 +615,13 @@ export const registerFace = async (req: AuthenticatedRequest, res: Response): Pr
   try {
     const { studentId, faceData } = req.body;
 
-    // Check permissions
-    if (req.user?.role === 'STUDENT' && req.user.id !== studentId) {
-      res.status(403).json({ success: false, message: 'Access denied' });
-      return;
+    // Students can only register their own face; faculty/admin can register for any student
+    if (req.user?.role === 'STUDENT') {
+      const student = await prisma.student.findUnique({ where: { user_id: req.user.id } });
+      if (!student || student.id !== studentId) {
+        res.status(403).json({ success: false, message: 'Access denied' });
+        return;
+      }
     }
 
     const student = await prisma.student.update({
