@@ -287,6 +287,13 @@ export const profileService = {
   },
 
   async update(userId: string, updates: Partial<Profile>): Promise<any | null> {
+    // Self-only. This write went straight to the table with the anon key and
+    // accepted any userId, so any signed-in user could rewrite another
+    // account's profile fields.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new ApiError('Not authenticated', 'UNAUTHENTICATED', 401);
+    if (user.id !== userId) throw new ApiError('Cannot update another profile', 'FORBIDDEN', 403);
+
     const dbUpdates: Record<string, any> = {};
     if (updates.first_name !== undefined) dbUpdates.first_name = updates.first_name;
     if (updates.last_name !== undefined) dbUpdates.last_name = updates.last_name;
@@ -308,10 +315,12 @@ export const profileService = {
 
     if (Object.keys(dbUpdates).length === 0) return null;
 
+    // role / email / is_active are deliberately absent from the allowlist above
+    // so a student cannot self-promote by passing them in `updates`.
     const { data, error } = await supabase
       .from('profiles')
       .update(dbUpdates)
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .select()
       .single();
     if (error) handleError(error);
@@ -319,16 +328,32 @@ export const profileService = {
   },
 
   async uploadAvatar(userId: string, file: File): Promise<string> {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/avatar.${fileExt}`;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new ApiError('Not authenticated', 'UNAUTHENTICATED', 401);
+    if (user.id !== userId) throw new ApiError('Cannot upload avatar for another user', 'FORBIDDEN', 403);
+
+    // Allowlist by content type; the stored extension is derived from the
+    // validated type, never from the client filename. Without this an uploaded
+    // .svg or .html lands in a public bucket and executes as stored XSS.
+    const AVATAR_TYPES: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+    };
+    const ext = AVATAR_TYPES[file.type];
+    if (!ext) throw new ApiError('Avatar must be a JPEG, PNG, GIF or WebP image', 'INVALID_FILE_TYPE', 400);
+    if (file.size > 5 * 1024 * 1024) throw new ApiError('Avatar must be under 5MB', 'FILE_TOO_LARGE', 400);
+
+    const fileName = `${user.id}/avatar.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(fileName, file, { upsert: true });
+      .upload(fileName, file, { upsert: true, contentType: file.type });
     if (uploadError) handleError(uploadError);
     const { data: { publicUrl } } = supabase.storage
       .from('avatars')
       .getPublicUrl(fileName);
-    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('user_id', userId);
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('user_id', user.id);
     return publicUrl;
   },
 
@@ -928,6 +953,9 @@ export const attendanceService = {
         .eq('class_id', classId);
       if (!students?.length) return [];
 
+      // Read-only fallback is retained (RLS still gates what comes back), but
+      // the class scoping above is preserved so a faculty member cannot read
+      // another class's attendance by manipulating this path.
       let query = supabase
         .from('attendance')
         .select('*')
@@ -971,48 +999,54 @@ export const attendanceService = {
       });
       if (result) return result;
     } catch {
-      // Fallback to direct insert
-      const { data, error } = await supabase
-        .from('attendance')
-        .insert({
-          student_id: studentId,
-          subject_id: subjectId,
-          session_id: sessionId,
-          date: new Date().toISOString().split('T')[0],
-          status: attendance.status || 'PRESENT',
-          method: attendance.method || 'MANUAL',
-          verified_by: attendance.verified_by || attendance.faculty_id || null,
-          justification: attendance.justification ?? attendance.remarks ?? null,
-          confidence_score: attendance.confidence_score || attendance.confidenceScore || null,
-          location: attendance.location || null,
-          device_info: attendance.device_info || attendance.device_id || null,
-        })
-        .select()
-        .single();
-      if (error) handleError(error);
-      return data;
+      // No direct-table fallback here on purpose. This path used to insert
+      // straight into `attendance` with the anon key, which meant an edge
+      // function outage silently downgraded to an unauthenticated write that
+      // skipped every role and class-ownership check. Attendance writes are
+      // server-authoritative; if the function is down, the mark must fail.
+      handleError({ message: 'Could not mark attendance — the service is unavailable' });
     }
     return null;
   },
 
   async markBulk(records: (Partial<Attendance> & Record<string, any>)[]): Promise<Attendance[]> {
-    const results = await Promise.all(records.map((record) => attendanceService.mark(record)));
-    return results.filter(Boolean) as Attendance[];
+    // Single bulk call through the backend so class ownership is verified once
+    // server-side, instead of N direct-table writes that bypassed it entirely.
+    const first = records[0];
+    if (!first) return [];
+
+    const response = await fetch(`${BACKEND_URL}/api/attendance/bulk`, {
+      method: 'POST',
+      headers: await buildFunctionHeaders(),
+      body: JSON.stringify({
+        classId: first.class_id,
+        subjectId: first.subject_id,
+        date: first.date,
+        attendanceList: records.map((r) => ({
+          studentId: r.student_id,
+          status: r.status,
+          justification: r.justification ?? r.remarks ?? null,
+        })),
+      }),
+    });
+
+    const result = await response.json();
+    if (!result.success) handleError({ message: result.message || 'Failed to mark attendance' });
+    return result.data || [];
   },
 
   async update(id: string, updates: Partial<Attendance> & Record<string, any>): Promise<Attendance | null> {
-    const dbUpdates: Record<string, any> = {};
-    if (updates.status) dbUpdates.status = updates.status;
-    if (updates.remarks || updates.justification) dbUpdates.remarks = updates.remarks || updates.justification;
-
-    const { data, error } = await supabase
-      .from('attendance')
-      .update(dbUpdates)
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) handleError(error);
-    return data;
+    // Routed through the attendance edge function, which applies the
+    // role/faculty checks the direct-table update skipped.
+    const payload = await callEdgeFunction<Attendance>('attendance', {
+      method: 'PUT',
+      query: { id },
+      body: {
+        status: updates.status,
+        justification: updates.justification ?? updates.remarks ?? null,
+      },
+    });
+    return payload || null;
   },
 
   async getStatistics(studentId: string) {
@@ -1182,23 +1216,24 @@ export const leaveService = {
   },
 
   async getPending(filters?: { classId?: string }): Promise<Leave[]> {
-    const query = supabase
-      .from('leave_requests')
-      .select(`*`)
-      .eq('status', 'PENDING')
-      .order('created_at', { ascending: false });
-    const { data, error } = await query;
-    if (error) handleError(error);
+    const response = await fetch(`${BACKEND_URL}/api/leaves/pending`, {
+      headers: await buildFunctionHeaders(),
+    });
+    const result = await response.json();
+    if (!result.success) handleError({ message: result.message || 'Failed to fetch leave requests' });
 
-    if (filters?.classId && data) {
-      const { data: students } = await supabase
-        .from('students')
-        .select('id')
-        .eq('class_id', filters.classId);
-      const studentIds = new Set((students || []).map((s: any) => s.id));
-      return data.filter((l: any) => studentIds.has(l.student_id));
-    }
-    return data || [];
+    const all: Leave[] = result.data || [];
+    if (!filters?.classId) return all;
+
+    // The backend scopes pending leave to the caller's own students, but the
+    // class filter still has to be applied here because the endpoint returns
+    // every class the caller may act on.
+    const { data: students } = await supabase
+      .from('students')
+      .select('id')
+      .eq('class_id', filters.classId);
+    const studentIds = new Set((students || []).map((s: any) => s.id));
+    return all.filter((l) => studentIds.has(l.student_id));
   },
 
   async create(leave: Partial<Leave>): Promise<Leave | null> {
@@ -1218,46 +1253,41 @@ export const leaveService = {
     return result.data;
   },
 
-  async approve(leaveId: string, approverId: string): Promise<Leave | null> {
-    const { data, error } = await supabase
-      .from('leave_requests')
-      .update({
-        status: 'APPROVED' as LeaveStatus,
-        approved_by: approverId,
-        approved_at: new Date().toISOString(),
-      })
-      .eq('id', leaveId)
-      .select()
-      .single();
-    if (error) handleError(error);
-    return data;
+  async approve(leaveId: string, _approverId: string): Promise<Leave | null> {
+    // Routed through the backend: it resolves the approver from the JWT and
+    // verifies the approver actually owns the student's class. The old direct
+    // update let any caller write any approver_id onto any leave request.
+    const response = await fetch(`${BACKEND_URL}/api/leaves/${leaveId}/approve`, {
+      method: 'PUT',
+      headers: await buildFunctionHeaders(),
+      body: JSON.stringify({ status: 'APPROVED' }),
+    });
+    const result = await response.json();
+    if (!result.success) handleError({ message: result.message || 'Failed to approve leave request' });
+    return result.data || null;
   },
 
-  async reject(leaveId: string, approverId: string, reason: string): Promise<Leave | null> {
-    const { data, error } = await supabase
-      .from('leave_requests')
-      .update({
-        status: 'REJECTED' as LeaveStatus,
-        approved_by: approverId,
-        approved_at: new Date().toISOString(),
-        rejection_reason: reason,
-      })
-      .eq('id', leaveId)
-      .select()
-      .single();
-    if (error) handleError(error);
-    return data;
+  async reject(leaveId: string, _approverId: string, reason: string): Promise<Leave | null> {
+    const response = await fetch(`${BACKEND_URL}/api/leaves/${leaveId}/approve`, {
+      method: 'PUT',
+      headers: await buildFunctionHeaders(),
+      body: JSON.stringify({ status: 'REJECTED', comments: reason }),
+    });
+    const result = await response.json();
+    if (!result.success) handleError({ message: result.message || 'Failed to reject leave request' });
+    return result.data || null;
   },
 
   async cancel(leaveId: string): Promise<Leave | null> {
-    const { data, error } = await supabase
-      .from('leave_requests')
-      .update({ status: 'CANCELLED' as LeaveStatus })
-      .eq('id', leaveId)
-      .select()
-      .single();
-    if (error) handleError(error);
-    return data;
+    // Routed through the backend so it can verify the request owns the leave
+    // (the direct-table update relied entirely on RLS and had no owner check).
+    const response = await fetch(`${BACKEND_URL}/api/leaves/${leaveId}/cancel`, {
+      method: 'PUT',
+      headers: await buildFunctionHeaders(),
+    });
+    const result = await response.json();
+    if (!result.success) handleError({ message: result.message || 'Failed to cancel leave request' });
+    return result.data || null;
   },
 };
 
@@ -1964,7 +1994,8 @@ export const sessionService = {
   },
 
   async getActive(class_id: string) {
-    const response = await fetch(`${AI_BASE_URL}/api/session/active/${class_id}`);
+    const headers = await buildFunctionHeaders();
+    const response = await fetch(`${AI_BASE_URL}/api/session/active/${class_id}`, { headers });
     if (!response.ok) throw new Error('Failed to get active session');
     return response.json();
   },

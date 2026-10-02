@@ -1,6 +1,7 @@
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { ThemeProvider as LegacyThemeProvider } from "@/context/ThemeContext";
 import { ThemeProvider } from "@/themes";
 import { Toaster } from "@/components/ui/sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -240,14 +241,18 @@ function AppRoutes() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <SupabaseAuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <Toaster richColors position="top-right" />
-          </BrowserRouter>
-        </SupabaseAuthProvider>
-      </ThemeProvider>
+      {/* Auth must wrap Theme — ThemeProvider reads useSupabaseAuth() for org detection */}
+      <SupabaseAuthProvider>
+        {/* Legacy theme provider for light/dark/system toggle (used by ThemeToggle, CommandPalette) */}
+        <LegacyThemeProvider>
+          <ThemeProvider>
+            <BrowserRouter>
+              <AppRoutes />
+              <Toaster richColors position="top-right" />
+            </BrowserRouter>
+          </ThemeProvider>
+        </LegacyThemeProvider>
+      </SupabaseAuthProvider>
     </QueryClientProvider>
   );
 }

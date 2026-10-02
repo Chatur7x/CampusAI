@@ -128,7 +128,7 @@ export default function StudentOverview() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Loader2 className="w-12 h-12 animate-spin text-emerald-500" />
-        <p className="text-slate-400 font-medium animate-pulse text-sm tracking-widest uppercase">Synchronizing Academic Data...</p>
+        <p className="text-slate-400 font-medium animate-pulse text-sm tracking-widest uppercase">Loading your data...</p>
       </div>
     );
   }
@@ -143,10 +143,10 @@ export default function StudentOverview() {
             <h1 className="text-3xl font-black tracking-tight text-white uppercase italic">
               Academic <span className="text-emerald-400">Overview</span>
             </h1>
-            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em]">Operational Integrity & Progress Tracking</p>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em]">Your attendance at a glance</p>
           </div>
           <div className="flex gap-4">
-            <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-1.5 font-bold text-[10px] tracking-widest uppercase rounded-full">Status: Syncing</Badge>
+            <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-1.5 font-bold text-[10px] tracking-widest uppercase rounded-full">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</Badge>
           </div>
         </div>
       </div>
@@ -325,12 +325,12 @@ export default function StudentOverview() {
           <CardHeader className="p-8 pb-4 text-white">
             <CardTitle className="flex items-center gap-3 text-lg font-black uppercase italic tracking-tighter">
               <Bell className="w-5 h-5 text-cyan-400" />
-              Critical Notices
+              Notices
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8 pt-0">
             {!stats?.notices || stats.notices.length === 0 ? (
-              <p className="text-slate-600 text-sm font-medium py-12 text-center uppercase tracking-widest text-[10px]">Transmission Silent: No Updates</p>
+              <p className="text-slate-600 text-sm font-medium py-12 text-center uppercase tracking-widest text-[10px]">No notices yet</p>
             ) : (
               <div className="space-y-4">
                 {stats.notices.map((notice: any) => (
@@ -345,7 +345,7 @@ export default function StudentOverview() {
               </div>
             )}
             <Button variant="ghost" className="w-full mt-6 text-slate-400 hover:text-white font-bold text-xs uppercase tracking-widest" onClick={() => navigate('/student/notices')}>
-              View Full Archive
+              View All Notices
             </Button>
           </CardContent>
         </Card>

@@ -277,7 +277,7 @@ export default function MyAttendancePage() {
                         reason: reason.trim(),
                         status: 'PENDING',
                       } as any);
-                      toast.success('Transmission Successful: Leave Request Filed');
+                      toast.success('Leave request submitted');
                       setPlannedDate('');
                       setReason('');
                     } catch (err) {

@@ -237,13 +237,12 @@ export default function AttendanceSessionPage() {
         <div className="space-y-1">
           <h1 className="text-fluid-xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
             <span className="w-2 h-8 bg-emerald-500 rounded-full animate-pulse" />
-            Command Center
+            Live Attendance
           </h1>
           <p className="text-slate-400 text-sm font-medium flex items-center gap-2">
-            <span className="text-emerald-500 font-mono">[LIVE_PROTOCOLS_ACTIVE]</span> 
             {selectedEntry
               ? `${selectedEntry.course?.name || 'Subject'} • ${selectedEntry.class?.name || 'Class'}`
-              : 'Verifying Identity Systems...'}
+              : 'Select a class to begin'}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -254,7 +253,7 @@ export default function AttendanceSessionPage() {
               disabled={isLoadingData || !selectedEntry}
             >
               <Camera className="w-5 h-5 mr-3" />
-              Initialize Portal
+              Start Session
             </Button>
           ) : (
             <Button 

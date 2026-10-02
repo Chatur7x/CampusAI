@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TiltCard, Reveal } from '@/components/motion';
+import { NumberTicker } from '@/components/ui/number-ticker';
 
 interface StatsCardProps {
   title: string;
@@ -10,6 +12,7 @@ interface StatsCardProps {
   icon?: ReactNode;
   iconBg?: string;
   loading?: boolean;
+  delay?: number;
 }
 
 export function StatsCard({
@@ -20,6 +23,7 @@ export function StatsCard({
   icon,
   iconBg = 'from-emerald-400/20 to-emerald-600/20',
   loading = false,
+  delay = 0,
 }: StatsCardProps) {
   const isPositive = change !== undefined && change > 0;
   const isNegative = change !== undefined && change < 0;
@@ -41,11 +45,21 @@ export function StatsCard({
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 backdrop-blur p-5 transition-all hover:bg-slate-900/70 hover:border-slate-700 group">
-      <div className="flex items-start justify-between">
+    <Reveal delay={delay}>
+      <TiltCard
+        maxTilt={6}
+        className="group rounded-xl border border-white/[0.07] bg-slate-900/50 backdrop-blur-xl p-5 shadow-[var(--elev-1)] transition-colors duration-300 hover:border-primary/30 hover:bg-slate-900/70 glow-border"
+      >
+      <div className="flex items-start justify-between [transform:translateZ(24px)]">
         <div className="space-y-1">
           <p className="text-sm text-slate-400 font-medium">{title}</p>
-          <p className="text-2xl font-bold text-white">{value}</p>
+          <p className="text-2xl font-bold text-white font-[Space_Grotesk] tracking-tight">
+            {typeof value === 'number' ? (
+              <NumberTicker value={value} className="text-2xl md:text-[1.7rem] font-bold text-white" />
+            ) : (
+              value
+            )}
+          </p>
           {change !== undefined && (
             <div className="flex items-center gap-1.5 text-xs">
               <span
@@ -69,7 +83,7 @@ export function StatsCard({
         {icon && (
           <div
             className={cn(
-              'p-3 rounded-xl bg-gradient-to-br transition-transform group-hover:scale-110',
+              'p-3 rounded-xl bg-gradient-to-br border border-white/[0.06] transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3',
               iconBg
             )}
           >
@@ -77,7 +91,8 @@ export function StatsCard({
           </div>
         )}
       </div>
-    </div>
+      </TiltCard>
+    </Reveal>
   );
 }
 

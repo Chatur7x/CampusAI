@@ -6,10 +6,21 @@
 
 const AI_BASE = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
 
+async function authHeaders(): Promise<Record<string, string>> {
+  try {
+    const { supabase } = await import('@/lib/supabase');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) return { Authorization: `Bearer ${session.access_token}` };
+  } catch {
+    // No session (public page) — server will 401 with a clear error.
+  }
+  return {};
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${AI_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -20,7 +31,9 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${AI_BASE}${path}`);
+  const res = await fetch(`${AI_BASE}${path}`, {
+    headers: { ...(await authHeaders()) },
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `AI server error ${res.status}`);
@@ -66,6 +79,10 @@ export interface VerifyFaceRequest {
 }
 
 export interface VerifyFaceResponse {
+  /** Server's explicit verdict — do not re-derive this from the raw score. */
+  verified: boolean;
+  requires_manual_review: boolean;
+  reason: string | null;
   match: { match: boolean; similarity: number; threshold: number; error?: string };
   liveness: { is_live: boolean; liveness_score?: number; avg_liveness_score?: number; blink_detected?: boolean };
   geo: { valid: boolean; distance_m: number; geo_accuracy: number };

@@ -188,8 +188,15 @@ export function useGeoLocation(options?: {
     const withinCampus = isWithinCampus(state.currentLocation);
     const campusStatus = withinCampus.within ? 'inside' : 'outside';
 
+    // Bind the row to the authenticated session, never to a caller-supplied
+    // id. RLS cannot help here: this write went straight to the table with the
+    // anon key, so a student could stamp attendance for any user_id they liked.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    if (user.id !== userId) throw new Error('Cannot record attendance for another user');
+
     const { data, error } = await supabase.from('attendance').insert({
-      user_id: userId,
+      user_id: user.id,
       organization_id: organizationId,
       type,
       location: {
@@ -215,8 +222,12 @@ export function useGeoLocation(options?: {
       throw new Error('No location available');
     }
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    if (user.id !== userId) throw new Error('Cannot record tracking for another user');
+
     const { data, error } = await supabase.from('field_tracking').insert({
-      user_id: userId,
+      user_id: user.id,
       organization_id: organizationId,
       client_id: clientId,
       location: {

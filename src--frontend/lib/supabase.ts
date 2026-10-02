@@ -24,19 +24,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   db: {
     schema: 'public',
   },
-  global: {
-    headers: {
-      'x-app-name': 'CampusAI',
-      'x-app-version': '1.0.0',
-    },
-    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
-      return fetch(url, {
-        ...options,
-        // Keep connections alive to avoid TCP handshake overhead on every request
-        keepalive: true,
-      });
-    },
-  },
 });
 
 // Helper to get current user

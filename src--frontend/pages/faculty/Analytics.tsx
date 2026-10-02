@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, TrendingUp, Users, Loader2, Calendar } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,6 +16,9 @@ import {
 } from 'recharts';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
+import { useScrollCinematic } from '@/components/motion/useScrollCinematic';
+import { TextEffect } from '@/components/motion/TextEffect';
+import { SpotlightCard } from '@/components/motion/SpotlightCard';
 
 interface DailyStat { date: string; present: number; absent: number; total: number; pct: number }
 interface SubjectStat { subject: string; attendance: number }
@@ -27,6 +30,9 @@ export default function FacultyAnalyticsPage() {
   const [dailyData, setDailyData] = useState<DailyStat[]>([]);
   const [subjectData, setSubjectData] = useState<SubjectStat[]>([]);
   const [stats, setStats] = useState({ avgAttendance: 0, totalStudents: 0, totalClasses: 0 });
+  const scopeRef = useRef<HTMLDivElement | null>(null);
+  // Refresh trigger positions once charts mount after load / range change.
+  useScrollCinematic(scopeRef, [loading]);
 
   useEffect(() => {
     if (!user) return;
@@ -162,10 +168,10 @@ export default function FacultyAnalyticsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div ref={scopeRef} className="space-y-6">
+      <div className="cinematic-parallax flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Analytics</h1>
+          <TextEffect text="Analytics" className="text-2xl font-bold text-white" />
           <p className="text-slate-400">View your class performance analytics</p>
         </div>
         <Select value={range} onValueChange={(v) => setRange(v as '7' | '14' | '30')}>
@@ -182,7 +188,8 @@ export default function FacultyAnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-slate-900/50 border-slate-800">
+        <SpotlightCard className="h-full rounded-xl" spotlightColor="rgba(34,211,238,0.12)">
+        <Card className="cinematic-reveal bg-slate-900/50 border-slate-800 h-full">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-lg bg-cyan-500/10 flex items-center justify-center">
@@ -195,8 +202,10 @@ export default function FacultyAnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+        </SpotlightCard>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+        <SpotlightCard className="h-full rounded-xl" spotlightColor="rgba(139,92,246,0.12)">
+        <Card className="cinematic-reveal bg-slate-900/50 border-slate-800 h-full">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
@@ -209,8 +218,10 @@ export default function FacultyAnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+        </SpotlightCard>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+        <SpotlightCard className="h-full rounded-xl" spotlightColor="rgba(16,185,129,0.12)">
+        <Card className="cinematic-reveal bg-slate-900/50 border-slate-800 h-full">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -223,10 +234,11 @@ export default function FacultyAnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+        </SpotlightCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="cinematic-reveal bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Daily Attendance Trend</CardTitle>
           </CardHeader>
@@ -256,7 +268,7 @@ export default function FacultyAnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="cinematic-reveal bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Subject-wise Attendance</CardTitle>
           </CardHeader>

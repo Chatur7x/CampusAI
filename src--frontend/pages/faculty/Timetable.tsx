@@ -97,8 +97,8 @@ export default function FacultyTimetablePage() {
         <Card className="glass-premium border-white/5 rounded-[3rem] shadow-2xl">
           <CardContent className="py-24 text-center space-y-4">
             <AlertCircle className="w-16 h-16 text-slate-600 mx-auto" />
-            <p className="text-slate-500 font-black uppercase tracking-[0.2em]">Zero Deployment Vectors Found</p>
-            <p className="text-slate-600 text-sm">Contact System Administrator for schedule synchronization.</p>
+            <p className="text-slate-500 font-black uppercase tracking-[0.2em]">No Classes Scheduled</p>
+            <p className="text-slate-600 text-sm">Your timetable is empty. Contact your administrator if this looks wrong.</p>
           </CardContent>
         </Card>
       ) : (

@@ -334,7 +334,7 @@ export default function SecurityPage() {
                   <CardTitle className="text-white">Complete Security Audit</CardTitle>
                   <div className="relative max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                    <input className="pl-9 pr-4 py-2 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500 w-64" placeholder="Filter incidents..." />
+                    <input aria-label="Filter security incidents" className="pl-9 pr-4 py-2 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500 w-64" placeholder="Filter incidents..." />
                   </div>
                 </CardHeader>
                 <CardContent>

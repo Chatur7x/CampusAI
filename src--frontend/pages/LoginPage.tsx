@@ -1,25 +1,32 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import {
+  Shield, Briefcase, Code2, TrendingUp, Megaphone, Wallet,
+  UserCog, GraduationCap, Building2, type LucideIcon,
+} from "lucide-react";
 import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { AuroraBackground, TiltCard, springs } from "@/components/motion";
+import { BorderBeam } from "@/components/ui/border-beam";
 
 /* ================================================================
-   CampusAI — iOS Glassmorphism Login
-   Frosted glass, translucent cards, soft shadows, pill shapes
+   CampusAI — Aurora Glass Login
+   Frosted 3D card over a living aurora field
    ================================================================ */
 
 /* ── Role detection from email ── */
-type DetectedRole = { key: string; label: string; icon: string; color: string };
+type DetectedRole = { key: string; label: string; icon: LucideIcon; color: string };
 type DetectedOrg = { name: string; type: 'company' | 'educational'; theme: string; color: string };
 
 const ROLES: Record<string, DetectedRole> = {
-  admin:   { key: "admin",   label: "Admin",   icon: "🛡️", color: "#6366f1" },
-  hr:      { key: "hr",      label: "HR",      icon: "👔", color: "#f59e0b" },
-  it:      { key: "it",      label: "IT",      icon: "💻", color: "#06b6d4" },
-  sales:   { key: "sales",   label: "Sales",   icon: "📈", color: "#10b981" },
-  marketing: { key: "marketing", label: "Marketing", icon: "📢", color: "#ec4899" },
-  finance: { key: "finance", label: "Finance", icon: "💰", color: "#8b5cf6" },
-  manager: { key: "manager", label: "Manager", icon: "👨‍💼", color: "#3b82f6" },
-  faculty: { key: "faculty", label: "Faculty", icon: "👨‍🏫", color: "#10b981" },
-  student: { key: "student", label: "Student", icon: "🎓", color: "#f59e0b" },
+  admin:   { key: "admin",   label: "Admin",   icon: Shield,      color: "#818cf8" },
+  hr:      { key: "hr",      label: "HR",      icon: Briefcase,   color: "#f59e0b" },
+  it:      { key: "it",      label: "IT",      icon: Code2,       color: "#06b6d4" },
+  sales:   { key: "sales",   label: "Sales",   icon: TrendingUp,  color: "#10b981" },
+  marketing: { key: "marketing", label: "Marketing", icon: Megaphone, color: "#ec4899" },
+  finance: { key: "finance", label: "Finance", icon: Wallet,      color: "#a78bfa" },
+  manager: { key: "manager", label: "Manager", icon: UserCog,     color: "#60a5fa" },
+  faculty: { key: "faculty", label: "Faculty", icon: GraduationCap, color: "#34d399" },
+  student: { key: "student", label: "Student", icon: GraduationCap, color: "#fbbf24" },
 };
 
 const ORGANIZATIONS: Record<string, DetectedOrg> = {
@@ -41,8 +48,10 @@ function detectRole(email: string): DetectedRole | null {
     return ROLES.admin;
   }
   
-  // HR patterns
-  if (localPart === 'hr' || localPart.includes('hr')) {
+  // HR patterns (exact local part or dotted segments — avoids matching
+  // addresses like three@ or shreya@ that merely contain "hr")
+  const segments = localPart.split('.');
+  if (localPart === 'hr' || segments.includes('hr')) {
     return ROLES.hr;
   }
   
@@ -136,22 +145,7 @@ function detectOrganization(email: string): DetectedOrg | null {
   return { name: 'Organization', type: 'company', theme: 'Glassmorphism', color: '#6366f1' };
 }
 
-/* ── Blurred background blobs ── */
-function GlassBlobs() {
-  return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-      {/* Large mesh gradient blobs */}
-      <div className="absolute w-[600px] h-[600px] rounded-full opacity-50 blur-[120px]"
-        style={{ background: "linear-gradient(135deg, #667eea, #764ba2)", top: "-15%", left: "-10%", animation: "blobDrift 20s ease-in-out infinite" }} />
-      <div className="absolute w-[500px] h-[500px] rounded-full opacity-40 blur-[100px]"
-        style={{ background: "linear-gradient(135deg, #f093fb, #f5576c)", bottom: "-10%", right: "-5%", animation: "blobDrift 25s ease-in-out 3s infinite reverse" }} />
-      <div className="absolute w-[400px] h-[400px] rounded-full opacity-35 blur-[80px]"
-        style={{ background: "linear-gradient(135deg, #4facfe, #00f2fe)", top: "40%", left: "50%", transform: "translate(-50%,-50%)", animation: "blobDrift 18s ease-in-out 1s infinite" }} />
-      <div className="absolute w-[300px] h-[300px] rounded-full opacity-30 blur-[90px]"
-        style={{ background: "linear-gradient(135deg, #43e97b, #38f9d7)", bottom: "20%", left: "15%", animation: "blobDrift 22s ease-in-out 5s infinite reverse" }} />
-    </div>
-  );
-}
+/* ── Ambient background handled by shared AuroraBackground ── */
 
 export default function LoginPage() {
   const { isAuthenticated, user, signIn, signInWithOAuth, signOut } = useSupabaseAuth();
@@ -163,29 +157,10 @@ export default function LoginPage() {
   const [mfaStep, setMfaStep] = useState(false);
   const [otp, setOtp] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   const detectedRole = useMemo(() => detectRole(email), [email]);
   const detectedOrg = useMemo(() => detectOrganization(email), [email]);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  /* ── Subtle 3D tilt on mouse ── */
-  useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-    const handleMove = (e: MouseEvent) => {
-      const rect = card.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      card.style.transform = `perspective(1000px) rotateY(${x * 5}deg) rotateX(${-y * 5}deg)`;
-    };
-    const handleLeave = () => { card.style.transform = "perspective(1000px) rotateY(0deg) rotateX(0deg)"; };
-    card.addEventListener("mousemove", handleMove);
-    card.addEventListener("mouseleave", handleLeave);
-    return () => { card.removeEventListener("mousemove", handleMove); card.removeEventListener("mouseleave", handleLeave); };
-  }, []);
+  const reduceMotion = useReducedMotion();
 
 
 
@@ -288,80 +263,64 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden relative"
-      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 30%, #24243e 60%, #0f0c29 100%)" }}>
+    <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden relative bg-slate-950">
 
-      {/* Animations */}
-      <style>{`
-        @keyframes blobDrift {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -40px) scale(1.05); }
-          66% { transform: translate(-20px, 20px) scale(0.95); }
-        }
-        @keyframes cardIn {
-          from { opacity: 0; transform: translateY(30px) scale(0.96); filter: blur(10px); }
-          to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes roleBadgeIn {
-          from { opacity: 0; transform: translateY(-8px) scale(0.9); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes gradientShift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-      `}</style>
-
-      <GlassBlobs />
+      <AuroraBackground hue="indigo" gridOpacity={0.07} />
 
       {/* Frosted noise overlay */}
       <div className="pointer-events-none fixed inset-0 opacity-[0.015]" aria-hidden
         style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
 
-      {/* Card */}
-      <div className="relative w-full max-w-[420px] z-10"
-        style={{ animation: mounted ? "cardIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards" : "none", opacity: mounted ? 1 : 0 }}>
+      {/* Card — 3D entrance + spring tilt */}
+      <motion.div
+        className="relative w-full max-w-[420px] z-10 [perspective:1200px]"
+        initial={{ opacity: 0, y: 34, scale: 0.96, filter: 'blur(10px)' }}
+        animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+        transition={{ ...springs.soft, opacity: { duration: 0.4 } }}>
 
-        <div ref={cardRef}
-          className="relative rounded-[28px] border border-white/[0.12] p-8 transition-transform duration-200 ease-out"
-          style={{
-            background: "rgba(255, 255, 255, 0.06)",
-            backdropFilter: "blur(60px) saturate(180%)",
-            WebkitBackdropFilter: "blur(60px) saturate(180%)",
-            boxShadow: "0 8px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(255,255,255,0.05)",
-            transformStyle: "preserve-3d",
-          }}>
+        <TiltCard
+          maxTilt={5}
+          className="glow-border rounded-[28px] border border-white/[0.1] p-8 bg-white/[0.05] backdrop-blur-2xl shadow-[0_8px_60px_rgba(0,0,0,0.45)]">
+
+          {/* Aurora beam tracing the card edge — hierarchy accent, off under reduced motion */}
+          {!reduceMotion && (
+            <BorderBeam
+              size={120}
+              duration={9}
+              colorFrom="#818cf8"
+              colorTo="#22d3ee"
+              borderWidth={1.5}
+            />
+          )}
 
           {/* Top glow line */}
-          <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
           {/* Logo */}
           <div className="flex justify-center mb-7">
-            <div className="relative w-[60px] h-[60px] rounded-[18px] flex items-center justify-center"
+            <motion.div
+              className="relative w-[60px] h-[60px] rounded-[18px] flex items-center justify-center"
               style={{
-                background: "linear-gradient(135deg, rgba(99,102,241,0.8), rgba(16,185,129,0.8))",
-                boxShadow: "0 8px 32px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
-              }}>
-              <svg viewBox="0 0 24 24" className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                <path d="M6 12v5c0 2 4 3 6 3s6-1 6-3v-5" />
-              </svg>
-            </div>
+                background: "linear-gradient(135deg, hsl(243 90% 66%), hsl(190 95% 55%), hsl(172 70% 48%))",
+                boxShadow: "0 8px 32px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}
+              whileHover={{ rotate: [0, -6, 6, 0], transition: { duration: 0.5 } }}>
+              <GraduationCap className="w-7 h-7 text-white" strokeWidth={2} />
+            </motion.div>
           </div>
 
           {/* Title */}
-          <h1 className="text-center text-[22px] font-semibold text-white/90 mb-0.5 tracking-tight">CampusAI</h1>
+          <h1 className="text-center text-[26px] font-bold aurora-text mb-0.5 tracking-tight font-[Space_Grotesk]">CampusAI</h1>
           <p className="text-center text-white/35 text-[13px] mb-7">Sign in to your account</p>
 
           {/* Auto-detected role & organization badges */}
           {(detectedRole || detectedOrg) && (
-            <div className="flex flex-col items-center gap-2 mb-5" style={{ animation: "roleBadgeIn 0.3s ease-out forwards" }}>
-              
+            <motion.div
+              className="flex flex-col items-center gap-2 mb-5"
+              initial={{ opacity: 0, y: -8, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={springs.snappy}>
+
               {/* Organization Badge */}
               {detectedOrg && (
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-[12px] font-medium"
@@ -372,7 +331,9 @@ export default function LoginPage() {
                     backdropFilter: "blur(20px)",
                     boxShadow: `0 4px 20px ${detectedOrg.color}10`,
                   }}>
-                  <span>{detectedOrg.type === 'company' ? '🏢' : '🎓'}</span>
+                  {detectedOrg.type === 'company'
+                    ? <Building2 className="w-3.5 h-3.5" />
+                    : <GraduationCap className="w-3.5 h-3.5" />}
                   <span><strong>{detectedOrg.name}</strong></span>
                   <span className="opacity-60">•</span>
                   <span className="opacity-80">{detectedOrg.type === 'company' ? 'Company' : 'Educational'}</span>
@@ -390,7 +351,7 @@ export default function LoginPage() {
                     backdropFilter: "blur(20px)",
                     boxShadow: `0 4px 20px ${detectedRole.color}10`,
                   }}>
-                  <span className="text-sm">{detectedRole.icon}</span>
+                  <detectedRole.icon className="w-3.5 h-3.5" />
                   <span>Role: <strong>{detectedRole.label}</strong></span>
                   <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: detectedRole.color }} />
                 </div>
@@ -403,7 +364,7 @@ export default function LoginPage() {
                   <span style={{ color: detectedOrg.color }}>{detectedOrg.theme}</span>
                 </div>
               )}
-            </div>
+            </motion.div>
           )}
 
           {/* Identity Switcher / Login Form */}
@@ -450,6 +411,7 @@ export default function LoginPage() {
             <div className="space-y-3.5">
               {/* Email input */}
               <div className="relative">
+                <label htmlFor="login-email" className="sr-only">Email address</label>
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25">
                   <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <rect width="20" height="16" x="2" y="4" rx="2" />
@@ -458,6 +420,7 @@ export default function LoginPage() {
                 </div>
                 <input
                   type="email"
+                  id="login-email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(null); }}
                   onKeyDown={onKey}
@@ -476,6 +439,7 @@ export default function LoginPage() {
 
               {/* Password input */}
               <div className="relative">
+                <label htmlFor="login-password" className="sr-only">Password</label>
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25">
                   <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
@@ -484,6 +448,7 @@ export default function LoginPage() {
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
+                  id="login-password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   onKeyDown={onKey}
@@ -528,11 +493,10 @@ export default function LoginPage() {
 
               {/* Sign In Button */}
               <button onClick={handleLoginSubmit} disabled={loading}
-                className="relative w-full rounded-2xl py-3.5 text-[14px] font-semibold text-white overflow-hidden transition-all duration-300 disabled:opacity-50 group mt-1"
+                className="relative w-full rounded-2xl py-3.5 text-[14px] font-semibold text-white overflow-hidden transition-all duration-300 disabled:opacity-50 group mt-1 cursor-pointer animate-gradient"
                 style={{
                   background: "linear-gradient(135deg, #6366f1, #8b5cf6, #10b981)",
                   backgroundSize: "200% 200%",
-                  animation: "gradientShift 4s ease infinite",
                   boxShadow: "0 8px 32px rgba(99,102,241,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
                 }}>
                 <span className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.08] transition-colors duration-300" />
@@ -568,6 +532,7 @@ export default function LoginPage() {
                       <input
                         type="text"
                         value={otp}
+                        aria-label="6-digit verification code"
                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         className="w-full text-center text-3xl font-bold tracking-[0.5em] h-16 bg-white/5 border border-white/10 rounded-2xl text-white focus:border-indigo-500 outline-none"
                         placeholder="••••••"
@@ -638,12 +603,15 @@ export default function LoginPage() {
 
           {/* Bottom glow line */}
           <div className="absolute bottom-0 left-12 right-12 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        </div>
+        </TiltCard>
 
         {/* Subtle reflection under card */}
-        <div className="mx-8 h-8 rounded-b-3xl opacity-20 blur-md"
-          style={{ background: "linear-gradient(to bottom, rgba(99,102,241,0.15), transparent)" }} />
-      </div>
+        <motion.div
+          className="mx-8 h-8 rounded-b-3xl opacity-20 blur-md"
+          style={{ background: "linear-gradient(to bottom, rgba(99,102,241,0.15), transparent)" }}
+          aria-hidden
+        />
+      </motion.div>
     </div>
   );
 }

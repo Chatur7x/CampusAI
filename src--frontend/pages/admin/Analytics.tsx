@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, TrendingUp, Users, Calendar } from 'lucide-react';
 import {
@@ -14,6 +14,9 @@ import {
 } from 'recharts';
 import { analyticsService } from '@/lib/api';
 import { toast } from 'sonner';
+import { useScrollCinematic } from '@/components/motion/useScrollCinematic';
+import { TextEffect } from '@/components/motion/TextEffect';
+import { SpotlightCard } from '@/components/motion/SpotlightCard';
 
 type TrendPoint = { date: string; attendance_percentage: number };
 type DepartmentPoint = { department_name: string; average_attendance: number };
@@ -30,6 +33,9 @@ export default function AnalyticsPage() {
   const [dashboard, setDashboard] = useState<AdminDashboardSummary | null>(null);
   const [daily, setDaily] = useState<TrendPoint[]>([]);
   const [department, setDepartment] = useState<DepartmentPoint[]>([]);
+  const scopeRef = useRef<HTMLDivElement | null>(null);
+  // Refresh trigger positions once charts mount after load.
+  useScrollCinematic(scopeRef, [loading]);
 
   useEffect(() => {
     const load = async () => {
@@ -92,15 +98,16 @@ export default function AnalyticsPage() {
   ]), [dashboard]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Analytics Dashboard</h1>
+    <div ref={scopeRef} className="space-y-6">
+      <div className="cinematic-parallax">
+        <TextEffect text="Analytics Dashboard" className="text-2xl font-bold text-white" />
         <p className="text-slate-400">Comprehensive attendance analytics</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => (
-          <Card key={card.label} className="bg-slate-900/50 border-slate-800">
+          <SpotlightCard key={card.label} className="h-full rounded-xl" spotlightColor="rgba(139,92,246,0.12)">
+          <Card className="cinematic-reveal bg-slate-900/50 border-slate-800 h-full">
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
                 <div className={`w-12 h-12 rounded-lg ${card.bg} flex items-center justify-center`}>
@@ -113,11 +120,12 @@ export default function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
+          </SpotlightCard>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="cinematic-reveal bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Attendance Trend</CardTitle>
           </CardHeader>
@@ -143,7 +151,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+        <Card className="cinematic-reveal bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Department-wise Attendance</CardTitle>
           </CardHeader>

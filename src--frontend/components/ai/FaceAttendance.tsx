@@ -262,12 +262,12 @@ export default function FaceAttendance() {
 
       setResult(verificationResult);
 
-      // 3. Record attendance in DB
+      // 3. Record attendance in DB — status follows the server verdict.
       try {
         await attendanceService.mark({
           student_id: user?.id || '',
           session_id: activeSession?.id,
-          status: faceMatch && livenessPass ? 'PRESENT' : 'FLAGGED',
+          status: verification.verified ? 'PRESENT' : 'FLAGGED',
           method: 'AI_FACE',
           confidence_score: similarity,
           location_lat: locationData?.latitude,
@@ -278,9 +278,15 @@ export default function FaceAttendance() {
       }
 
       stopCamera();
-      setStep(faceMatch && livenessPass ? 'success' : 'failed');
-      if (!faceMatch) setErrorMsg('Face did not match the registered face.');
+      setStep(verification.verified ? 'success' : 'failed');
+      if (verification.verified) {
+        setErrorMsg('');
+      } else if (verification.reason) {
+        setErrorMsg(verification.reason);
+      } else if (!faceMatch) setErrorMsg('Face did not match the registered face.');
       else if (!livenessPass) setErrorMsg('Liveness check failed — suspected spoof.');
+      else if (!geoValid) setErrorMsg('You appear to be outside the attendance geofence.');
+      else setErrorMsg('Verification needs manual review — please contact your faculty.');
     } catch (err) {
       stopCamera();
       setErrorMsg(`Verification error: ${err instanceof Error ? err.message : 'Unknown error'}`);

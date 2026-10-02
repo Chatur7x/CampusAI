@@ -197,13 +197,12 @@ export default function FacultyOverview() {
         <div className="relative flex flex-wrap items-center justify-between gap-6">
           <div className="space-y-3">
             <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-2xl">
-              Command <span className="text-emerald-400">Center</span>
+              Faculty <span className="text-emerald-400">Overview</span>
             </h1>
-            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Faculty Analytics & Operations Portal</p>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Your classes at a glance</p>
           </div>
           <div className="flex gap-4">
-            <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-6 py-2 font-black text-[10px] tracking-widest uppercase rounded-full">Secure Node: Online</Badge>
-            <Badge className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-6 py-2 font-black text-[10px] tracking-widest uppercase rounded-full">Sync Status: Active</Badge>
+            <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-6 py-2 font-black text-[10px] tracking-widest uppercase rounded-full">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</Badge>
           </div>
         </div>
       </div>
@@ -213,7 +212,6 @@ export default function FacultyOverview() {
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-cyan-400 transition-colors">Risk Monitoring</p>
                 <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : atRiskStudents.length}</p>
                 <p className="text-[10px] text-slate-400 font-bold">At-Risk Students</p>
               </div>
@@ -228,9 +226,8 @@ export default function FacultyOverview() {
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-violet-400 transition-colors">Daily Deployment</p>
                 <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : stats.todaySchedule}</p>
-                <p className="text-[10px] text-slate-400 font-bold">Sessions Scheduled</p>
+                <p className="text-[10px] text-slate-400 font-bold">Sessions Scheduled Today</p>
               </div>
               <div className="w-16 h-16 rounded-2xl bg-violet-500/5 border border-violet-500/10 flex items-center justify-center group-hover:border-violet-500/30 transition-all">
                 <Calendar className="w-8 h-8 text-violet-400" />
@@ -243,9 +240,8 @@ export default function FacultyOverview() {
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-emerald-400 transition-colors">Integrity Score</p>
                 <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : `${stats.avgAttendance}%`}</p>
-                <p className="text-[10px] text-slate-400 font-bold">Global Average</p>
+                <p className="text-[10px] text-slate-400 font-bold">Average Attendance</p>
               </div>
               <div className="w-16 h-16 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex items-center justify-center group-hover:border-emerald-500/30 transition-all">
                 <TrendingUp className="w-8 h-8 text-emerald-400" />
@@ -258,9 +254,8 @@ export default function FacultyOverview() {
           <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-amber-400 transition-colors">Logistics Alert</p>
                 <p className="text-4xl font-black text-white italic tracking-tighter">{loading ? '—' : stats.pendingLeaves}</p>
-                <p className="text-[10px] text-slate-400 font-bold">Pending Leaves</p>
+                <p className="text-[10px] text-slate-400 font-bold">Pending Leave Requests</p>
               </div>
               <div className="w-16 h-16 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex items-center justify-center group-hover:border-amber-500/30 transition-all">
                 <AlertCircle className="w-8 h-8 text-amber-400" />

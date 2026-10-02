@@ -302,8 +302,11 @@ export default function SecureAttendanceStudent() {
       };
 
       setResult(res);
-      
-      if (res.faceMatch && res.livenessPass && res.locationValid) {
+
+      // Trust the server's verdict. The previous gate re-derived success from
+      // three client-visible booleans, which ignored the combined confidence
+      // score, the geofence radius and every fraud flag the server computed.
+      if (verification.verified) {
         // Record into Supabase table
         await attendanceService.mark({
             student_id: user?.student?.id || user?.id || '',
@@ -324,10 +327,22 @@ export default function SecureAttendanceStudent() {
         stopCamera();
         exitFocusMode();
       } else {
-        setErrorMsg(res.fraudAlerts[0] || 'Verification failed security criteria');
+        // Prefer the server's explanation; fall back to the raw flags.
+        setErrorMsg(
+          verification.reason
+          || res.fraudAlerts[0]
+          || (verification.requires_manual_review
+              ? 'Verification needs manual review — please contact your faculty'
+              : 'Verification failed security criteria')
+        );
         setStep('failed');
         auditLogService.log('SECURE_ATTENDANCE_FAILURE', 'security_alert', user?.id || '', {
-            newValues: { flags: res.fraudAlerts, sessionCode }
+            newValues: {
+              flags: res.fraudAlerts,
+              sessionCode,
+              confidence: res.confidenceScore,
+              requires_manual_review: verification.requires_manual_review,
+            }
         });
       }
     } catch (err: any) {
