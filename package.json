@@ -7,7 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npm run test:backend && npm run test:integration && npm run test:ai",
+    "test:backend": "node --test \"tests/backend/*.test.mjs\"",
+    "test:integration": "node --test \"tests/integration/*.test.mjs\"",
+    "test:ai": "python -m pytest tests/ai -q",
+    "test:watch": "node --test --watch \"tests/backend/*.test.mjs\""
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

@@ -9,6 +9,29 @@ import { corsHeaders } from '../_shared/cors.ts'
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN']
 const CREATE_ROLES = ['ADMIN', 'SUPER_ADMIN', 'FACULTY']
 
+/**
+ * Body key -> column, for PUT. Anything not listed here is dropped, so a
+ * caller cannot mass-assign server-owned columns (id, published_by,
+ * created_at) or reach columns the UI never touches. Both camelCase and
+ * snake_case keys are accepted because the frontend sends either.
+ */
+const PUTTABLE_COLUMNS: Record<string, string> = {
+  title: 'title',
+  content: 'content',
+  targetRoles: 'target_roles',
+  target_roles: 'target_roles',
+  targetDepartments: 'target_departments',
+  target_departments: 'target_departments',
+  targetClasses: 'target_classes',
+  target_classes: 'target_classes',
+  expiryDate: 'expiry_date',
+  expiry_date: 'expiry_date',
+  is_active: 'is_active',
+  isActive: 'is_active',
+  is_pinned: 'is_pinned',
+  isPinned: 'is_pinned',
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -38,7 +61,10 @@ Deno.serve(async (req) => {
           .select('*')
           .eq('id', id)
           .single()
-        if (error) return json({ success: false, message: error.message }, 500)
+        if (error) {
+          console.error('notices GET by id failed', error)
+          return json({ success: false, message: 'Notice not found' }, error.code === 'PGRST116' ? 404 : 500)
+        }
         return json({ success: true, data })
       }
 
@@ -64,7 +90,10 @@ Deno.serve(async (req) => {
       query = query.range((page - 1) * limit, page * limit - 1)
 
       const { data, count, error } = await query
-      if (error) return json({ success: false, message: error.message }, 500)
+      if (error) {
+        console.error('notices GET failed', error)
+        return json({ success: false, message: 'Could not load notices' }, 500)
+      }
 
       return json({ success: true, data: { notices: data, pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) } } })
     }
@@ -104,7 +133,10 @@ Deno.serve(async (req) => {
         .select()
         .single()
 
-      if (error) return json({ success: false, message: error.message }, 500)
+      if (error) {
+        console.error('notices POST failed', error)
+        return json({ success: false, message: 'Could not create notice' }, 500)
+      }
       return json({ success: true, message: 'Notice created', data })
     }
 
@@ -116,18 +148,21 @@ Deno.serve(async (req) => {
       // Explicit allowlist — never spread raw body (mass assignment could
       // overwrite published_by, id, or other server-owned columns).
       const update: Record<string, unknown> = {}
-      if (body.title !== undefined) update.title = body.title
-      if (body.content !== undefined) update.content = body.content
-      if (body.targetRoles !== undefined) update.target_roles = body.targetRoles
-      else if (body.target_roles !== undefined) update.target_roles = body.target_roles
-      if (body.targetDepartments !== undefined) update.target_departments = body.targetDepartments
-      else if (body.target_departments !== undefined) update.target_departments = body.target_departments
-      if (body.targetClasses !== undefined) update.target_classes = body.targetClasses
-      else if (body.target_classes !== undefined) update.target_classes = body.target_classes
-      if (body.expiryDate !== undefined) update.expiry_date = body.expiryDate ? new Date(body.expiryDate).toISOString() : null
-      else if (body.expiry_date !== undefined) update.expiry_date = body.expiry_date ?? null
-      if (body.is_active !== undefined) update.is_active = body.is_active
-      if (body.is_pinned !== undefined) update.is_pinned = body.is_pinned
+      for (const [key, value] of Object.entries(body)) {
+        const column = PUTTABLE_COLUMNS[key]
+        if (column) update[column] = value
+      }
+      if (update.expiry_date) {
+        const parsed = new Date(update.expiry_date as string)
+        if (Number.isNaN(parsed.getTime())) {
+          return json({ success: false, message: 'expiryDate must be a valid date' }, 400)
+        }
+        update.expiry_date = parsed.toISOString()
+      }
+
+      if (Object.keys(update).length === 0) {
+        return json({ success: false, message: 'No updatable fields supplied' }, 400)
+      }
 
       const { data, error } = await supabase
         .from('notices')
@@ -136,7 +171,10 @@ Deno.serve(async (req) => {
         .select()
         .single()
 
-      if (error) return json({ success: false, message: error.message }, 500)
+      if (error) {
+        console.error('notices PUT failed', error)
+        return json({ success: false, message: 'Could not update notice' }, 500)
+      }
       return json({ success: true, message: 'Notice updated', data })
     }
 
@@ -147,7 +185,10 @@ Deno.serve(async (req) => {
         .from('notices')
         .update({ is_active: false })
         .eq('id', id)
-      if (error) return json({ success: false, message: error.message }, 500)
+      if (error) {
+        console.error('notices DELETE failed', error)
+        return json({ success: false, message: 'Could not delete notice' }, 500)
+      }
       return json({ success: true, message: 'Notice deleted' })
     }
 

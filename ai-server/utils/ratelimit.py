@@ -91,6 +91,8 @@ def limiter(limit: int, window_seconds: int, name: str) -> Callable:
                 headers={"Retry-After": str(retry_after)},
             )
 
+    # Expose the gate so operators and tests can inspect the configured budget.
+    dependency.gate = gate  # type: ignore[attr-defined]
     return dependency
 
 

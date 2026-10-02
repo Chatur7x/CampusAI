@@ -56,7 +56,12 @@ Deno.serve(async (req) => {
       if (endDate) query = query.lte('date', endDate)
 
       const { data, error } = await query
-      if (error) return json({ success: false, message: error.message }, 500)
+      // PostgREST messages can name columns, constraints and relation paths, so
+      // they are logged server-side rather than returned.
+      if (error) {
+        console.error('attendance GET failed', error)
+        return json({ success: false, message: 'Could not load attendance' }, 500)
+      }
 
       const total = data?.length || 0
       const present = data?.filter((a) => a.status === 'PRESENT').length || 0

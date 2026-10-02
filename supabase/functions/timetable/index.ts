@@ -9,6 +9,33 @@ import { corsHeaders } from '../_shared/cors.ts'
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN']
 const CHUNK = 500
 
+/**
+ * Columns a caller may write. The POST and PUT handlers used to insert and
+ * update the raw body, which is mass assignment — a caller could set `id` or
+ * any other server-owned column. Anything not listed here is dropped.
+ */
+const WRITABLE_COLUMNS = new Set([
+  'classId', 'class_id',
+  'subjectId', 'subject_id',
+  'facultyId', 'faculty_id',
+  'dayOfWeek', 'day_of_week',
+  'startTime', 'start_time',
+  'endTime', 'end_time',
+  'roomNumber', 'room_number',
+  'semester',
+  'academicYear', 'academic_year',
+  'isActive', 'is_active',
+])
+
+/** Drop any key the caller is not allowed to set. */
+function pickWritable(body: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(body)) {
+    if (WRITABLE_COLUMNS.has(key)) out[key] = value
+  }
+  return out
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -66,7 +93,10 @@ Deno.serve(async (req) => {
           .order('day_of_week', { ascending: true })
           .order('start_time', { ascending: true })
 
-        if (fallback.error) return json({ success: false, message: fallback.error.message }, 500)
+        if (fallback.error) {
+          console.error('timetable GET failed', fallback.error)
+          return json({ success: false, message: 'Could not load timetable' }, 500)
+        }
         const grouped = groupByDay(fallback.data || [])
         return json({ success: true, data: { entries: fallback.data, groupedByDay: grouped } })
       }
@@ -81,27 +111,47 @@ Deno.serve(async (req) => {
 
       // bulk create if array
       if (Array.isArray(body)) {
+        if (body.length > 2000) {
+          return json({ success: false, message: 'Too many entries in one request' }, 400)
+        }
         const results = []
         for (let i = 0; i < body.length; i += CHUNK) {
-          const slice = body.slice(i, i + CHUNK)
+          const slice = body.slice(i, i + CHUNK).map(pickWritable)
           const { data, error } = await supabase.from('timetable').insert(slice).select()
-          if (error) return json({ success: false, message: error.message }, 500)
+          if (error) {
+            console.error('timetable bulk insert failed', error)
+            return json({ success: false, message: 'Could not create timetable entries' }, 500)
+          }
           results.push(...(data || []))
         }
         return json({ success: true, message: `Created ${results.length} entries`, data: results })
       }
 
-      const { data, error } = await supabase.from('timetable').insert(body).select().single()
-      if (error) return json({ success: false, message: error.message }, 500)
+      const writable = pickWritable(body)
+      if (Object.keys(writable).length === 0) {
+        return json({ success: false, message: 'No writable fields supplied' }, 400)
+      }
+
+      const { data, error } = await supabase.from('timetable').insert(writable).select().single()
+      if (error) {
+        console.error('timetable POST failed', error)
+        return json({ success: false, message: 'Could not create timetable entry' }, 500)
+      }
       return json({ success: true, message: 'Timetable entry created', data })
     }
 
     if (req.method === 'PUT') {
       if (!ADMIN_ROLES.includes(role)) return json({ success: false, message: 'Insufficient permissions' }, 403)
       if (!id) return json({ success: false, message: 'id is required' }, 400)
-      const body = await req.json()
-      const { data, error } = await supabase.from('timetable').update(body).eq('id', id).select().single()
-      if (error) return json({ success: false, message: error.message }, 500)
+      const writable = pickWritable(await req.json())
+      if (Object.keys(writable).length === 0) {
+        return json({ success: false, message: 'No writable fields supplied' }, 400)
+      }
+      const { data, error } = await supabase.from('timetable').update(writable).eq('id', id).select().single()
+      if (error) {
+        console.error('timetable PUT failed', error)
+        return json({ success: false, message: 'Could not update timetable entry' }, 500)
+      }
       return json({ success: true, message: 'Timetable entry updated', data })
     }
 
@@ -109,7 +159,10 @@ Deno.serve(async (req) => {
       if (!ADMIN_ROLES.includes(role)) return json({ success: false, message: 'Insufficient permissions' }, 403)
       if (!id) return json({ success: false, message: 'id is required' }, 400)
       const { error } = await supabase.from('timetable').delete().eq('id', id)
-      if (error) return json({ success: false, message: error.message }, 500)
+      if (error) {
+        console.error('timetable DELETE failed', error)
+        return json({ success: false, message: 'Could not delete timetable entry' }, 500)
+      }
       return json({ success: true, message: 'Timetable entry deleted' })
     }
 

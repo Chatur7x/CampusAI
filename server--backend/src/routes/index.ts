@@ -3,7 +3,15 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { authRateLimiter, apiRateLimiter } from '../middleware/rateLimiter';
 import { upload, verifyUpload } from '../middleware/upload';
 import { uploadRateLimiter } from '../middleware/rateLimiter';
-import { loginValidation, registerValidation, attendanceValidation, leaveValidation, noticeValidation, leaveDecisionValidation } from '../middleware/validation';
+import { validate } from '../middleware/validation';
+import {
+  attendanceStatusValidation, attendanceValidation, bulkCorrectionValidation,
+  chatMessageValidation, classValidation, courseValidation, createUserValidation,
+  departmentUpdateValidation, departmentValidation, deviceTrustValidation,
+  leaveDecisionValidation, leaveValidation, loginValidation, noticeValidation,
+  registerValidation, revokeAllValidation, settingValidation, timetableBulkValidation,
+  timetableValidation, updateUserValidation,
+} from '../middleware/validation';
 
 // Controllers
 import * as authController from '../controllers/authController';
@@ -33,13 +41,16 @@ router.get('/auth/me', authenticate, authController.getMe);
 router.get('/auth/role', authenticate, authRateLimiter, authController.getRoleByEmail);
 
 // ==================== ATTENDANCE ROUTES ====================
-router.post('/attendance/face', authenticate, attendanceValidation, attendanceController.markAttendanceWithFace);
-router.post('/attendance/manual', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), attendanceValidation, attendanceController.markAttendanceManual);
-router.post('/attendance/bulk', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), attendanceController.markBulkAttendance);
+router.post('/attendance/face', authenticate, attendanceStatusValidation, attendanceValidation, attendanceController.markAttendanceWithFace);
+router.post('/attendance/manual', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), attendanceStatusValidation, attendanceValidation, attendanceController.markAttendanceManual);
+router.post('/attendance/bulk', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), bulkCorrectionValidation, attendanceController.markBulkAttendance);
 router.get('/attendance/student/:studentId', authenticate, attendanceController.getStudentAttendance);
 router.get('/attendance/class/:classId', authenticate, attendanceController.getClassAttendance);
 router.get('/attendance/analytics/:studentId', authenticate, attendanceController.getAttendanceAnalytics);
-router.post('/attendance/register-face', authenticate, attendanceController.registerFace);
+router.post('/attendance/register-face', authenticate, validate([
+  { field: 'studentId', required: true, type: 'string', maxLength: 128 },
+  { field: 'faceData', required: true },
+]), attendanceController.registerFace);
 
 // ==================== NOTICE ROUTES ====================
 router.post('/notices', authenticate, requireRole('ADMIN', 'SUPER_ADMIN', 'FACULTY'), noticeValidation, noticeController.createNotice);
@@ -52,7 +63,7 @@ router.get('/notices/stats', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), 
 // ==================== LEAVE ROUTES ====================
 router.post('/leaves', authenticate, requireRole('STUDENT'), leaveValidation, leaveController.createLeaveRequest);
 router.get('/leaves/my', authenticate, requireRole('STUDENT'), leaveController.getMyLeaveRequests);
-router.put('/leaves/:id/cancel', authenticate, requireRole('STUDENT'), leaveController.cancelLeaveRequest);
+router.put('/leaves/:id/cancel', authenticate, requireRole('STUDENT'), leaveValidation, leaveController.cancelLeaveRequest);
 router.get('/leaves/pending', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), leaveController.getPendingLeaveRequests);
 router.put('/leaves/:id/approve', authenticate, requireRole('FACULTY', 'CLASS_INCHARGE', 'ADMIN', 'SUPER_ADMIN'), leaveDecisionValidation, leaveController.approveLeaveRequest);
 router.get('/leaves/stats/:studentId', authenticate, leaveController.getLeaveStats);
@@ -65,12 +76,12 @@ router.get('/analytics/predictions/:studentId', authenticate, analyticsControlle
 router.get('/analytics/department/:departmentId', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), analyticsController.getDepartmentAnalytics);
 
 // ==================== TIMETABLE ROUTES ====================
-router.post('/timetable', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), timetableController.createTimetableEntry);
+router.post('/timetable', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), timetableValidation, timetableController.createTimetableEntry);
 router.get('/timetable', authenticate, timetableController.getTimetable);
 router.get('/timetable/my', authenticate, timetableController.getMyTimetable);
-router.put('/timetable/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), timetableController.updateTimetableEntry);
+router.put('/timetable/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), timetableValidation, timetableController.updateTimetableEntry);
 router.delete('/timetable/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), timetableController.deleteTimetableEntry);
-router.post('/timetable/bulk', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), timetableController.bulkCreateTimetable);
+router.post('/timetable/bulk', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), timetableBulkValidation, timetableController.bulkCreateTimetable);
 
 // ==================== BULK OPERATIONS ROUTES ====================
 router.post('/bulk/upload-students', 
@@ -91,27 +102,27 @@ router.post('/bulk/upload-faculty',
 );
 router.get('/bulk/export-students', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), bulkController.exportStudents);
 router.get('/bulk/export-attendance', authenticate, requireRole('ADMIN', 'SUPER_ADMIN', 'FACULTY'), bulkController.exportAttendance);
-router.post('/bulk/attendance-correction', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), bulkController.bulkAttendanceCorrection);
+router.post('/bulk/attendance-correction', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), bulkCorrectionValidation, bulkController.bulkAttendanceCorrection);
 
 // ==================== ADMIN ROUTES ====================
 router.get('/admin/users', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.getAllUsers);
-router.post('/admin/users', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.createUser);
-router.put('/admin/users/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.updateUser);
+router.post('/admin/users', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), createUserValidation, adminController.createUser);
+router.put('/admin/users/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), updateUserValidation, adminController.updateUser);
 router.delete('/admin/users/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.deleteUser);
 
 router.get('/admin/departments', authenticate, adminController.getDepartments);
-router.post('/admin/departments', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.createDepartment);
-router.put('/admin/departments/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.updateDepartment);
+router.post('/admin/departments', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), departmentValidation, adminController.createDepartment);
+router.put('/admin/departments/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), departmentUpdateValidation, adminController.updateDepartment);
 router.delete('/admin/departments/:id', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.deleteDepartment);
 
 router.get('/admin/courses', authenticate, adminController.getCourses);
-router.post('/admin/courses', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.createCourse);
+router.post('/admin/courses', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), courseValidation, adminController.createCourse);
 
 router.get('/admin/classes', authenticate, adminController.getClasses);
-router.post('/admin/classes', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.createClass);
+router.post('/admin/classes', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), classValidation, adminController.createClass);
 
 router.get('/admin/settings', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.getSystemSettings);
-router.put('/admin/settings/:key', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), adminController.updateSystemSetting);
+router.put('/admin/settings/:key', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), settingValidation, adminController.updateSystemSetting);
 
 // ==================== BLOCKCHAIN ROUTES ====================
 router.get('/blockchain/status', authenticate, blockchainController.getBlockchainStatus);
@@ -121,9 +132,11 @@ router.get('/blockchain/audit', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'
 router.get('/blockchain/attendance-chain/:studentId', authenticate, blockchainController.getAttendanceChain);
 
 // ==================== CHAT ROUTES ====================
-router.post('/chat/messages', authenticate, chatController.sendMessage);
+router.post('/chat/messages', authenticate, chatMessageValidation, chatController.sendMessage);
 router.get('/chat/conversations', authenticate, chatController.getConversations);
-router.post('/chat/conversations/direct', authenticate, chatController.createOrGetDirectConversation);
+router.post('/chat/conversations/direct', authenticate, validate([
+  { field: 'receiverId', required: true, type: 'string', maxLength: 128 },
+]), chatController.createOrGetDirectConversation);
 router.get('/chat/messages/:conversationId', authenticate, chatController.getMessages);
 router.put('/chat/messages/read/:conversationId', authenticate, chatController.markMessagesAsRead);
 router.delete('/chat/messages/:messageId', authenticate, chatController.deleteMessage);
@@ -139,7 +152,7 @@ router.put('/security/events/:id/resolve', authenticate, requireRole('ADMIN', 'S
 
 // Device trust (user = own, admin = all)
 router.get('/security/devices', authenticate, securityController.listDevices);
-router.put('/security/devices/:deviceId/trust', authenticate, securityController.trustDevice);
+router.put('/security/devices/:deviceId/trust', authenticate, deviceTrustValidation, securityController.trustDevice);
 router.delete('/security/devices/:deviceId', authenticate, securityController.deleteDevice);
 
 // Login history (user = own, admin = all)
@@ -152,7 +165,7 @@ router.get('/security/geo-history', authenticate, securityController.geoHistory)
 // Sessions management
 router.get('/security/sessions', authenticate, securityController.listActiveSessions);
 router.delete('/security/sessions/:sessionId', authenticate, securityController.revokeSession);
-router.post('/security/sessions/revoke-all', authenticate, securityController.revokeAllSessions);
+router.post('/security/sessions/revoke-all', authenticate, revokeAllValidation, securityController.revokeAllSessions);
 
 // Token cleanup (admin only)
 router.post('/security/cleanup-tokens', authenticate, requireRole('ADMIN', 'SUPER_ADMIN'), securityController.cleanupTokens);

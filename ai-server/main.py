@@ -51,9 +51,11 @@ app = FastAPI(
     version="1.0.0",
     description="Python AI/ML backend for Smart Attendance System",
     lifespan=lifespan,
-    # Never leak internal tracebacks / handler internals to clients.
+    # Never leak internal tracebacks / handler internals to clients. The schema
+    # is a full inventory of every route and model, so it goes with the docs.
     docs_url=None,
     redoc_url=None,
+    openapi_url=None,
 )
 
 app.add_middleware(

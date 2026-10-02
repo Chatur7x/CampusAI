@@ -152,3 +152,151 @@ export const noticeValidation = validate([
   { field: 'content', required: true, type: 'string', minLength: 10 },
   { field: 'priority', type: 'string' },
 ]);
+
+// ── Administrative writes ───────────────────────────────────────────────
+// These were reachable with an arbitrary body: role, email and the boolean
+// flags all flowed straight into Prisma. Each is now bounded and, where the
+// value is an enum, pinned to a fixed set.
+
+const ROLE = ['ADMIN', 'SUPER_ADMIN', 'FACULTY', 'CLASS_INCHARGE', 'STUDENT', 'COMPANY'];
+
+export const createUserValidation = validate([
+  { field: 'email', required: true, type: 'email' },
+  { field: 'password', required: true, type: 'string', minLength: 8, maxLength: 128 },
+  { field: 'first_name', required: true, type: 'string', minLength: 1, maxLength: 100 },
+  { field: 'last_name', required: true, type: 'string', minLength: 1, maxLength: 100 },
+  {
+    field: 'role',
+    required: true,
+    type: 'string',
+    custom: (v) => ROLE.includes(v) || `role must be one of: ${ROLE.join(', ')}`,
+  },
+]);
+
+export const updateUserValidation = validate([
+  { field: 'first_name', type: 'string', minLength: 1, maxLength: 100 },
+  { field: 'last_name', type: 'string', minLength: 1, maxLength: 100 },
+  { field: 'is_active', type: 'boolean' },
+  {
+    field: 'role',
+    type: 'string',
+    custom: (v) => ROLE.includes(v) || `role must be one of: ${ROLE.join(', ')}`,
+  },
+]);
+
+export const departmentValidation = validate([
+  { field: 'name', required: true, type: 'string', minLength: 2, maxLength: 120 },
+  { field: 'code', type: 'string', maxLength: 20 },
+  { field: 'description', type: 'string', maxLength: 1000 },
+  { field: 'hod_id', type: 'string', maxLength: 128 },
+]);
+
+export const departmentUpdateValidation = validate([
+  { field: 'name', type: 'string', minLength: 2, maxLength: 120 },
+  { field: 'description', type: 'string', maxLength: 1000 },
+  { field: 'hod_id', type: 'string', maxLength: 128 },
+]);
+
+export const courseValidation = validate([
+  { field: 'name', required: true, type: 'string', minLength: 2, maxLength: 150 },
+  { field: 'code', type: 'string', maxLength: 20 },
+  { field: 'credits', type: 'number', min: 0, max: 30 },
+  { field: 'semester', type: 'number', min: 1, max: 12 },
+  { field: 'department_id', type: 'string', maxLength: 128 },
+  { field: 'description', type: 'string', maxLength: 1000 },
+]);
+
+export const classValidation = validate([
+  { field: 'name', required: true, type: 'string', minLength: 1, maxLength: 100 },
+  { field: 'section', type: 'string', maxLength: 20 },
+  { field: 'department_id', type: 'string', maxLength: 128 },
+  { field: 'course_id', type: 'string', maxLength: 128 },
+  { field: 'incharge_id', type: 'string', maxLength: 128 },
+  { field: 'room_number', type: 'string', maxLength: 50 },
+  { field: 'capacity', type: 'number', min: 0, max: 1000 },
+  { field: 'academic_year', type: 'string', maxLength: 20 },
+]);
+
+export const settingValidation = validate([
+  { field: 'value', required: true, type: 'string', maxLength: 5000 },
+]);
+
+// ── Timetable ───────────────────────────────────────────────────────────
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export const timetableValidation = validate([
+  { field: 'classId', required: true, type: 'string', maxLength: 128 },
+  { field: 'subjectId', required: true, type: 'string', maxLength: 128 },
+  { field: 'facultyId', type: 'string', maxLength: 128 },
+  {
+    field: 'dayOfWeek',
+    required: true,
+    type: 'number',
+    min: 0,
+    max: 6,
+    custom: (v) => Number.isInteger(v) || 'dayOfWeek must be a whole number',
+  },
+  { field: 'startTime', required: true, type: 'string', pattern: TIME_PATTERN },
+  { field: 'endTime', required: true, type: 'string', pattern: TIME_PATTERN },
+  { field: 'roomNumber', type: 'string', maxLength: 50 },
+]);
+
+export const timetableBulkValidation = validate([
+  { field: 'entries', required: true, type: 'array' },
+  {
+    field: 'entries',
+    custom: (v) => Array.isArray(v) && v.length > 0 && v.length <= 200
+      || 'entries must be a non-empty array of at most 200 items',
+  },
+]);
+
+// ── Bulk attendance correction ──────────────────────────────────────────
+
+export const bulkCorrectionValidation = validate([
+  { field: 'corrections', required: true, type: 'array' },
+  {
+    field: 'corrections',
+    custom: (v) => Array.isArray(v) && v.length > 0 && v.length <= 1000
+      || 'corrections must be a non-empty array of at most 1000 items',
+  },
+]);
+
+// ── Chat ────────────────────────────────────────────────────────────────
+
+export const chatMessageValidation = validate([
+  { field: 'receiverId', type: 'string', maxLength: 128 },
+  { field: 'conversationId', type: 'string', maxLength: 128 },
+  { field: 'content', required: true, type: 'string', minLength: 1, maxLength: 5000 },
+  { field: 'replyToId', type: 'string', maxLength: 128 },
+  {
+    field: 'messageType',
+    type: 'string',
+    custom: (v) => ['TEXT', 'IMAGE', 'FILE', 'SYSTEM'].includes(v) || 'invalid messageType',
+  },
+  {
+    field: 'attachments',
+    custom: (v) => Array.isArray(v) && v.length <= 10 || 'at most 10 attachments',
+  },
+]);
+
+// ── Security self-service ───────────────────────────────────────────────
+
+export const deviceTrustValidation = validate([
+  { field: 'trusted', required: true, type: 'boolean' },
+  { field: 'ttlDays', type: 'number', min: 1, max: 365 },
+]);
+
+export const revokeAllValidation = validate([
+  { field: 'keepCurrent', type: 'boolean' },
+]);
+
+export const attendanceStatusValidation = validate([
+  { field: 'status', required: true, type: 'string' },
+  {
+    field: 'status',
+    custom: (v) => ['PRESENT', 'ABSENT', 'LATE', 'ON_LEAVE', 'EXCUSED'].includes(v)
+      || 'status must be PRESENT, ABSENT, LATE, ON_LEAVE or EXCUSED',
+  },
+  { field: 'justification', type: 'string', maxLength: 500 },
+]);
