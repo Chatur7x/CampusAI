@@ -32,3 +32,9 @@ pillow>=11
 python-dotenv>=1.0
 joblib>=1.4
 aiofiles>=24.1
+
+# ── Streaming ──
+# Pinned: our SSE/streaming code imports websockets.asyncio, which first shipped
+# in 13.0 and is absent from 12.x (the version older lockfiles resolve to).
+# 15.0.1 is the version verified against the server on Python 3.14.
+websockets==15.0.1
