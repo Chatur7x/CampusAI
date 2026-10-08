@@ -13,11 +13,15 @@ fs.mkdirSync(uploadDir, { recursive: true });
 // uploaded .html/.svg/.js can never be written to disk with an executable
 // extension. `magic` is the byte signature we sniff to confirm the payload is
 // really the claimed type (empty = no signature check, text formats).
+// `rejectMagic` is a negative signature list: for text formats with no positive
+// signature of their own (csv), we at least sniff for known *binary container*
+// formats (ZIP/xlsx, OLE2/xls) so a renamed spreadsheet cannot pass as CSV.
 interface UploadRule {
   subDir: string;
   mimes: string[];
   extensions: string[];
   magic: { mime: string; bytes: number[] }[];
+  rejectMagic?: number[][];
 }
 
 const RULES: Record<string, UploadRule> = {
@@ -68,6 +72,14 @@ const RULES: Record<string, UploadRule> = {
     ],
     extensions: ['.csv'],
     magic: [],
+    // No positive signature for CSV text, but reject containers that a
+    // polyglot rename could smuggle past extension/mime checks (.xlsx is
+    // a ZIP, legacy .xls/.doc are OLE2 — both are office binaries, never
+    // valid CSV content).
+    rejectMagic: [
+      [0x50, 0x4b, 0x03, 0x04], // ZIP / xlsx
+      [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1], // OLE2 / legacy xls,doc
+    ],
   },
 };
 
@@ -77,13 +89,20 @@ const ruleFor = (fieldname: string): UploadRule => RULES[fieldname];
 // signatures. Called from the fileFilter, before the file is fully received
 // only the header is present, so multer's disk write is what makes this
 // possible — we sniff the partially written file at the end of the stream.
-const sniffFile = (filePath: string, rule: UploadRule): Promise<boolean> =>
+export const sniffFile = (filePath: string, rule: UploadRule): Promise<boolean> =>
   new Promise((resolve) => {
-    if (rule.magic.length === 0) return resolve(true);
     const fd = fs.openSync(filePath, 'r');
     const buf = Buffer.alloc(8);
     fs.readSync(fd, buf, 0, 8, 0);
     fs.closeSync(fd);
+    // Deny-list first: a declared reject signature fails the file outright,
+    // even for rules that declare no positive signatures (e.g. csv — an
+    // .xlsx renamed .csv is ZIP bytes, and must not slip through). A csv
+    // file only passes once its first bytes match none of these.
+    if (rule.rejectMagic?.some((bytes) => bytes.every((b, i) => buf[i] === b))) {
+      return resolve(false);
+    }
+    if (rule.magic.length === 0) return resolve(true);
     const ok = rule.magic.some(({ bytes }) => bytes.every((b, i) => buf[i] === b));
     resolve(ok);
   });

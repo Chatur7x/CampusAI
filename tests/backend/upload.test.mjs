@@ -13,6 +13,7 @@
  *   node --test tests/backend/
  */
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
@@ -132,4 +133,29 @@ test('both bulk upload routes run verifyUpload and the upload rate limiter', () 
     assert.match(route, /uploadRateLimiter/, 'upload route must be rate limited');
     assert.match(route, /verifyUpload/, 'upload route must verify file contents');
   }
+});
+
+// ── 6.9: a renamed zip/OLE2 must not pass as CSV ─────────────────────────
+
+test('the csv upload rule denies zip/xlsx and ole2 magic even with a .csv extension', () => {
+  const csvBlock = ruleBlock('csv');
+  assert.match(csvBlock, /rejectMagic/, 'csv rule must declare a reject-magic deny-list');
+  assert.match(csvBlock, /0x50,\s*0x4b,\s*0x03,\s*0x04/i, 'csv reject list must cover zip/xlsx (PK header)');
+  assert.match(csvBlock, /0xd0,\s*0xcf,\s*0x11,\s*0xe0/i, 'csv reject list must cover OLE2 (old Office)');
+});
+
+test('sniffFile rejects a zip/ole2 renamed to .csv but accepts real CSV', () => {
+  const out = execFileSync(
+    process.execPath,
+    [join(REPO, 'tests', 'backend', 'fixtures', 'run-sniff-probe.cjs')],
+    { encoding: 'utf8' },
+  );
+  const line = out.split('\n').find((l) => l.startsWith('PROBE_JSON:'));
+  assert.ok(line, `expected PROBE_JSON line, got:\n${out}`);
+  const { cases } = JSON.parse(line.slice('PROBE_JSON:'.length));
+  const byName = Object.fromEntries(cases.map((c) => [c.name, c.ok]));
+  assert.equal(byName['renamed-xlsx.csv'], false, 'zip header renamed .csv must be rejected');
+  assert.equal(byName['renamed-ole2.csv'], false, 'OLE2 header renamed .csv must be rejected');
+  assert.equal(byName['plain.csv'], true, 'plain CSV bytes must be accepted');
+  assert.equal(byName['empty.csv'], true, 'empty file must not crash sniffFile');
 });

@@ -15,7 +15,7 @@ and ran a focused white-box review that surfaced four further issues — all fix
 
 | Gate | Result |
 | --- | --- |
-| `npm test` | **152 pass, 23 skip, 0 fail** |
+| `npm test` | **159 pass, 23 skip, 0 fail** |
 | `npx tsc -b` | 0 errors |
 | `npx eslint .` | 0 errors (301 pre-existing warnings) |
 | backend `npx tsc --noEmit` | 0 errors |
@@ -24,7 +24,7 @@ and ran a focused white-box review that surfaced four further issues — all fix
 | Route crawl (7 role routes) | 0 console errors |
 | Deploy script | syntax-checked, probe logic tested against live Supabase |
 
-Per suite: backend 97, integration 25 (+4 live, skipped), ai 30 (+19 live, skipped).
+Per suite: backend 104, integration 25 (+4 live, skipped), ai 30 (+19 live, skipped).
 
 ---
 
@@ -71,7 +71,7 @@ green on a clean checkout with nothing running.
 ### Coverage added while promoting
 
 Promoting the scripts surfaced gaps worth closing, so the suites grew from 58
-ad-hoc assertions to 152:
+ad-hoc assertions to 159:
 
 - **Route-table coverage.** Every route must be authenticated (bar six named
   credential endpoints) and every write must validate its body (bar an explicit,
@@ -278,7 +278,7 @@ nobody enumerated. That needs a browser with network access.
 ## Verification commands
 
 ```bash
-npm test                  # 152 pass, 23 skip
+npm test                  # 159 pass, 23 skip
 npm run test:backend
 npm run test:integration
 npm run test:ai

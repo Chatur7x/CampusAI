@@ -1,0 +1,6 @@
+{
+  "name": "campusai-behavior-probe-fixtures",
+  "private": true,
+  "type": "commonjs",
+  "description": "Isolates the behavioral probe from the repo root's \"type\": \"module\" so ts-node can compile it as CommonJS, matching how server--backend is built."
+}
