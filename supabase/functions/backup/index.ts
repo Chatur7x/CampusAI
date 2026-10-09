@@ -125,6 +125,10 @@ Deno.serve(async (req) => {
       })
 
     if (uploadError) {
+      // Storage error text can name the bucket, bucket policy and internal
+      // paths, so it is recorded server-side and only summarized to the caller.
+      console.error('Backup upload failed', uploadError)
+
       // Log failed backup
       await supabase.rpc('log_backup', {
         p_filename: filename,
@@ -135,7 +139,7 @@ Deno.serve(async (req) => {
       })
 
       return new Response(
-        JSON.stringify({ success: false, error: uploadError.message }),
+        JSON.stringify({ success: false, error: 'Backup upload failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -164,7 +168,9 @@ Deno.serve(async (req) => {
         size_mb: (sizeBytes / 1048576).toFixed(2),
         tables: Object.keys(backupData).length,
         total_rows: totalRows,
-        errors: errors.length > 0 ? errors : undefined,
+        // Names the internal tables and PostgREST detail; only the count is
+        // safe to return. The full list went to log_backup() above.
+        partial_table_count: errors.length,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

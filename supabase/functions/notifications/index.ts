@@ -4,7 +4,16 @@
 // =============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+
+/**
+ * Every action in this function is a privileged fan-out: it inserts
+ * `notifications` rows for other users, writes `security_alerts`, or calls an
+ * outbound email provider. None of it should be reachable by an ordinary
+ * student, so the whole surface is admin-gated.
+ */
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN']
 
 type NotificationType = 
   | 'low_attendance_alert'
@@ -33,7 +42,28 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } }
     )
 
-    const body: NotificationRequest = await req.json()
+    // Runs with the service-role client, so RLS does not protect it — the
+    // handler is the only authorization boundary. Authenticate, then authorize,
+    // before dispatching on an attacker-controlled `type`.
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return json({ success: false, message: 'Missing Authorization' }, 401)
+    }
+    const jwt = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt)
+    if (userError || !user) {
+      return json({ success: false, message: 'Unauthorized' }, 401)
+    }
+
+    const role = await getRole(supabase, user.id)
+    if (!role) {
+      return json({ success: false, message: 'User role not found' }, 403)
+    }
+    if (!ADMIN_ROLES.includes(role)) {
+      return json({ success: false, message: 'Insufficient permissions' }, 403)
+    }
+
+    const body: NotificationRequest = await req.json().catch(() => ({} as NotificationRequest))
     const { type, payload, channels = ['in_app'] } = body
     
     const results: { channel: string; success: boolean; message?: string }[] = []
@@ -348,21 +378,40 @@ Deno.serve(async (req) => {
         results.push({ channel: 'in_app', success: true, message: 'Custom notification sent' })
         break
       }
+
+      default:
+        // An unrecognised type previously fell through the switch and returned
+        // `{ success: true }`, which reads as "the notification was sent".
+        return json({ success: false, message: 'Unknown notification type' }, 400)
     }
 
-    return new Response(
-      JSON.stringify({ success: true, results }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return json({ success: true, results })
 
   } catch (error) {
-    console.error('Error:', error)
-    return new Response(
-      JSON.stringify({ success: false, message: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    // Log server-side; never return the raw message/stack to the caller.
+    console.error('Notifications function error', error)
+    return json({ success: false, message: 'Internal server error' }, 500)
   }
 })
+
+async function getRole(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  // Scoped to this user — an unscoped select would return the first profile row
+  // in the table and hand every caller someone else's role.
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', userId)
+    .single()
+  if (error) return null
+  return (data as { role?: string })?.role ?? null
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
 
 // Helper functions
 async function sendEmail(options: { to: string; subject: string; body: string }) {

@@ -4,11 +4,16 @@
 // =============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 interface SecurityAction {
   action: 'cleanup' | 'scan' | 'stats' | 'lockout-check'
 }
+
+// Every action here is privileged: three of them mutate security-critical state
+// (deleting audit rows, writing security events, unlocking locked accounts).
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -22,7 +27,28 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } }
     )
 
-    const body: SecurityAction = await req.json()
+    // This function runs with the service-role client, so RLS does not protect
+    // it — the handler is the only authorization boundary. Authenticate first,
+    // then authorize, before any action is dispatched.
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return json({ success: false, message: 'Missing Authorization' }, 401)
+    }
+    const jwt = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt)
+    if (userError || !user) {
+      return json({ success: false, message: 'Unauthorized' }, 401)
+    }
+
+    const role = await getRole(supabase, user.id)
+    if (!role) {
+      return json({ success: false, message: 'User role not found' }, 403)
+    }
+    if (!ADMIN_ROLES.includes(role)) {
+      return json({ success: false, message: 'Insufficient permissions' }, 403)
+    }
+
+    const body: SecurityAction = await req.json().catch(() => ({} as SecurityAction))
     const { action } = body
 
     switch (action) {
@@ -222,18 +248,34 @@ Deno.serve(async (req) => {
       }
 
       default:
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unknown action' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        return json({ success: false, message: 'Unknown action' }, 400)
     }
   } catch (error) {
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    // Never return the raw message/stack: it can name internal tables,
+    // constraints and Supabase internals. Log server-side instead.
+    console.error('security-monitor error', error)
+    return json({ success: false, message: 'Internal server error' }, 500)
   }
 })
+
+async function getRole(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  // Scoped to this user — an unscoped select would return the first profile row
+  // in the table and hand every caller someone else's role.
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', userId)
+    .single()
+  if (error) return null
+  return (data as { role?: string })?.role ?? null
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
 
 // ── Haversine distance helper (meters) ─────────────────────
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {

@@ -132,7 +132,9 @@ Deno.serve(async (req) => {
             })
 
             if (authError) {
-              errors.push({ row: i + 1, error: authError.message })
+              // Auth error text can name internal identifiers and policies.
+              console.error(`createUser failed for row ${i + 1}`, authError)
+              errors.push({ row: i + 1, error: 'Could not create account' })
               continue
             }
 
@@ -204,8 +206,10 @@ Deno.serve(async (req) => {
 
             processed++
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Unknown error'
-            errors.push({ row: i + 1, error: message })
+            // Log the detail server-side; return a generic per-row message so
+            // internal errors are not reflected to the caller.
+            console.error(`import_students row ${i + 1} failed`, error)
+            errors.push({ row: i + 1, error: 'Row failed' })
           }
         }
         break
@@ -240,7 +244,8 @@ Deno.serve(async (req) => {
             })
 
             if (authError) {
-              errors.push({ row: i + 1, error: authError.message })
+              console.error(`createUser failed for row ${i + 1}`, authError)
+              errors.push({ row: i + 1, error: 'Could not create account' })
               continue
             }
 
@@ -265,8 +270,8 @@ Deno.serve(async (req) => {
 
             processed++
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Unknown error'
-            errors.push({ row: i + 1, error: message })
+            console.error(`import_faculty row ${i + 1} failed`, error)
+            errors.push({ row: i + 1, error: 'Row failed' })
           }
         }
         break
@@ -295,7 +300,8 @@ Deno.serve(async (req) => {
           )
 
         if (error) {
-          errors.push({ row: 0, error: error.message })
+          console.error('bulk_attendance upsert failed', error)
+          errors.push({ row: 0, error: 'Attendance import failed' })
         } else {
           processed = records.length
         }
@@ -345,8 +351,8 @@ Deno.serve(async (req) => {
 
             processed++
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Unknown error'
-            errors.push({ row: i + 1, error: message })
+            console.error(`bulk_grades row ${i + 1} failed`, error)
+            errors.push({ row: i + 1, error: 'Row failed' })
           }
         }
         break
@@ -378,7 +384,8 @@ Deno.serve(async (req) => {
           });
 
         if (uploadError) {
-          errors.push({ row: 0, error: `Failed to upload report: ${uploadError.message}` });
+          console.error('export_report upload failed', uploadError);
+          errors.push({ row: 0, error: 'Failed to upload report' });
         } else {
           const { data: urlData } = supabase.storage.from('reports').getPublicUrl(storagePath);
           processed = 1;
