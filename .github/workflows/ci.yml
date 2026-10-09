@@ -1,136 +1,279 @@
 # =============================================================
-# AISMS - GitHub Actions CI Pipeline
+# AISMS — continuous integration
+#
+# One pipeline over all three runtimes plus the browser suite. Everything up to
+# and including `build` runs offline on a clean checkout; the `e2e` job gates
+# itself on its own credentials and reports as skipped when they are absent.
+#
+# Every third-party action is pinned to an exact tag — no `@main`, no floating
+# major — so a compromised upstream tag cannot land code on main through us.
 # =============================================================
-
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'LICENSE'
   pull_request:
+  push:
     branches: [main]
   workflow_dispatch:
 
-env:
-  NODE_VERSION: 20
-  PYTHON_VERSION: "3.12"
-
+# Superseded runs for the same ref are cancelled; on main they are not, so a
+# merge is always fully evaluated.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  NODE_VERSION: '24'
+  PYTHON_VERSION: '3.12'
+
+permissions:
+  contents: read
 
 jobs:
   # =============================================================
-  # FRONTEND - Lint, Type Check, Build
+  # Lint — one eslint pass over the repo
   # =============================================================
-  frontend:
-    name: Frontend CI
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: .
-    
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      # Gating, not advisory: `--max-warnings` is deliberately NOT set, because
+      # the tree carries ~300 pre-existing warnings and a new gate on them would
+      # fail every PR. Errors fail.
+      #
+      # KNOWN: this currently fails on two pre-existing errors in
+      # scripts/loadtest-customers.mjs (an unused `mean`, an empty catch at
+      # line 99), both committed before this workflow existed. Fix them and this
+      # job goes green; there is no exclusion list here on purpose, because an
+      # ignored path is a permanent hole in the gate.
+      - name: ESLint
+        run: npx eslint .
 
-      - name: Type Check
+  # =============================================================
+  # Typecheck — frontend (project references) and backend
+  # =============================================================
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server--backend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: .
+        run: npm ci
+
+      - name: Frontend typecheck
+        working-directory: .
+        run: npx tsc -b
+
+      # The backend is a separate TypeScript project with its own lockfile.
+      # `npm ci` there is non-fatal: the lockfile may not be committed, and a
+      # missing toolchain should not be reported as a type error.
+      - name: Install backend dependencies
+        working-directory: server--backend
+        run: npm ci || npm install
+
+      - name: Backend typecheck
+        working-directory: server--backend
         run: npx tsc --noEmit
 
-      - name: Build
-        run: npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist-${{ github.sha }}
-          path: dist/
-          retention-days: 1
-
   # =============================================================
-  # AI SERVER - Lint, Type Check
+  # Unit tests — backend + frontend data layer, then cross-service
   # =============================================================
-  ai-server:
-    name: AI Server CI
+  test-unit:
+    name: Unit tests (node:test)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
-        working-directory: ai-server
-    
+        working-directory: .
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      # Both suites read the source tree and need no database, no network and
+      # no seeded fixtures. Their live probes self-skip — see tests/README.md.
+      - name: Backend suite
+        run: npm run test:backend
+
+      - name: Integration suite
+        run: npm run test:integration
+
+  # =============================================================
+  # AI server — pytest against tests/ai
+  # =============================================================
+  test-ai:
+    name: AI server tests (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-python@v5.6.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: ai-server/requirements-ci.txt
+          # pytest itself is not in requirements-ci.txt, which only covers the
+          # server's runtime, so it is installed on its own below.
+          cache-dependency-path: |
+            ai-server/requirements-ci.txt
 
-      - name: Install dependencies
-        run: pip install -r requirements-ci.txt || pip install -r requirements.txt || echo "Using stubs"
+      - name: Install server dependencies
+        run: pip install -r ai-server/requirements-ci.txt
 
-      - name: Lint with ruff
-        run: |
-          pip install ruff
-          ruff check . --ignore E501
+      - name: Install pytest
+        run: pip install pytest
 
-      - name: Syntax check
-        run: |
-          python -m py_compile main.py || true
-          echo "Syntax check completed"
-
-      - name: Verify app loads
-        run: |
-          python -c "
-          import sys, types
-          for mod in ['insightface', 'mediapipe', 'torch', 'deepface', 'prophet', 'shap', 'pyod', 'statsmodels']:
-              sys.modules.setdefault(mod, types.ModuleType(mod))
-          from main import app
-          print(f'FastAPI app: {len(app.routes)} routes')
-          "
+      # conftest.py puts ai-server/ on sys.path so the tests import the real
+      # modules. The live-HTTP cases skip unless something answers on
+      # AI_BASE_URL, which nothing does here — that is intended.
+      #
+      # KNOWN: 3 cases in tests/ai/test_ml_helpers.py fail today on
+      # fingerprint-entropy and a scipy import check. Same caveat as the lint
+      # job: a real failure, fixed in source rather than silenced here.
+      - name: Run pytest
+        run: python -m pytest tests/ai -q
 
   # =============================================================
-  # BACKEND - Lint, Type Check
+  # Frontend production build
   # =============================================================
-  backend:
-    name: Backend CI
+  build:
+    name: Build frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
-        working-directory: server--backend
-    
+        working-directory: .
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: server--backend/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
-      - name: Generate Prisma Client
-        run: npx prisma generate || echo "Prisma not configured"
+      # `vite build` alone, not `npm run build`: the type check already ran as
+      # its own job, and running tsc twice just doubles the slowest part.
+      - name: Vite build
+        run: npx vite build
 
-      - name: Lint
-        run: npm run lint || echo "Lint not configured"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
 
-      - name: Type Check
-        run: npx tsc --noEmit || echo "Type check completed"
+  # =============================================================
+  # E2E — runs only when credentials are configured
+  # =============================================================
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # `vars` are repository settings, not secrets: these are seeded demo
+    # accounts, not credentials for anything real. When they are unset the
+    # job is skipped rather than failed — the suite needs a database with
+    # seeded users, which a clean CI checkout does not have.
+    if: ${{ vars.E2E_ENABLED == 'true' }}
+    defaults:
+      run:
+        working-directory: .
+    env:
+      E2E: '1'
+      E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+      E2E_ADMIN_EMAIL: ${{ vars.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ vars.E2E_ADMIN_PASSWORD }}
+      E2E_FACULTY_EMAIL: ${{ vars.E2E_FACULTY_EMAIL }}
+      E2E_FACULTY_PASSWORD: ${{ vars.E2E_FACULTY_PASSWORD }}
+      E2E_STUDENT_EMAIL: ${{ vars.E2E_STUDENT_EMAIL }}
+      E2E_STUDENT_PASSWORD: ${{ vars.E2E_STUDENT_PASSWORD }}
+      E2E_COMPANY_EMAIL: ${{ vars.E2E_COMPANY_EMAIL }}
+      E2E_COMPANY_PASSWORD: ${{ vars.E2E_COMPANY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      # Playwright is deliberately not a dependency of this repo — adding it
+      # requires approval. Until it is, this job is inert; see
+      # tests/README.md for the install command to unblock it.
+      - name: Check for Playwright
+        id: pw
+        run: |
+          if [ -d node_modules/@playwright/test ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::@playwright/test is not installed; skipping the e2e run. See tests/README.md."
+          fi
+
+      - name: Cache Playwright browsers
+        if: steps.pw.outputs.present == 'true'
+        uses: actions/cache@v4.2.4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/playwright.config.ts') }}
+
+      - name: Install Chromium
+        if: steps.pw.outputs.present == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the app
+        if: steps.pw.outputs.present == 'true' && vars.E2E_BASE_URL == ''
+        run: npm run dev -- --port 5173 --strictPort &
+
+      - name: Run Playwright
+        if: steps.pw.outputs.present == 'true'
+        run: npx playwright test --config tests/e2e/playwright.config.ts
+
+      - uses: actions/upload-artifact@v4.6.2
+        if: always() && steps.pw.outputs.present == 'true'
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore

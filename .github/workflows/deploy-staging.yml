@@ -1,0 +1,197 @@
+# =============================================================
+# AISMS — staging deployment
+#
+# Target platform: Railway (backend + AI server) and Vercel (frontend SPA).
+# This matches the repo's existing deployment conventions:
+#
+#   railway.json          → AI server, service `ai-server`, Docker build
+#   railway-backend.json  → Express backend, service `backend`
+#   vercel.json           → SPA, outputDirectory `dist`
+#
+# Those files remain the source of truth for how each service builds and starts;
+# this workflow only supplies the token and the trigger. See DEPLOY-RAILWAY.md
+# and DEPLOY-VERCEL.md.
+#
+# The CLIs are installed at pinned versions rather than pulled through a
+# third-party action: `ferrybin/railway-action` (referenced by the older
+# deploy.yml) no longer exists upstream, and a pinned npm install is auditable
+# and survives an action rename.
+#
+# Every third-party action here is pinned to an exact tag.
+# =============================================================
+name: Deploy staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Which service to deploy (all, ai-server, backend, frontend)'
+        required: false
+        default: 'all'
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Pinned CLI versions. Bumping either is a deliberate act, not a side effect
+  # of an upstream release.
+  RAILWAY_CLI: '5.64.1'
+  VERCEL_CLI: '63.1.0'
+  # `all` is a literal that means "every service"; it never reaches a CLI.
+  SERVICE: ${{ github.event.inputs.service || 'all' }}
+
+jobs:
+  # =============================================================
+  # AI server → Railway (builds from ai-server/Dockerfile)
+  # =============================================================
+  ai-server:
+    name: Staging — AI server (Railway)
+    if: ${{ env.SERVICE == 'all' || env.SERVICE == 'ai-server' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Verify the Railway token is configured
+        # A missing secret fails here with a readable message instead of a CLI
+        # stack trace. Uses the staging-scoped names so a production deploy
+        # cannot be triggered by this workflow.
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_STAGING_PROJECT_ID }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "::error::RAILWAY_STAGING_TOKEN / RAILWAY_STAGING_PROJECT_ID are not set on the staging environment."
+            exit 1
+          fi
+
+      - name: Install Railway CLI
+        run: npm install -g "@railway/cli@$RAILWAY_CLI"
+
+      # railway.json already declares `builder: DOCKERFILE,
+      # dockerfilePath: ai-server/Dockerfile`, so `up` builds the image
+      # remotely. The working directory keeps that path resolvable.
+      - name: Deploy
+        working-directory: ai-server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_STAGING_PROJECT_ID }}
+        run: |
+          railway link --project-id "$RAILWAY_PROJECT_ID" --environment staging --service ai-server
+          railway up --detach
+
+      - name: Health check
+        # Non-fatal: Railway's own healthcheckPath in railway.json is
+        # authoritative. This is an early signal, not a second gate.
+        run: |
+          sleep 30
+          curl -fsS --max-time 20 "${STAGING_AI_HEALTH_URL:-https://aisms-ai-server.up.railway.app/health}" \
+            || echo "::notice::AI server health endpoint did not answer yet."
+
+  # =============================================================
+  # Express backend → Railway (Nixpacks, npm start)
+  # =============================================================
+  backend:
+    name: Staging — backend (Railway)
+    if: ${{ env.SERVICE == 'all' || env.SERVICE == 'backend' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: server--backend/package-lock.json
+
+      - name: Verify the Railway token is configured
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_STAGING_PROJECT_ID }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "::error::RAILWAY_STAGING_TOKEN / RAILWAY_STAGING_PROJECT_ID are not set on the staging environment."
+            exit 1
+          fi
+
+      - name: Install Railway CLI
+        run: npm install -g "@railway/cli@$RAILWAY_CLI"
+
+      # railway-backend.json declares NIXPACKS + `npm start`; the CLI reads it
+      # from the service root, so the working directory must be server--backend.
+      - name: Deploy
+        working-directory: server--backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_STAGING_PROJECT_ID }}
+        run: |
+          railway link --project-id "$RAILWAY_PROJECT_ID" --environment staging --service backend
+          railway up --detach
+
+      - name: Health check
+        run: |
+          sleep 30
+          curl -fsS --max-time 20 "${STAGING_BACKEND_HEALTH_URL:-https://aisms-backend.up.railway.app/api/health}" \
+            || echo "::notice::Backend health endpoint did not answer yet."
+
+  # =============================================================
+  # Frontend SPA → Vercel (staging alias, not production)
+  # =============================================================
+  frontend:
+    name: Staging — frontend (Vercel)
+    if: ${{ env.SERVICE == 'all' || env.SERVICE == 'frontend' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify the Vercel token is configured
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_STAGING_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_STAGING_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STAGING_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::VERCEL_STAGING_* secrets are not set on the staging environment."
+            exit 1
+          fi
+
+      - run: npm ci
+
+      # vercel.json sets buildCommand/outputDirectory; --target staging
+      # publishes to the staging alias rather than promoting to production.
+      - name: Deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_STAGING_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_STAGING_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STAGING_PROJECT_ID }}
+        run: |
+          npx --yes "vercel@$VERCEL_CLI" pull --yes --environment=staging --token="$VERCEL_TOKEN"
+          npx --yes "vercel@$VERCEL_CLI" build --token="$VERCEL_TOKEN"
+          npx --yes "vercel@$VERCEL_CLI" deploy --prebuilt --token="$VERCEL_TOKEN"
+
+      - name: Summary
+        run: echo "Frontend staged. Inspect the staging alias in the Vercel dashboard."

@@ -46,7 +46,6 @@ const POOL = new Pool({
 });
 
 const pct = (arr, p) => { if (!arr.length) return 0; const s = [...arr].sort((a,b)=>a-b); return s[Math.min(s.length-1, Math.floor((p/100)*s.length))]; };
-const mean = (arr) => (arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function directInsert(email, n) {
@@ -96,7 +95,11 @@ async function restGet(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
   const ms = performance.now() - t0;
   let data = null;
-  try { data = await res.json(); } catch {}
+  try {
+    data = await res.json();
+  } catch {
+    data = null; // non-JSON body (e.g. an error page) is not a valid payload
+  }
   return { ok: res.ok, status: res.status, ms, data };
 }
 

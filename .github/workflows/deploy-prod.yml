@@ -1,0 +1,338 @@
+# =============================================================
+# AISMS — production deployment
+#
+# Manual only. There is no `push:` trigger here on purpose: a production deploy
+# runs after a human presses the button AND a second human approves the GitHub
+# environment. Both gates are required:
+#
+#   1. `workflow_dispatch` — an explicit human action.
+#   2. `environment: production` with a required reviewer (see the
+#      "Required reviewers" note at the bottom of this file) — a second human
+#      must approve the pending deployment in the Actions tab.
+#
+# A green CI run is a prerequisite, not a substitute. `workflow_run` cannot be
+# combined with `workflow_dispatch` in one file, and a `needs:` edge cannot
+# cross workflow boundaries, so the `verify` job below re-runs the same gates
+# on the same commit before anything is deployed. It is cheap next to the
+# value of never shipping a commit that does not build.
+#
+# Every third-party action is pinned to an exact tag.
+# =============================================================
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Which service to deploy (all, ai-server, backend, frontend)'
+        required: true
+        default: 'all'
+      reason:
+        description: 'Why is this shipping?'
+        required: true
+      confirm:
+        description: 'Type DEPLOY to confirm'
+        required: true
+
+concurrency:
+  # Never let two production deploys overlap.
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  RAILWAY_CLI: '5.64.1'
+  VERCEL_CLI: '63.1.0'
+  SERVICE: ${{ inputs.service }}
+
+jobs:
+  # =============================================================
+  # Verify — the same gates as ci.yml, on this exact commit
+  # =============================================================
+  verify:
+    name: Verify (lint, typecheck, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server--backend/package-lock.json
+
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ai-server/requirements-ci.txt
+
+      - run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Frontend typecheck
+        run: npx tsc -b
+
+      - name: Install backend dependencies
+        working-directory: server--backend
+        run: npm ci || npm install
+
+      - name: Backend typecheck
+        working-directory: server--backend
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm run test:backend && npm run test:integration
+
+      - name: Install AI server dependencies
+        run: pip install -r ai-server/requirements-ci.txt pytest
+
+      - name: AI server tests
+        run: python -m pytest tests/ai -q
+
+      - name: Frontend build
+        run: npx vite build
+
+  # =============================================================
+  # Gate — fails early on a mistyped confirmation
+  # =============================================================
+  confirm:
+    name: Confirm deployment
+    runs-on: ubuntu-latest
+    # The environment gate lives here so the reviewer is asked before any
+    # credentials are touched, not three jobs in.
+    environment: production
+    steps:
+      - name: Require an explicit confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "DEPLOY" ]; then
+            echo "::error::confirmation must be exactly DEPLOY, got '${{ inputs.confirm }}'"
+            exit 1
+          fi
+
+      - name: Record the reason
+        run: |
+          {
+            echo "## Production deployment"
+            echo
+            echo "- **Service:** ${{ inputs.service }}"
+            echo "- **Reason:** ${{ inputs.reason }}"
+            echo "- **Commit:** ${{ github.sha }}"
+            echo "- **Triggered by:** @${{ github.actor }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # =============================================================
+  # AI server → Railway, production environment
+  # =============================================================
+  ai-server:
+    name: Production — AI server (Railway)
+    needs: [confirm, verify]
+    if: ${{ inputs.service == 'all' || inputs.service == 'ai-server' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Verify the Railway token is configured
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "::error::RAILWAY_TOKEN / RAILWAY_PROJECT_ID are not set on the production environment."
+            exit 1
+          fi
+
+      - name: Install Railway CLI
+        run: npm install -g "@railway/cli@$RAILWAY_CLI"
+
+      - name: Deploy
+        working-directory: ai-server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          railway link --project-id "$RAILWAY_PROJECT_ID" --environment production --service ai-server
+          railway up --detach
+
+      - name: Health check
+        run: |
+          sleep 45
+          curl -fsS --max-time 20 "${PROD_AI_HEALTH_URL:-https://aisms-ai-server.up.railway.app/health}" \
+            || echo "::warning::AI server health endpoint did not answer; check the Railway dashboard."
+
+  # =============================================================
+  # Express backend → Railway, production environment
+  # =============================================================
+  backend:
+    name: Production — backend (Railway)
+    needs: [confirm, verify]
+    if: ${{ inputs.service == 'all' || inputs.service == 'backend' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: server--backend/package-lock.json
+
+      - name: Verify the Railway token is configured
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "::error::RAILWAY_TOKEN / RAILWAY_PROJECT_ID are not set on the production environment."
+            exit 1
+          fi
+
+      - name: Install Railway CLI
+        run: npm install -g "@railway/cli@$RAILWAY_CLI"
+
+      - name: Deploy
+        working-directory: server--backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          railway link --project-id "$RAILWAY_PROJECT_ID" --environment production --service backend
+          railway up --detach
+
+      - name: Health check
+        run: |
+          sleep 45
+          curl -fsS --max-time 20 "${PROD_BACKEND_HEALTH_URL:-https://aisms-backend.up.railway.app/api/health}" \
+            || echo "::warning::Backend health endpoint did not answer; check the Railway dashboard."
+
+  # =============================================================
+  # Frontend SPA → Vercel production
+  # =============================================================
+  frontend:
+    name: Production — frontend (Vercel)
+    needs: [confirm, verify]
+    if: ${{ inputs.service == 'all' || inputs.service == 'frontend' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify the Vercel token is configured
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::VERCEL_* secrets are not set on the production environment."
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npx --yes "vercel@$VERCEL_CLI" pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx --yes "vercel@$VERCEL_CLI" build --prod --token="$VERCEL_TOKEN"
+          npx --yes "vercel@$VERCEL_CLI" deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+  # =============================================================
+  # Supabase edge functions
+  # =============================================================
+  edge-functions:
+    name: Production — Supabase edge functions
+    needs: [confirm, verify]
+    if: ${{ inputs.service == 'all' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Install Supabase CLI (pinned)
+        run: npm install -g "supabase@${{ vars.SUPABASE_CLI_VERSION || '2.76.15' }}"
+
+      - name: Deploy edge functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_REF" ]; then
+            echo "::notice::Supabase credentials are not configured; skipping edge-function deploy."
+            exit 0
+          fi
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy --no-verify-jwt
+
+  # =============================================================
+  # Summary
+  # =============================================================
+  summary:
+    name: Deployment summary
+    needs: [ai-server, backend, frontend, edge-functions]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: |
+          {
+            echo "## Production deployment — \`${{ inputs.service }}\`"
+            echo
+            echo "| Service | Result |"
+            echo "| --- | --- |"
+            echo "| AI server | ${{ needs.ai-server.result }} |"
+            echo "| Backend | ${{ needs.backend.result }} |"
+            echo "| Frontend | ${{ needs.frontend.result }} |"
+            echo "| Edge functions | ${{ needs.edge-functions.result }} |"
+            echo
+            echo "Commit: \`${{ github.sha }}\` — ${{ inputs.reason }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+# =============================================================
+# Required reviewer — one-time manual setup
+#
+# The approval gate above is enforced by GitHub, not by this file, so it has to
+# be created once by a repository admin:
+#
+#   Settings → Environments → New environment → name it `production`
+#     → "Required reviewers" → add the people who may approve a release
+#     → optionally add a wait timer and deployment branch rules
+#
+# Without that step the `environment: production` line still works, but it
+# pauses for zero seconds and anyone with Actions write access can approve their
+# own run. Create the environment before relying on this workflow.
+# =============================================================
