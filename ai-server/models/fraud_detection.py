@@ -33,7 +33,7 @@ Advanced Features:
 """
 from __future__ import annotations
 
-import logging, hashlib, time
+import logging, hashlib, math, time
 from collections import defaultdict
 from typing import Optional
 
@@ -287,7 +287,6 @@ def validate_fingerprint_v4(fp: str) -> dict:
     Bio-Net v4: Deep Fingerprint Validation.
     Checks for spoofed or too-simple hashes.
     """
-    import math
     entropy = _extract_fingerprint_entropy(fp)
     is_suspicious = entropy < 3.0 or len(set(fp)) < 8
     return {

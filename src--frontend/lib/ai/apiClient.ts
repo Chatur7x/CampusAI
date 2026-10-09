@@ -264,6 +264,12 @@ export interface CorrelationResult {
   direction: string;
   interpretation: string;
   sample_size: number;
+  /**
+   * The AI server returns this INSTEAD of the numeric fields when either input
+   * series is constant, because a correlation is undefined in that case. It
+   * previously returned NaN across the board, which was never renderable.
+   */
+  error?: string;
 }
 
 export async function getCorrelation(

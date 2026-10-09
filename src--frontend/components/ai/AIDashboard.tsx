@@ -459,7 +459,17 @@ export default function AIDashboard({
 
         {/* Performance Tab */}
         <TabsContent value="performance" className="space-y-4">
-          {correlationData ? (
+          {correlationData?.error ? (
+            // The AI server declines to return a correlation when either input
+            // series is constant — there is no variance to correlate against.
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Correlation unavailable.</p>
+                <p className="text-sm mt-1">{correlationData.error}</p>
+              </CardContent>
+            </Card>
+          ) : correlationData ? (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">

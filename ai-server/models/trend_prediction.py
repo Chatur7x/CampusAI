@@ -25,6 +25,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from models.performance_analysis import escalate_severity
+
 logger = logging.getLogger("campusai.trend")
 
 
@@ -249,7 +251,8 @@ def compare_methods(weekly_rates: list[float], forecast_weeks: int = 4) -> dict:
             "method": "weighted_ensemble_v4",
             "predictions": ensemble,
             "confidence_scores": {k: round(v, 2) for k, v in weights.items()},
-            "trend": _classify_trend(weekly_rates, ensemble),
+            # clean_rates, not weekly_rates: the latter may contain None.
+            "trend": _classify_trend(clean_rates, ensemble),
         }
 
     return results
@@ -279,7 +282,7 @@ def suggest_intervention(weekly_rates: list[float]) -> dict:
 
     if slope < -2:
         suggestions.append("Declining trend detected — early warning alert")
-        severity = max(severity, "MEDIUM")
+        severity = escalate_severity(severity, "MEDIUM")
 
     if current_avg < overall_avg - 10:
         suggestions.append("Recent drop from historical average — check for issues")

@@ -16,6 +16,7 @@ from typing import Optional
 from collections import deque
 
 import numpy as np
+from scipy import stats
 
 logger = logging.getLogger("campusai.monitoring")
 
@@ -168,8 +169,6 @@ def check_advanced_drift(model_name: str, baseline: list[float], current: list[f
     """
     Bio-Net v4: JSD-based drift detection.
     """
-    from scipy import stats # imported here if not global
-    
     # Normalize to probability distributions
     hist_b, bin_edges = np.histogram(baseline, bins=10, density=True)
     hist_c, _ = np.histogram(current, bins=bin_edges, density=True)

@@ -28,6 +28,34 @@ from scipy import stats
 
 logger = logging.getLogger("campusai.performance")
 
+# Severity ordering. String comparison is lexicographic ("L" > "H"), so the
+# labels must never be compared or max()ed directly.
+SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+
+
+def escalate_severity(current: str, candidate: str) -> str:
+    """Return the more severe of two severity labels."""
+    if SEVERITY_RANK.get(candidate, 0) > SEVERITY_RANK.get(current, 0):
+        return candidate
+    return current
+
+
+def _fit_line(x: np.ndarray, y: np.ndarray):
+    """
+    Least-squares fit of y on x with an explicit zero-variance fallback.
+
+    ``stats.linregress`` returns a NaN slope/intercept when x has no variance,
+    and the caller cannot clamp NaN into a valid answer. With a constant
+    predictor the slope is exactly 0 and the only defensible intercept is the
+    mean of y, so we return that instead of propagating NaN.
+    """
+    x_mean = float(np.mean(x))
+    if float(np.sum((x - x_mean) ** 2)) > 0:
+        slope, intercept, r, p, _se = stats.linregress(x, y)
+        return float(slope), float(intercept), float(r), float(p)
+    y_mean = float(np.mean(y))
+    return 0.0, y_mean, 0.0, 1.0
+
 
 def pearson_correlation(
     attendance_pcts: list[float],
@@ -42,6 +70,10 @@ def pearson_correlation(
 
     x = np.array(attendance_pcts, dtype=np.float64)
     y = np.array(grades, dtype=np.float64)
+    if float(np.std(x)) == 0.0 or float(np.std(y)) == 0.0:
+        # Pearson r is undefined without variance; reporting NaN here would
+        # surface a bogus direction ("negative") and strength to the caller.
+        return {"error": "Need variance in both attendance and grades"}
     r, p = stats.pearsonr(x, y)
     abs_r = abs(r)
 
@@ -80,6 +112,9 @@ def spearman_correlation(
 
     x = np.array(attendance_pcts, dtype=np.float64)
     y = np.array(grades, dtype=np.float64)
+    if float(np.std(x)) == 0.0 or float(np.std(y)) == 0.0:
+        # Rank correlation is likewise undefined without variance.
+        return {"error": "Need variance in both attendance and grades"}
     rho, p = stats.spearmanr(x, y)
     abs_rho = abs(rho)
 
@@ -124,7 +159,7 @@ def predict_grade(
 
     x = np.array(xa, dtype=np.float64)
     y = np.array(ya, dtype=np.float64)
-    slope, intercept, r, p, _se = stats.linregress(x, y)
+    slope, intercept, r, p = _fit_line(x, y)
     predicted = slope * attendance_pct + intercept
     predicted = max(0, min(100, predicted))
 
@@ -171,7 +206,7 @@ def predict_performance_v4(
     x = np.array(historical_attendances, dtype=np.float64)
     y = np.array(historical_grades, dtype=np.float64)
     
-    slope, intercept, r, p, se = stats.linregress(x, y)
+    slope, intercept, r, p = _fit_line(x, y)
     
     # Calculate projection
     predicted = slope * attendance_pct + intercept
@@ -182,10 +217,17 @@ def predict_performance_v4(
     dof = n - 2
     t_val = stats.t.ppf(0.975, dof) # 95% CI
     
-    # Standard error of prediction
+    # Standard error of prediction. Guard ss_x == 0 (constant attendance):
+    # the leverage term is undefined there and would emit NaN into the
+    # response body, which is not valid JSON.
     x_mean = np.mean(x)
-    ss_x = np.sum((x - x_mean)**2)
-    s_err = se * np.sqrt(1 + 1/n + (attendance_pct - x_mean)**2 / ss_x)
+    ss_x = float(np.sum((x - x_mean)**2))
+    if ss_x > 0:
+        _slope_se, _intercept_se, _r, _p, se = stats.linregress(x, y)
+        s_err = se * np.sqrt(1 + 1/n + (attendance_pct - x_mean)**2 / ss_x)
+    else:
+        residuals = y - (slope * x + intercept)
+        s_err = float(np.sqrt(np.sum(residuals**2) / max(n - 2, 1)))
     
     margin = t_val * s_err
     
@@ -223,7 +265,7 @@ def detect_performance_risk(
         severity = "CRITICAL"
     elif streak >= 3:
         risk_factors.append(f"WARNING: {streak} consecutive absences")
-        severity = "HIGH" if severity != "CRITICAL" else severity
+        severity = escalate_severity(severity, "HIGH")
 
     # Low attendance
     if attendance_pct < 60:
@@ -231,7 +273,7 @@ def detect_performance_risk(
         severity = "CRITICAL"
     elif attendance_pct < 75:
         risk_factors.append("WARNING: Attendance below 75%")
-        severity = "HIGH" if severity != "CRITICAL" else severity
+        severity = escalate_severity(severity, "HIGH")
 
     # Grade prediction
     if len(historical_attendances) >= 3:
@@ -242,7 +284,7 @@ def detect_performance_risk(
             severity = "CRITICAL"
         elif predicted_grade < 60:
             risk_factors.append(f"Predicted grade ({predicted_grade:.0f}) near failing")
-            severity = max(severity, "HIGH")
+            severity = escalate_severity(severity, "HIGH")
 
     # Current grade trend
     if current_grade < 40:

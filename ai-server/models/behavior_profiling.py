@@ -26,6 +26,7 @@ logger = logging.getLogger("campusai.behavior")
 # ── Globals ──────────────────────────────────────────────────
 _kmeans: Optional[KMeans] = None
 _scaler: Optional[StandardScaler] = None
+_pca: Optional[PCA] = None
 _cluster_labels: dict[int, str] = {}
 
 PROFILE_NAMES = ["Regular", "Occasionally absent", "Chronic absentee"]
@@ -45,7 +46,7 @@ def train_profiles(records: list[dict], max_clusters: int = 5) -> dict:
     Bio-Net v4: Self-Optimizing behavior clustering.
     Uses Silhouette Score to find optimal K and PCA for feature fusion.
     """
-    global _kmeans, _scaler, _cluster_labels
+    global _kmeans, _scaler, _pca, _cluster_labels
 
     if len(records) < 5:
         return {"error": "Need ≥ 5 records for self-optimization"}
@@ -57,6 +58,8 @@ def train_profiles(records: list[dict], max_clusters: int = 5) -> dict:
     # v4: PCA Feature Fusion (reduce noise/redundancy)
     pca = PCA(n_components=0.95) # Retain 95% variance
     Xp = pca.fit_transform(Xs)
+    # Kept so classify_student predicts in the same space KMeans was fit on.
+    _pca = pca
 
     # v4: Find optimal clusters (Silhouette Score)
     best_k = 2
@@ -104,16 +107,18 @@ def train_profiles(records: list[dict], max_clusters: int = 5) -> dict:
 
 def classify_student(record: dict) -> dict:
     """Assign a student to a behaviour profile."""
-    if _kmeans is None or _scaler is None:
+    if _kmeans is None or _scaler is None or _pca is None:
         return _heuristic_profile(record)
 
     X = _extract_features(record)
     Xs = _scaler.transform(X)
-    cluster = int(_kmeans.predict(Xs)[0])
+    # KMeans was fit on the PCA-reduced matrix, so predict in that space too.
+    Xp = _pca.transform(Xs)
+    cluster = int(_kmeans.predict(Xp)[0])
     label = _cluster_labels.get(cluster, f"Cluster {cluster}")
 
-    # Distance to cluster centre (confidence proxy)
-    dist = float(np.linalg.norm(Xs - _kmeans.cluster_centers_[cluster]))
+    # Distance to cluster centre (confidence proxy), same space as the fit.
+    dist = float(np.linalg.norm(Xp[0] - _kmeans.cluster_centers_[cluster]))
     confidence = max(0, 1.0 - dist / 5.0)
 
     return {
