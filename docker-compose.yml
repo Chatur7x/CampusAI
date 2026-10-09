@@ -1,66 +1,187 @@
 # =============================================================
-# CampusAI — Docker Compose (Development)
+# AISMS — local full-stack Docker Compose
 # =============================================================
-# Usage:
-#   docker compose up -d          # Start all services
-#   docker compose up ai-server   # Start only AI server
-#   docker compose logs -f        # Follow logs
-# =============================================================
+# Usage
+#   docker compose up -d --build                     # SPA + AI server + backend
+#   docker compose up -d --build --profile postgres   # also start a local Postgres
+#   docker compose logs -f ai-server
+#   docker compose down -v
+#
+# Env wiring
+#   Copy `.env.example` to `.env` first. Compose interpolates
+#   ${VAR} from that file (and from your shell). Anything left blank
+#   is passed through as an empty string — see docs/ARCHITECTURE.md
+#   for which variables each service actually reads.
+#
+# Production deploys do NOT use this file; see railway.json and
+# vercel.json.
+
+name: aisms
 
 services:
-  # Frontend (Vite dev server)
+  # ── Frontend SPA ─────────────────────────────────────────────
+  # Vite inlines import.meta.env.VITE_* at BUILD time, so these are
+  # build args, not runtime environment. The container itself only
+  # serves static files through nginx.
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?set VITE_SUPABASE_URL in .env}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:?set VITE_SUPABASE_ANON_KEY in .env}
+        # Direct service addresses.
+        #
+        # These are read by the BROWSER, so they must be reachable
+        # from the host, not just from the compose network — hence
+        # localhost rather than the `ai-server` / `backend` service
+        # names. Note that nginx.conf only proxies /api/ai/, so the
+        # backend cannot be reached through nginx today; see
+        # docs/ARCHITECTURE.md.
+        VITE_AI_SERVER_URL: ${VITE_AI_SERVER_URL:-http://localhost:8000}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:5000}
+        VITE_CAMPUS_LATITUDE: ${VITE_CAMPUS_LATITUDE:-17.335}
+        VITE_CAMPUS_LONGITUDE: ${VITE_CAMPUS_LONGITUDE:-78.714}
+        VITE_MAX_ATTENDANCE_DISTANCE: ${VITE_MAX_ATTENDANCE_DISTANCE:-500}
     ports:
-      - "5173:5173"
-    environment:
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
-      - VITE_AI_SERVER_URL=http://ai-server:8000
-    volumes:
-      - ./src--frontend:/app/src--frontend
-      - ./public:/app/public
+      - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
-      - ai-server
+      ai-server:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - aisms
 
-  # Python AI/ML Server
+  # ── FastAPI AI server ────────────────────────────────────────
+  # Owns face recognition, liveness, geofencing, predictive
+  # analytics and attendance-session logic.
   ai-server:
     build:
-      context: ./ai-server
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+      # Repo root, matching railway.json: Railway has no way to express a
+      # subdirectory build context, so the Dockerfile is rooted at the repo root
+      # and compose must agree or the two deploy paths diverge.
+      context: .
+      dockerfile: ai-server/Dockerfile
     environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - CORS_ORIGINS=http://localhost:5173,http://frontend:5173,https://campusai.app
-      - AI_SERVER_HOST=0.0.0.0
-      - AI_SERVER_PORT=8000
+      SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:?set SUPABASE_SERVICE_KEY in .env}
+      SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+      # Host must include every origin the browser will use.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      AI_SERVER_HOST: 0.0.0.0
+      AI_SERVER_PORT: 8000
+      PORT: 8000
+      WORKERS: ${AI_WORKERS:-1}
+      # Campus geofencing defaults (overridable per deployment).
+      CAMPUS_LAT: ${CAMPUS_LAT:-17.335}
+      CAMPUS_LON: ${CAMPUS_LON:-78.714}
+      CAMPUS_RADIUS_M: ${CAMPUS_RADIUS_M:-500}
+      # Face / liveness tuning.
+      FACE_BACKEND: ${FACE_BACKEND:-insightface}
+      FACE_SIMILARITY_THRESHOLD: ${FACE_SIMILARITY_THRESHOLD:-0.55}
+      LIVENESS_CHALLENGE_ENABLED: ${LIVENESS_CHALLENGE_ENABLED:-true}
+      DEEPFAKE_DETECTION_ENABLED: ${DEEPFAKE_DETECTION_ENABLED:-true}
+      EAR_BLINK_THRESHOLD: ${EAR_BLINK_THRESHOLD:-0.22}
+      HEAD_TURN_THRESHOLD: ${HEAD_TURN_THRESHOLD:-15}
+      # Confidence score weights.
+      CONF_WEIGHT_FACE: ${CONF_WEIGHT_FACE:-0.50}
+      CONF_WEIGHT_LIVENESS: ${CONF_WEIGHT_LIVENESS:-0.20}
+      CONF_WEIGHT_GEO: ${CONF_WEIGHT_GEO:-0.15}
+      CONF_WEIGHT_DEVICE: ${CONF_WEIGHT_DEVICE:-0.15}
+      FRAUD_CONTAMINATION: ${FRAUD_CONTAMINATION:-0.05}
+      # Observability.
+      AUDIT_LOG_ENABLED: ${AUDIT_LOG_ENABLED:-true}
+      AUDIT_LOG_DIR: /app/audit_logs
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-/app/mlruns}
+      GPU_ENABLED: ${GPU_ENABLED:-false}
+    ports:
+      - "${AI_SERVER_PORT:-8000}:8000"
     volumes:
-      - ai-models:/root/.insightface  # Cache model downloads
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      # Caches the InsightFace model across rebuilds. The container
+      # user is uid 1001, so the volume must be chown-compatible.
+      - ai-models:/home/aisms/.insightface
+      - audit-logs:/app/audit_logs
+    restart: unless-stopped
+    networks:
+      - aisms
 
-  # Express Backend (optional — for WebSocket/Blockchain)
+  # ── Express + Prisma backend ─────────────────────────────────
+  # Owns auth/session issuance, CRUD, roles, Socket.IO, blockchain
+  # ledger and email. See docs/ARCHITECTURE.md for the deprecation
+  # plan that retires this service.
   backend:
     build:
       context: ./server--backend
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - PORT=5000
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      # Points at the AI server on the compose network.
+      FACE_VERIFICATION_ENDPOINT: ${FACE_VERIFICATION_ENDPOINT:-http://ai-server:8000/api/face/verify}
+      FACE_VERIFICATION_API_KEY: ${FACE_VERIFICATION_API_KEY:-}
+      FACE_CONFIDENCE_THRESHOLD: ${FACE_CONFIDENCE_THRESHOLD:-0.6}
+      BLOCKCHAIN_SALT: ${BLOCKCHAIN_SALT:?set BLOCKCHAIN_SALT in .env}
+      BLOCKCHAIN_DIFFICULTY: ${BLOCKCHAIN_DIFFICULTY:-4}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      UPLOAD_PATH: /app/uploads
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST in .env}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:?set SMTP_USER in .env}
+      SMTP_PASS: ${SMTP_PASS:?set SMTP_PASS in .env}
+      FROM_EMAIL: ${FROM_EMAIL:-no-reply@example.com}
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    volumes:
+      - backend-uploads:/app/uploads
+    depends_on:
+      ai-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - aisms
+
+  # ── Optional local Postgres ───────────────────────────────────
+  # Only needed for offline work against a local database. The real
+  # deployment targets Supabase; `pgvector` is required because
+  # v4_biometric_optimization.sql uses the vector extension.
+  # Start with:  docker compose --profile postgres up -d
+  postgres:
+    image: pgvector/pgvector:pg16
     profiles:
-      - full  # Only starts with: docker compose --profile full up
+      - postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev-only-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-aisms}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-aisms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aisms
 
 volumes:
   ai-models:
+  audit-logs:
+  backend-uploads:
+  postgres-data:
+
+networks:
+  aisms:
+    driver: bridge

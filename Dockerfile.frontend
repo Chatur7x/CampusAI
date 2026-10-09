@@ -1,46 +1,24 @@
 # =============================================================
-# AISMS - Docker Configuration
+# DEPRECATED — this file is no longer a build target.
 # =============================================================
+# Historically `Dockerfile` built the Express backend and
+# `Dockerfile.frontend` built the SPA. The two names were inverted
+# relative to their contents, and this file additionally served the
+# app through `vite preview` (a dev-oriented server) instead of nginx.
+#
+# The canonical build targets are now:
+#
+#   ./Dockerfile                 → frontend SPA (Vite build → nginx)
+#   ./server--backend/Dockerfile → Express + Prisma backend
+#   ./ai-server/Dockerfile       → FastAPI AI server
+#
+# This stub fails the build immediately with a readable message so a
+# stale reference cannot silently produce the wrong image. The base
+# image is only pulled because a Dockerfile RUN step requires a shell;
+# the build never succeeds.
 
-# Multi-stage build for production
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-COPY server--backend/package*.json ./server--backend/
-
-# Install dependencies
-RUN npm ci --workspace=./server--backend
-
-# Copy source
-COPY . .
-
-# Build
-RUN npm run build
-
-# Production stage
-FROM node:20-alpine AS production
-
-WORKDIR /app
-
-# Install Playwright for Puppeteer fallback
-RUN apk add --no-cache chromium
-
-ENV NODE_ENV=production
-
-# Copy built application
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-
-# Expose port
-EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
-
-# Start
-CMD ["npm", "run", "preview"]
+FROM busybox:1.37
+RUN echo "ERROR: Dockerfile.frontend is deprecated and intentionally non-functional." \
+    && echo "Use ./Dockerfile for the frontend, ./server--backend/Dockerfile for the backend," \
+    && echo "or ./ai-server/Dockerfile for the AI server. See docs/ARCHITECTURE.md." \
+    && exit 1

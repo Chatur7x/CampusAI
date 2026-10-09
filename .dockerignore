@@ -1,11 +1,57 @@
+# =============================================================
+# AISMS — root build context (frontend image)
+# =============================================================
+# Anything not needed to produce `dist/` from `src--frontend/` is
+# excluded here. This is the frontend build context only — the
+# backend and AI server each use their own directory as context
+# and have their own .dockerignore.
+
+# ── Secrets (never bake credentials into an image layer) ──
+.env
+.env.*
+!.env.example
+
+# ── VCS / CI ──
 .git
+.gitignore
 .github
-.venv
+
+# ── Dependencies / build output ──
 node_modules
+dist
+dist-ssr
+
+# ── Database tooling ──
+# supabase/.temp/pooler-url can hold a credentialed connection
+# string, and .temp/project-ref identifies the project. None of it
+# is needed to compile a SPA.
+supabase
+
+# ── Sibling services (separate build contexts) ──
 server--backend
 ai-server
-supabase
+
+# ── Local data that must never ship ──
+uploads
+tmp
+scratch
+logs
+*.log
+audit_logs
+mlruns
+
+# ── Tooling / editor / OS ──
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# ── Python env that leaks in from the repo root ──
+.venv
+venv
+__pycache__
+*.pyc
+
+# ── Docs (keeps the image layer small) ──
 *.md
-.env*
-.gitignore
-dist
+!README.md

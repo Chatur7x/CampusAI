@@ -1,11 +1,65 @@
-.git
-__pycache__
-*.pyc
+# =============================================================
+# AISMS — AI server build context (.dockerignore)
+# =============================================================
+# Consumed by `docker build ./ai-server`.
+
+# ── Secrets ──
+.env
+.env.*
+!.env.example
+
+# ── Virtualenvs ──
+# NOTE: this checkout uses `venv/` (and occasionally `.venv/`).
+# Both must be ignored or ~1GB of Windows site-packages lands in
+# the build context.
+venv
 .venv
-.env*
+env
+ENV
+
+# ── Bytecode / caches ──
+__pycache__
+**/__pycache__
+*.py[cod]
+*$py.class
 .ruff_cache
 .mypy_cache
+.pytest_cache
 *.egg-info
-audit_logs/
-mlruns/
+
+# ── Runtime artefacts ──
+audit_logs
+mlruns
+*.log
+logs
+uploads
+*.onnx
+*.bin
+*.pt
+*.pth
+
+# ── Tests (not needed to serve traffic) ──
+tests
+test_*.py
+*_test.py
+
+# ── VCS / CI / editor ──
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# ── Repo-level material that must not enter this context ──
+# The AI server context is ai-server/, but a stray `docker build .`
+# from the root or an edited ignore list must never be able to pull
+# database credentials in. supabase/.temp/pooler-url in particular
+# can contain a credentialed connection string.
+.env.production
+supabase
+server--backend
+node_modules
+
+# ── Docs ──
 *.md
