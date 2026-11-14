@@ -1,5 +1,5 @@
 # =============================================================
-# AISMS - Backend CI/CD
+# AISMS - Backend CI (build & verify only — deploys live in deploy-prod.yml)
 # =============================================================
 name: CI/Backend
 
@@ -24,7 +24,7 @@ env:
 
 jobs:
   backend-check:
-    name: Backend (Build & Lint)
+    name: Backend (Build & Type Check)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -44,26 +44,7 @@ jobs:
         run: npm ci
 
       - name: Generate Prisma Client
-        run: npx prisma generate || echo "Prisma not configured"
+        run: npx prisma generate
 
       - name: Type Check
-        run: npx tsc --noEmit || echo "Type check completed"
-
-  deploy-production:
-    name: Deploy to Railway (Production)
-    runs-on: ubuntu-latest
-    needs: [backend-check]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Railway
-        uses: ferrybin/railway-action@v1
-        with:
-          railway-token: ${{ secrets.RAILWAY_TOKEN }}
-          project-id: ${{ secrets.RAILWAY_PROJECT_ID }}
-          service: backend
-          environment: production
-          directory: server--backend
+        run: npx tsc --noEmit

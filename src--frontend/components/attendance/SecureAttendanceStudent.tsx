@@ -22,6 +22,7 @@ import { sessionService, attendanceService, auditLogService } from '@/lib/api';
 import {
   verifyFace, captureFrame,
   getCurrentLocation,
+  AI_BASE,
   type VerifyFaceResponse,
 } from '@/lib/ai/apiClient';
 import { toast } from 'sonner';
@@ -68,6 +69,35 @@ export default function SecureAttendanceStudent() {
   const [activeSession, setActiveSession] = useState<any | null>(null);
   const [livenessProgress, setLivenessProgress] = useState(0);
   const [livenessInstruction, setLivenessInstruction] = useState('');
+  const [aiStatus, setAiStatus] = useState<'checking' | 'up' | 'down'>('checking');
+
+  // ── AI Service Health Gate ──
+  // If the AI server is unreachable, verification cannot succeed — block
+  // the flow up-front instead of letting the user hit a raw error mid-way.
+  const pingAiServer = async (): Promise<boolean> => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${AI_BASE}/health`, { signal: controller.signal });
+      clearTimeout(timer);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    pingAiServer().then(ok => { if (!cancelled) setAiStatus(ok ? 'up' : 'down'); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const recheckAiServer = async () => {
+    setAiStatus('checking');
+    const ok = await pingAiServer();
+    setAiStatus(ok ? 'up' : 'down');
+  };
 
   // ── Session Lookup ──
 
@@ -247,7 +277,13 @@ export default function SecureAttendanceStudent() {
     }
   }, [step]);
 
-  const startLivenessCapture = () => {
+  const startLivenessCapture = async () => {
+    // Re-ping before starting verification — the server may have dropped since mount.
+    const aiUp = await pingAiServer();
+    if (!aiUp) {
+      setAiStatus('down');
+      return;
+    }
     setStep('liveness');
     setLivenessProgress(0);
     const instructions = ['Look Straight', 'Blink Once', 'Tilt Head Left', 'Tilt Head Right', 'Smile'];
@@ -350,6 +386,44 @@ export default function SecureAttendanceStudent() {
       setStep('failed');
     }
   };
+
+  // ── AI Health Gate Render ──
+  if (aiStatus === 'checking') {
+    return (
+      <div className="max-w-xl mx-auto p-4 pt-32 relative min-h-screen text-center space-y-6">
+        <Shield className="w-14 h-14 text-emerald-400 mx-auto animate-pulse" />
+        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Contacting Secure AI Service…</p>
+      </div>
+    );
+  }
+
+  if (aiStatus === 'down') {
+    return (
+      <div className="max-w-xl mx-auto p-4 pt-16 relative min-h-screen">
+        <div className="glass-premium hud-border rounded-[2.5rem] overflow-hidden text-center">
+          <div className="h-2 bg-red-500 animate-pulse" />
+          <CardContent className="p-10 space-y-6">
+            <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border-2 border-red-500/30">
+              <ShieldAlert className="w-12 h-12 text-red-500" />
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Face Verification Unavailable</h2>
+              <p className="text-slate-400 font-medium leading-relaxed">
+                Face verification is unavailable — the AI service is not reachable. Attendance cannot be marked right now.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full glass-premium border-white/10 hover:bg-white/5 py-6 rounded-2xl text-white uppercase font-black tracking-[0.3em] transition-all"
+              onClick={recheckAiServer}
+            >
+              Retry Connection
+            </Button>
+          </CardContent>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto p-4 pt-12 relative min-h-screen">

@@ -16,7 +16,7 @@ NNN_snake_case_description.sql
 
 Rules, as observed in the existing files:
 
-1. **Three-digit, zero-padded, monotonic prefix.** `001`, `002`, … `013`.
+1. **Three-digit, zero-padded, monotonic prefix.** `001`, `002`, … `016`.
    Never reuse a number, even after a rollback.
 2. **`_` separator**, then a lowercase snake_case description of what the
    migration does.
@@ -44,7 +44,7 @@ not repeated:
   `003`. Lexicographic ordering makes
   `002_multi_organization` sort before `002_rls_policies`, but the pairing
   is accidental, not designed. A new migration must therefore use a number
-  **strictly greater than every existing file**, i.e. start at `014`.
+  **strictly greater than every existing file**, i.e. start at `017`.
 - **Unnumbered files.** `ai_adaptive_schema.sql` and
   `v4_biometric_optimization.sql` do not follow `NNN_` at all. They have
   been applied out of band. Do not use them as a naming model; if they need
@@ -70,7 +70,13 @@ never the input to a production migration.
 
 ## 2. Files currently present
 
-Sixteen files in `supabase/migrations/`, in application order.
+Twenty files in `supabase/migrations/`, in application order.
+
+> **2026-11-13 — production is PAUSED.** The Supabase project
+> `akgjpqvpcugbmdenpxny` returns HTTP 540. `014` has **never been confirmed
+> applied**; `015` was applied live on 2026-10-09 but should be re-applied
+> idempotently after restore; `016` has **never been applied live**. On a
+> restored project, apply **014 → 015 → 016** in that order.
 
 | # | File | One-line purpose |
 |---|---|---|
@@ -89,20 +95,28 @@ Sixteen files in `supabase/migrations/`, in application order.
 | 011 | `011_attendance_security_revamp.sql` | Links `attendance` to `attendance_sessions` (`session_id`) for anti-proxy proof, and opens RLS so a student can mark **their own** attendance. |
 | 012 | `012_security_hardening.sql` | Live-verified RLS lockdown: service-role-only policies on `login_history`, `security_events`, `geo_verifications`, `api_request_log`, `attendance`, `notifications`, `password_resets`, `face_embeddings`; index hardening. Header records that it was verified against production on 2026-09-24. |
 | 013 | `013_signup_role_lockdown.sql` | Closes self-granted roles: `handle_new_user()` no longer trusts `raw_user_meta_data->>'role'`, so every signup is a `STUDENT` with no auto-enrollment, and staff are promoted out of band. |
+| 014 | `014_fix_auth_signup_blocker.sql` | Remediation for the signup HTTP 500: `auth.identities.email` is a `GENERATED ALWAYS` column that the running GoTrue build inserts explicitly. Preferred fix is a Dashboard → Auth restart/upgrade (Option 1 in the file); Option 2 drops the generation expression. **Never confirmed applied (2026-11-13); project is PAUSED.** |
+| 015 | `015_restore_analytics_views.sql` | Recreates `daily_attendance_summary`, `department_attendance_summary`, `student_attendance_overview` (verbatim from `001`). Applied live 2026-10-09; re-apply idempotently after restore. |
+| 016 | `016_company_role.sql` | Adds `COMPANY` to the `user_role` enum, a profile-only `COMPANY` branch in `handle_new_user()` (no students/faculty/admins row), and the `company_attendance_summary` security-definer view (exposes date/status/method/name/enrollment_id/department/class only; non-company callers get zero rows). **NOT applied live (2026-11-13).** |
 | — | `ai_adaptive_schema.sql` | Unnumbered. Adds `face_embeddings` and `face_verification_logs` with service-role-only access and admin-visible verification logs. |
 | — | `v4_biometric_optimization.sql` | Unnumbered. Enables the `vector` extension, adds a 512-dimension pgvector column plus an HNSW index to `face_embeddings`, and adds `match_face_v4()` and `audit_biometric_security()`. |
 
 ### Reading order that actually matches production
 
-Applying `001` → `013` in order on a clean database is **not** the same as
+Applying `001` → `016` in order on a clean database is **not** the same as
 reproducing the live schema. Migrations `004` and `005` exist precisely
 because `001`–`003` were wrong about column naming; `012` and `013` were
 written against a live database after the fact. A fresh environment
 therefore gets a slightly different (cleaner) history than production has.
 
+**2026-11-13:** on the restored project the required order is **014 → 015 →
+016** (after unpausing). 014 is unconfirmed, 015 is idempotent, 016 is not
+applied. Do not skip 014 — signup HTTP 500s until it (or the Auth
+restart/upgrade) is done.
+
 > **This is the largest outstanding database risk in the repository.** It
 > should be resolved by dumping the production schema and diffing it against
-> a clean `001`–`013` replay, then adding a reconciliation migration. That is
+> a clean `001`–`016` replay, then adding a reconciliation migration. That is
 > follow-up work, not part of Phase C.
 
 ---
@@ -113,7 +127,7 @@ therefore gets a slightly different (cleaner) history than production has.
 
 ```bash
 # 1. Write the SQL by hand in the editor of your choice.
-#    Target: supabase/migrations/014_<snake_case_description>.sql
+#    Target: supabase/migrations/017_<snake_case_description>.sql
 
 # 2. Create a scratch local project and replay everything.
 npx supabase start
@@ -180,9 +194,9 @@ CREATE POLICY "Admins can manage example rows" ON example
   grants. This fails closed, which is safe but looks like a bug.
 - **Multiple migration roots.** Editing `prisma/schema.prisma` and pushing
   from the backend instead of adding a migration creates divergence. Do not.
-- **`handle_new_user()` drift.** It has been redefined by both `010` and
-  `013`. A future change must `CREATE OR REPLACE` the latest version, not
-  reconstruct the original.
+- **`handle_new_user()` drift.** It has been redefined by `010`, `013`,
+  (remediation `014`) and `016`. A future change must `CREATE OR REPLACE` the
+  latest version, not reconstruct the original.
 
 ---
 
@@ -193,7 +207,7 @@ this repository and none should be introduced casually.
 
 ### 4.1 Decide first: roll forward, or roll back?
 
-**Prefer rolling forward.** Write `015_<fix>.sql` that undoes the damage.
+**Prefer rolling forward.** Write `017_<fix>.sql` that undoes the damage.
 
 - It is auditable, replayable and safe on a database that has already had
   time to diverge.

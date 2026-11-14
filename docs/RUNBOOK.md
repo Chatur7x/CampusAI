@@ -19,40 +19,50 @@ human with credentials before you trust them.
 | Supabase | Supabase Cloud | Dashboard | Supabase dashboard |
 | Edge functions | Supabase Edge | invoke directly | Supabase → Edge Functions → Logs |
 
-Deploy pipelines: `.github/workflows/deploy.yml` (everything, on push to
-`main`), `frontend.yml`, `aiserver.yml`, `backend.yml`, `ci.yml`.
+Deploy pipelines: `.github/workflows/deploy-prod.yml` (the ONLY deploy path —
+manual `workflow_dispatch` plus a `production` environment approval, with a
+`preflight` job that fails fast listing missing secrets). `frontend.yml`,
+`aiserver.yml`, `backend.yml` and `ci.yml` are build/verify-only.
+`deploy.yml` and `deploy-staging.yml` were deleted; nothing deploys on push.
+
+**2026-11-13:** no GitHub secrets are set and no lowercase `production`
+environment exists yet (only `Production` and three auto-named environments,
+no protection rules). Deploys cannot succeed until both are in place.
 
 ---
 
 ## 1. Deploy
 
-### 1.1 Normal deploy — push to `main`
+### 1.1 Production deploy — manual dispatch of `deploy-prod.yml`
 
-`deploy.yml` runs on a push to `main` and does, in order:
+There is no push-to-deploy. To ship to production:
 
-1. **frontend** — `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npm run build`,
-   uploads `dist/`.
-2. **ai-server** — install deps, `ruff check`, `py_compile`, then a stubbed
-   import to confirm `main.app` loads.
-3. **backend** — `npm ci`, `npx prisma generate`, `npx tsc --noEmit`.
-4. **deploy-vercel** — production deploy of `dist/`.
-5. **deploy-ai-server** — Railway, service `ai-server`, directory `ai-server`.
-6. **deploy-backend** — Railway, service `backend`, directory `server--backend`.
-7. **deploy-edge-functions** — `supabase link` then
-   `supabase functions deploy --no-verify-jwt`.
+1. Actions → **Deploy production** → **Run workflow**.
+2. Choose `service` (`all` | `ai-server` | `backend` | `frontend`), write a
+   `reason`, and set `confirm` to exactly `DEPLOY`.
+3. The **`preflight`** job checks all seven secrets up front and fails fast
+   with the full missing list — nothing is deployed if any are absent.
+4. The **`verify`** job re-runs lint, typecheck, unit/integration/AI tests and
+   the frontend build on the exact commit.
+5. The **`confirm`** job holds the `environment: production` gate; a required
+   reviewer must approve before credentials are touched. **Create the
+   lowercase `production` environment with required reviewers first** —
+   without it the gate passes instantly. (As of 2026-11-13 it does not exist.)
+6. Deploy jobs run per service; edge functions deploy only when
+   `service == 'all'`.
 
-Required GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`,
-`RAILWAY_TOKEN`, `RAILWAY_PROJECT_ID`, `SUPABASE_ACCESS_TOKEN`,
-`SUPABASE_PROJECT_REF`.
+Required GitHub secrets: `RAILWAY_TOKEN`, `RAILWAY_PROJECT_ID`,
+`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SUPABASE_ACCESS_TOKEN`,
+`SUPABASE_PROJECT_REF`. **As of 2026-11-13 none are set.**
 
-> **⚠ The workflow is lenient by design and you should know where.** Lint,
-> type-check and the Prisma generate are all `|| echo "…"` — they cannot fail
-> the pipeline. So a push to `main` can ship a frontend that does not type-check.
-> Run `npm test`, `npx tsc -b` and `npx eslint .` locally before pushing.
+> **Note.** `deploy.yml` and `deploy-staging.yml` were deleted. CI
+> (`ci.yml`, `frontend.yml`, `aiserver.yml`, `backend.yml`) is build/verify
+> only and never deploys. A push to `main` ships nothing; it only gets
+> verified.
 >
-> `deploy.yml` also runs `supabase functions deploy --no-verify-jwt` **without**
-> the probes. Use the script below instead for any security-relevant function
-> change.
+> `supabase functions deploy --no-verify-jwt` (as run by the edge-functions
+> job) is **without** the probes. Use the script below instead for any
+> security-relevant function change.
 
 ### 1.2 Deploy edge functions deliberately
 
@@ -103,7 +113,7 @@ script, so it tests the shipped probes rather than a copy.
 
 ```bash
 # Frontend
-npm ci && npm run build          # then push; deploy.yml handles Vercel
+npm ci && npm run build          # then dispatch deploy-prod.yml manually (§1.1)
 vercel --prod                    # or deploy by hand with the CLI
 
 # AI server
@@ -121,10 +131,21 @@ docker compose down -v
 
 ### 1.4 Database migrations
 
-Migrations in `supabase/migrations/` are numbered `001`–`013` plus
+Migrations in `supabase/migrations/` are numbered `001`–`016` plus
 `ai_adaptive_schema.sql` and `v4_biometric_optimization.sql`. They are written to
 be idempotent (`IF EXISTS` / `IF NOT EXISTS`, `DROP POLICY IF EXISTS`), and
 several are annotated as live-verified.
+
+**Current apply order on a restored project (2026-11-13): `014` → `015` →
+`016`.** The Supabase project `akgjpqvpcugbmdenpxny` is PAUSED (HTTP 540);
+`014_fix_auth_signup_blocker.sql` has **never been confirmed applied** (it is
+the remediation for the signup HTTP 500 — preferred fix is a Dashboard →
+Project → Services → Auth restart/upgrade, else the migration's Option 2).
+`016_company_role.sql` adds the `COMPANY` enum value, the profile-only
+`COMPANY` branch in `handle_new_user()` and the `company_attendance_summary`
+view; it has **never been applied live**. See `docs/MIGRATIONS.md` and
+`DEPLOYMENT.md` §"Supabase — restore and migrate" for the full bring-up
+sequence.
 
 ```bash
 supabase link --project-ref <ref>

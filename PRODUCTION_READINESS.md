@@ -6,6 +6,60 @@
 
 ---
 
+## Update — 2026-11-13 (verified 2026-11-12/13)
+
+**The verdict below is unchanged: still NOT production-ready.** This section
+records what has changed since the 2026-10-09 pass; it does not retract it.
+
+### Fixed in code (verified 2026-11-12/13)
+
+- **Company portal no longer fabricates numbers.** `Attendance.tsx`,
+  `Analytics.tsx` and `LiveTracking.tsx` were rewritten to read the real
+  schema through the `company_attendance_summary` view (migration 016).
+  `Math.random()` fabrication was removed. **LiveTracking is now
+  honest-unavailable by design** — it does not render fake tiles.
+- **COMPANY role exists in code.** Migration `016_company_role.sql` adds the
+  `COMPANY` value to the `user_role` enum, a profile-only branch in
+  `handle_new_user()` (no students/faculty/admins row), and the
+  `company_attendance_summary` security-definer view (no biometric columns;
+  non-company callers get zero rows). **016 is NOT applied live.**
+- **Face attendance page** now blocks with a clear message when the AI
+  server `/health` is unreachable, instead of failing obscurely.
+- **CI/CD hardened.** CI is build/verify-only; `deploy-prod.yml` (manual
+  `workflow_dispatch` + `production` environment approval + `preflight` that
+  fails fast listing missing secrets) is the only deploy path. `deploy.yml`
+  and `deploy-staging.yml` were deleted. CI fixes: `libgl1`/`libglx-mesa0`/
+  `libglib2.0-0t64` for Ubuntu 24.04, cwd-independent ts-node resolution,
+  backend deps installed in CI.
+- **Secret hygiene.** Local `.env` no longer contains
+  `VITE_SUPABASE_SERVICE_ROLE_KEY`; `LOGIN_CREDENTIALS.md` and
+  `.env.production` were untracked from git (they had been committed; those
+  passwords must be rotated) and the README credentials were removed.
+- **Validation now:** backend 104 pass / 0 fail, AI server 241 pass,
+  `tsc`/`eslint`/build clean, `vite build` OK, integration 17 pass / 6 skip.
+  **Not runtime-verified.**
+
+### Still blocked — and exactly what is needed (2026-11-13)
+
+| Blocker | State | Needed |
+|---|---|---|
+| **Supabase project PAUSED** (HTTP 540) | All Supabase flows down: auth, DB, edge functions, realtime | Dashboard → restore project `akgjpqvpcugbmdenpxny` |
+| **Signup blocker (§5.1)** | Fix never confirmed applied; 014 remains the remediation | After restore: apply `014_fix_auth_signup_blocker.sql` (or restart/upgrade Auth via Dashboard), then verify a fresh signup |
+| **Edge functions** | All auth/security fixes are code-only; **never deployed** | `export SUPABASE_ACCESS_TOKEN=sbp_…` + `bash scripts/deploy-edge-functions.sh --all --verify` |
+| **Railway services 404** | `aisms-ai-server.up.railway.app` and `aisms-backend.up.railway.app` return 404 — no service at the domains | Redeploy the AI server (`railway.json`, `ai-server/Dockerfile`); backend optional. Face attendance cannot work until `/health` answers |
+| **Migrations 015/016** | 015 was applied live 2026-10-09 per §2, but the project is now paused — re-apply on restore to be safe. 016 never applied | Apply in order **014 → 015 → 016** after unpausing |
+| **GitHub secrets / `production` environment** | Zero secrets set; only `Production` (capitalised) and 3 auto-named environments exist, no protection rules | Set `RAILWAY_TOKEN`, `RAILWAY_PROJECT_ID`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`; create lowercase `production` environment with required reviewers |
+| **Vercel env vars** | `.env.production` untracked; production frontend env lives in Vercel settings | Verify `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_AI_SERVER_URL` (→ redeployed AI server), `VITE_APP_ENV=production` |
+| **Definition of done** | **NOT met** | Fresh-user signup, enrollment and attendance journeys remain unverifiable until a human completes the steps above (see `DEPLOYMENT.md` bring-up checklist) |
+| **Company account provisioning** | Client-supplied role metadata is trusted at signup; until 016 is applied live there is no `COMPANY` branch at all. **Flag:** after 016, provision company accounts out-of-band only, never via public self-signup | Out-of-band provisioning decision + process |
+| **Face embeddings visible to admins (§5.3)** | Still open | Product decision on how the matching path reads embeddings |
+| **Monitoring/backups/rollback (Phase D), audit/deletion/consent (Gate E), autoscaling/canary/status page (Gate F)** | Still not done | Unchanged from 2026-10-09 |
+
+Production frontend: **https://ai-smart-attendance-lyart.vercel.app** (live).
+`https://aisms.vercel.app` serves an unrelated "Telegram" page — not the app.
+
+---
+
 ## Verdict
 
 **NOT production-ready.**

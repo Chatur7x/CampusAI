@@ -11,6 +11,8 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
+LOGIN_CREDENTIALS.md
 
 # IDE
 .vscode/
@@ -50,6 +52,9 @@ old_perf.txt
 old_trend.txt
 tmp_*.py
 tmp_*.txt
+
+# Backups (may contain real data — never commit)
+backups/
 
 # Supabase local
 supabase/.temp/

@@ -758,9 +758,14 @@ Base: `{SUPABASE_URL}/functions/v1/<name>`. All are CORS-preflighted and all run
 with the **service-role** client, so RLS does not protect them — each handler
 must authorise the caller itself.
 
-`DEPLOYMENT.md` and `.github/workflows/deploy.yml` deploy with
+Edge functions are deployed via `scripts/deploy-edge-functions.sh` (or
+`deploy-prod.yml` with `service=all`) with
 `supabase functions deploy --no-verify-jwt`, which **disables the platform-level
-JWT check**. Handler-level checks are therefore the only control.
+JWT check**. (`deploy.yml` was deleted 2026-11-13; `deploy-prod.yml` is the only
+deploy path. The security fixes for `notifications` / `security-monitor` and the
+`analytics` / `attendance` / `notices` / `timetable` auth hardening are code-only
+and have never been deployed — see `PRODUCTION_READINESS.md` §updates.)
+Handler-level checks are therefore the only control.
 
 | Function | Auth check | Role check |
 | --- | --- | --- |

@@ -141,9 +141,9 @@ generated from the source rather than from memory.
   safe only because RLS is the real boundary.
 - **Two different Supabase keys.** `VITE_SUPABASE_ANON_KEY` (public, RLS-
   constrained) and `SUPABASE_SERVICE_KEY` (server-only, bypasses RLS).
-  Some local `.env` files contain a `VITE_SUPABASE_SERVICE_ROLE_KEY`.
-  Nothing in `src--frontend` reads it — it should be deleted, not
-  "documented".
+  Local `.env` no longer contains a `VITE_SUPABASE_SERVICE_ROLE_KEY`
+  (removed 2026-11-12/13); if it ever reappears, delete it — it must not be
+  committed.
 
 ---
 

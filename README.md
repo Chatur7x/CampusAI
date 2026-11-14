@@ -81,13 +81,14 @@ cd ai-server
 uvicorn main:app --reload --port 8000
 ```
 
-### 4. Default Login Credentials
+### 4. Login Credentials
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@anurag.edu.in | Admin@123456 |
-| Faculty | saikrishnait@anurag.edu.in | Faculty@123456 |
-| Student | 24eg109a28@anurag.edu.in | Student@123456 |
+Test-account credentials are intentionally NOT stored in this repository.
+Seed/demo account emails and passwords live in `LOGIN_CREDENTIALS.md`, which is
+git-ignored and kept only on the maintainer's machine; seeding and password
+rotation are covered in [docs/RUNBOOK.md](docs/RUNBOOK.md). If you are setting up
+a fresh environment, create your own accounts via the signup flow (or the seed
+script) and choose your own passwords.
 
 ---
 
@@ -541,15 +542,21 @@ docker build -t campusai-backend server--backend                # Express (optio
 
 ## CI/CD Pipeline
 
-Every push to `main` triggers a GitHub Actions workflow that:
+CI (`ci.yml`, plus `frontend.yml` / `aiserver.yml` / `backend.yml`) is
+**build/verify-only**: lint, type-checks, tests and build. Nothing deploys
+automatically — `deploy.yml` and `deploy-staging.yml` were deleted.
 
-1. **Lints** the frontend code with ESLint
-2. **Type-checks** with TypeScript compiler
-3. **Builds** the Vite production bundle (catches import errors and dead code)
-4. **Validates** that the AI server boots and all imports resolve
-5. **Builds** Docker images (only on the main branch)
+Production deploys are manual: dispatch `.github/workflows/deploy-prod.yml`
+(`workflow_dispatch`, `service` input, `confirm: DEPLOY`), gated by a
+`preflight` job that fails fast listing missing secrets and a `production`
+GitHub environment with required reviewers. As of 2026-11-13 no GitHub secrets
+are set and no lowercase `production` environment exists, so deploys cannot
+succeed yet — see `DEPLOYMENT.md` for the bring-up checklist. The production
+frontend is `https://ai-smart-attendance-lyart.vercel.app` (`aisms.vercel.app`
+is not this app).
 
-The full pipeline is defined in `.github/workflows/ci.yml`.
+The full pipeline is defined in `.github/workflows/ci.yml`; the deploy path in
+`.github/workflows/deploy-prod.yml`.
 
 ---
 

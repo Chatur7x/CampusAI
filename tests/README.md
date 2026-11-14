@@ -136,30 +136,32 @@ node seed_users.mjs
 npm run dev
 
 # 3. seed the credentials and run
-#    Windows (PowerShell):
+#    Windows (PowerShell) — placeholders; use your seeded values from
+#    LOGIN_CREDENTIALS.md (untracked) instead of committing real ones:
 $env:E2E = '1'
 $env:E2E_BASE_URL = 'http://127.0.0.1:5173'
-$env:E2E_ADMIN_EMAIL    = 'admin@anurag.edu.in';    $env:E2E_ADMIN_PASSWORD    = 'admin@anurag'
-$env:E2E_FACULTY_EMAIL  = 'saikrishnait@anurag.edu.in'; $env:E2E_FACULTY_PASSWORD = 'it@saikrish'
-$env:E2E_STUDENT_EMAIL  = '24eg109a28@anurag.edu.in';  $env:E2E_STUDENT_PASSWORD = 'Chatur7'
-$env:E2E_COMPANY_EMAIL  = 'hr@google.com';          $env:E2E_COMPANY_PASSWORD  = 'hr@google'
+$env:E2E_ADMIN_EMAIL    = '<admin-email>';    $env:E2E_ADMIN_PASSWORD    = '<admin-password>'
+$env:E2E_FACULTY_EMAIL  = '<faculty-email>';  $env:E2E_FACULTY_PASSWORD  = '<faculty-password>'
+$env:E2E_STUDENT_EMAIL  = '<student-email>';  $env:E2E_STUDENT_PASSWORD  = '<student-password>'
+$env:E2E_COMPANY_EMAIL  = '<company-email>';  $env:E2E_COMPANY_PASSWORD  = '<company-password>'
 npx playwright test --config tests/e2e/playwright.config.ts
 
 #    bash/zsh equivalent
 E2E=1 \
 E2E_BASE_URL=http://127.0.0.1:5173 \
-E2E_ADMIN_EMAIL=admin@anurag.edu.in E2E_ADMIN_PASSWORD=admin@anurag \
-E2E_FACULTY_EMAIL=saikrishnait@anurag.edu.in E2E_FACULTY_PASSWORD=it@saikrish \
-E2E_STUDENT_EMAIL=24eg109a28@anurag.edu.in E2E_STUDENT_PASSWORD=Chatur7 \
-E2E_COMPANY_EMAIL=hr@google.com E2E_COMPANY_PASSWORD=hr@google \
+E2E_ADMIN_EMAIL=<admin-email> E2E_ADMIN_PASSWORD=<admin-password> \
+E2E_FACULTY_EMAIL=<faculty-email> E2E_FACULTY_PASSWORD=<faculty-password> \
+E2E_STUDENT_EMAIL=<student-email> E2E_STUDENT_PASSWORD=<student-password> \
+E2E_COMPANY_EMAIL=<company-email> E2E_COMPANY_PASSWORD=<company-password> \
   npx playwright test --config tests/e2e/playwright.config.ts
 
 # one file
 npx playwright test --config tests/e2e/playwright.config.ts specs/cross-role.spec.ts
 ```
 
-Those emails and passwords come from `LOGIN_CREDENTIALS.md` — read them from
-there rather than trusting the literals above, since the seeder changes.
+The real emails and passwords come from `LOGIN_CREDENTIALS.md` (untracked) —
+read them from there and never commit them; the placeholders above are not
+real credentials.
 
 A case reports as `skipped` with a reason naming the missing prerequisite, e.g.
 `No seeded E2E_STUDENT_EMAIL + E2E_STUDENT_PASSWORD (student) — run

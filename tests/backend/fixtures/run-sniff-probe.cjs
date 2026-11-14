@@ -4,7 +4,12 @@
 'use strict';
 const path = require('node:path');
 
-require('../../../server--backend/node_modules/ts-node').register({
+// Resolve ts-node from the backend package instead of a fixed relative
+// path, so resolution does not depend on the caller's cwd.
+const tsNodePath = require.resolve('ts-node', {
+  paths: [path.join(__dirname, '..', '..', '..', 'server--backend')],
+});
+require(tsNodePath).register({
   transpileOnly: true,
   skipProject: true,
   compilerOptions: {

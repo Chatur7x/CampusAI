@@ -8,6 +8,37 @@ using the `/company` portal.
 > This guide tells you exactly which screens those are, because an HR team
 > acting on invented numbers is worse than having no dashboard at all.
 
+> **Update — 2026-11-13.** Three of the screens flagged below were fixed in
+> code on 2026-11-12/13: `Attendance.tsx`, `Analytics.tsx` and
+> `LiveTracking.tsx` no longer fabricate data (`Math.random()` is gone). They
+> now read real data through the `company_attendance_summary` view added by
+> migration `016_company_role.sql` — **which has NOT been applied to the live
+> (currently PAUSED) project**, so until it is applied these screens error or
+> return zero rows rather than invent numbers.
+>
+> - **Attendance** (`/company/attendance`) queries `company_attendance_summary`
+>   (date, status, method, first/last name, enrollment_id, department, class —
+>   no biometrics, no emails, no locations).
+> - **Analytics** (`/company/analytics`) aggregates the same view instead of
+>   generating random productivity figures.
+> - **LiveTracking** (`/company/tracking`) is **unavailable by design** — it
+>   shows an honest "not available" state. There is no location data for
+>   company staff and the screen no longer pretends otherwise.
+> - The Security / Settings / Onboarding caveats in §1 **still apply** — they
+>   were not rewritten.
+> - Migration `016` also adds `COMPANY` to the `user_role` enum and re-creates
+>   `handle_new_user()` with STUDENT-only signup semantics (a COMPANY account
+>   cannot be created by signing up; signup metadata never grants any role).
+> - **Signup trust:** client-supplied role metadata is NOT trusted at signup —
+>   after 016, `role: 'COMPANY'` (or any staff role) in signup metadata creates
+>   an ordinary STUDENT profile. Company accounts must be provisioned
+>   **out-of-band** by an administrator (service-role SQL, e.g.
+>   `UPDATE profiles SET role = 'COMPANY' ...` — see the header of
+>   `016_company_role.sql` for the exact snippets), never via public self-signup.
+>
+> The detailed sections below describe both the old behaviour (kept for
+> history) and the current one; where they disagree, this update wins.
+
 ---
 
 ## 1. Read this first: what is real and what is not
@@ -19,18 +50,23 @@ using the `/company` portal.
 | Departments | `/company/departments` | `departments` | **Yes** |
 | Teams | `/company/teams` | `departments` | **Yes** (team names are derived from departments) |
 | Leave Requests | `/company/leave` | `leave_requests` — reads and approve/reject | **Yes** |
-| Attendance | `/company/attendance` | `attendance` table | **Yes, with caveats** (§4) |
-| Analytics | `/company/analytics` | `profiles` + `departments` counts, then **`Math.random()`** | **Partly synthetic** |
+| Attendance | `/company/attendance` | `company_attendance_summary` view (migration 016, **not applied live**); previously `attendance` | **Real, UNVERIFIED until 016 is applied** |
+| Analytics | `/company/analytics` | `company_attendance_summary` aggregates (2026-11-13 rewrite); previously `profiles` + **`Math.random()`** | **Real, UNVERIFIED until 016 is applied** |
 | Reports | `/company/reports` | `departments` + `profiles` | **Partly synthetic** |
-| Live Tracking | `/company/tracking` | `profiles`, then **`Math.random()`** status/distance | **Synthetic** |
+| Live Tracking | `/company/tracking` | none — **unavailable by design** (2026-11-13); previously `profiles` + **`Math.random()`** | **Not available** |
 | Onboarding | `/company/onboarding` | `profiles` + `departments`, then derived steps | **Partly synthetic** |
 | Security | `/company/security` | `profiles`; event list is **hard-coded** | **Synthetic** |
 | Settings | `/company/settings` | `profiles` + `departments`; **saving is a no-op** | **No-op** |
 
 ### The synthetic screens, specifically
 
-**Analytics** (`src--frontend/pages/company/Analytics.tsx`). It counts profiles
-and departments, then fills the rest:
+> **2026-11-13:** Analytics and Live Tracking were rewritten (see the update
+> block at the top). The descriptions below document the pre-fix behaviour and
+> the screens that still ship synthetic data (Security, Settings, Onboarding).
+>
+> **Analytics** (`src--frontend/pages/company/Analytics.tsx`). It counts profiles
+> and departments, then fills the rest *(historical description; replaced
+> 2026-11-13 by aggregation over `company_attendance_summary`)*:
 
 - "Active Today" = `floor(totalEmployees * 0.9)`
 - "Avg Work Hours" = the literal string `'8.4'`
@@ -43,7 +79,7 @@ and departments, then fills the rest:
 - if the fetch throws, a **hard-coded** block is displayed instead (247
   employees, 231 active, 87% productivity, …)
 
-**Live Tracking** (`LiveTracking.tsx`). Fetches the first 20 active profiles,
+**Live Tracking** (`LiveTracking.tsx`). Fetches the first 20 active profiles, *(historical; screen is now hard-unavailable — it shows "unavailable by design" and renders no tiles)*:
 then assigns each one:
 
 ```ts
@@ -71,9 +107,11 @@ four profiles, but the onboarding step, progress percentage, and the
 in-progress/pending-review counts are derived from the array index and profile
 count.
 
-> **Operational rule: do not put the Analytics, Reports, Live Tracking, Security
-> or Onboarding screens in front of a customer, an auditor or a works council.
-> Use Overview, Employees, Departments, Teams, Leave Requests and Attendance.**
+> **Operational rule: do not put Reports, Live Tracking, Security or Onboarding
+> in front of a customer, an auditor or a works council. Analytics now renders
+> real aggregates (2026-11-13) but is **UNVERIFIED until migration 016 is applied
+> and the project is unpaused** — treat it as unproven until then. Use
+> Overview, Employees, Departments, Teams, Leave Requests and Attendance.**
 > If a number from those screens reaches a payslip conversation or an HR case,
 > you will have to retract it.
 
@@ -108,9 +146,20 @@ mounts if you type the URL. The real boundary is Supabase RLS.
 
 > **⚠ VERIFY — the company role model is not fully reconciled with the database.**
 > `profiles.role` is a Postgres enum `user_role` with only
-> `SUPER_ADMIN, ADMIN, FACULTY, CLASS_INCHARGE, STUDENT`. It **cannot** store
-> `HR`, `MANAGER`, `EMPLOYEE`, `SALES`, `SECURITY`, `ANALYST` or `OWNER` — no
-> `ALTER TYPE user_role ADD VALUE` exists in `supabase/migrations/`.
+> `SUPER_ADMIN, ADMIN, FACULTY, CLASS_INCHARGE, STUDENT`. Migration
+> `016_company_role.sql` adds `COMPANY` to that enum and re-creates
+> `handle_new_user()` so signups are always STUDENT — signup metadata never
+> grants a role — but **016 has NOT been applied live** and the
+> project is PAUSED. Until it is, a company account cannot
+> store `COMPANY` — and `HR`, `MANAGER`, `EMPLOYEE`, `SALES`, `SECURITY`,
+> `ANALYST` or `OWNER` remain unsupported by the enum.
+>
+> **Provisioning:** company accounts must be provisioned **out-of-band**
+> (administrator-created, service-role SQL), never via public self-signup —
+> after 016, signup metadata never grants any role, so `role: 'COMPANY'` or
+> any staff role in signup metadata creates an ordinary STUDENT profile.
+> Staff promotion likewise happens out of band (013 semantics, kept by 016),
+> and COMPANY accounts must follow the same rule.
 > Company roles live in `user_organizations.role`, a separate `TEXT` column with
 > its own `CHECK (role IN ('OWNER','ADMIN','HR','FACULTY','EMPLOYEE','STUDENT'))`
 > — note that column does **not** include `SALES`, `SECURITY` or `ANALYST`, which
@@ -150,15 +199,16 @@ into spreadsheets.
 
 ## 4. Attendance
 
-`/company/attendance` queries the shared `attendance` table for a chosen date,
-joining `profiles` for the name:
+`/company/attendance` was **rewritten 2026-11-13** to read the
+`company_attendance_summary` view (migration 016) — date, status, method,
+first/last name, enrollment_id, department, class. No biometric, email, IP,
+device or location columns are exposed, and non-company callers get zero rows.
+It no longer queries the (non-existent) `profile_id`/`check_in`/`check_out`
+columns. **The view has NOT been applied live (project PAUSED), so the screen
+is UNVERIFIED in production** — until 016 is applied it will error or render
+empty. The historical schema-mismatch analysis below is kept for context.
 
-```ts
-supabase.from('attendance').select(`
-  id, profile_id, check_in, check_out, location, status, created_at,
-  profiles ( first_name, last_name )
-`).gte('created_at', ...).lt('created_at', ...)
-```
+<details><summary>Historical analysis (pre-2026-11-13)</summary>
 
 > **⚠ VERIFY — three schema mismatches to resolve before trusting this screen.**
 >
@@ -175,11 +225,14 @@ supabase.from('attendance').select(`
 >    `profiles.role`. A company-role user is very unlikely to satisfy
 >    `is_admin`, so this read will most likely return **zero rows**.
 >
-> In short: the company attendance screen is written against a schema that does
-> not exist in this repository. Treat it as unproven. Do not use it as the basis
-> for payroll, disciplinary or works-council processes.
+> In short: the company attendance screen was written against a schema that does
+> not exist in this repository. That screen was rewritten 2026-11-13 (see above).
+</details>
 
-Its CSV export mirrors the same (possibly wrong) fields.
+Its CSV export now mirrors the `company_attendance_summary` fields (also
+UNVERIFIED until 016 is applied). Do not use this screen as the basis for
+payroll, disciplinary or works-council processes until it has been verified
+end to end on the restored project.
 
 ---
 
@@ -287,13 +340,16 @@ So: a company or HR user cannot read face embeddings through the product.
 
 ### Individual student attendance
 
-Whether a company user can read the `attendance` table is **unresolved** — see
-§4. The honest statement is: *the company portal has no screen that deliberately
-shows individual student attendance, and the RLS on `attendance` is written
-against academic roles only. We have not verified end-to-end what a company-role
-account can read.* Do not tell a candidate that their attendance is definitely
-invisible to their employer, and do not tell an employer they definitely can see
-it.
+As of 2026-11-13 the company portal reads attendance **only** through
+`company_attendance_summary` (migration 016, security-definer view): it exposes
+aggregate-friendly identity + status fields and denies rows to non-company
+callers. It is **not applied live** and **UNVERIFIED in production**. Before
+016 is applied, the honest statement is: *the company portal has no screen
+that deliberately shows individual student attendance, and the RLS on
+`attendance` is written against academic roles only. We have not verified
+end-to-end what a company-role account can read.* Do not tell a candidate that
+their attendance is definitely invisible to their employer, and do not tell an
+employer they definitely can see it.
 
 ### Raw embeddings through `students.face_data`
 
@@ -326,9 +382,10 @@ decision, not a technical guarantee.
 - The Live Tracking screen does not read anyone's real location.
 
 **Not safe to state yet**
-- That no company account can read individual student attendance (§4).
+- That no company account can read individual student attendance (§4, §8).
 - That no admin account can read a raw embedding (§8).
-- That any company screen shows real analytics (§1).
+- That any company screen shows real analytics (§1 — real since 2026-11-13 but
+  UNVERIFIED until 016 is applied and the project is unpaused).
 - That the company Security screen reflects real security events (§1).
 
 **Recommended company policy to adopt regardless of the above**
@@ -348,15 +405,23 @@ decision, not a technical guarantee.
 
 ## 10. Fixing the portal: priority order
 
-1. **Stop displaying synthetic numbers.** Analytics, Live Tracking, Security and
-   Onboarding should either show real aggregates or show an explicit "not
-   implemented" state. Highest priority — invented data in an HR tool is a
-   liability.
+> **2026-11-13:** items 1 and 3 are done in code (Analytics no longer invents
+> numbers; `/company/attendance` now reads the `company_attendance_summary`
+> view). Both remain **UNVERIFIED in production** until migration 016 is
+> applied and the PAUSED Supabase project is restored. Item 2 is partially
+> done: `016` adds the `COMPANY` enum value and STUDENT-only signup semantics
+> (no role from signup metadata) — still not applied live, and company-role
+> reconciliation across `profiles.role` / `user_organizations.role` is not complete.
+
+1. ~~**Stop displaying synthetic numbers.**~~ **Done in code 2026-11-13**
+   (Analytics/Attendance/LiveTracking); Security and Onboarding below still
+   apply. Highest priority — invented data in an HR tool is a liability.
 2. **Reconcile the role model.** Decide whether company roles live in
    `profiles.role` or `user_organizations.role`, extend the enum or the CHECK as
-   needed, and make the RLS predicates agree with the sidebar.
-3. **Fix or remove `/company/attendance`.** Either build an employee
-   check-in/out model, or re-point the screen at data that exists.
+   needed, and make the RLS predicates agree with the sidebar. *(`016` adds the
+   `COMPANY` enum value and STUDENT-only signup semantics; not applied live; not sufficient alone.)*
+3. ~~**Fix or remove `/company/attendance`.**~~ **Done in code 2026-11-13** —
+   re-pointed at `company_attendance_summary` (016). Unverified until applied.
 4. **Persist company settings** or remove the screen.
 5. **Replace the hard-coded security events** with a real `security_events`
    query scoped to company users.

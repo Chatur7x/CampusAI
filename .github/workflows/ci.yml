@@ -53,14 +53,8 @@ jobs:
         run: npm ci
 
       # Gating, not advisory: `--max-warnings` is deliberately NOT set, because
-      # the tree carries ~300 pre-existing warnings and a new gate on them would
-      # fail every PR. Errors fail.
-      #
-      # KNOWN: this currently fails on two pre-existing errors in
-      # scripts/loadtest-customers.mjs (an unused `mean`, an empty catch at
-      # line 99), both committed before this workflow existed. Fix them and this
-      # job goes green; there is no exclusion list here on purpose, because an
-      # ignored path is a permanent hole in the gate.
+      # the tree carries ~290 pre-existing warnings and a new gate on them would
+      # fail every PR. Errors fail; warnings are reported but do not.
       - name: ESLint
         run: npx eslint .
 
@@ -118,9 +112,18 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            server--backend/package-lock.json
 
       - run: npm ci
+
+      # The backend suite spawns fixtures that require() ts-node from
+      # server--backend/node_modules, so the backend toolchain must be
+      # installed before it runs.
+      - name: Install backend dependencies
+        working-directory: server--backend
+        run: npm ci || npm install
 
       # Both suites read the source tree and need no database, no network and
       # no seeded fixtures. Their live probes self-skip — see tests/README.md.
@@ -161,10 +164,6 @@ jobs:
       # conftest.py puts ai-server/ on sys.path so the tests import the real
       # modules. The live-HTTP cases skip unless something answers on
       # AI_BASE_URL, which nothing does here — that is intended.
-      #
-      # KNOWN: 3 cases in tests/ai/test_ml_helpers.py fail today on
-      # fingerprint-entropy and a scipy import check. Same caveat as the lint
-      # job: a real failure, fixed in source rather than silenced here.
       - name: Run pytest
         run: python -m pytest tests/ai -q
 

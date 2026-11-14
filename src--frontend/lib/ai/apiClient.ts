@@ -4,7 +4,7 @@
 // to the FastAPI Python server running on localhost:8000
 // =============================================================
 
-const AI_BASE = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
+export const AI_BASE = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:8000';
 
 async function authHeaders(): Promise<Record<string, string>> {
   try {

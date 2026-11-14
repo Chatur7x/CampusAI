@@ -130,24 +130,42 @@ Then re-run the RLS check in step 7.
 admin can still read all.
 
 ### 9. Deploy the edge functions
+
+> **2026-11-13:** the Supabase project `akgjpqvpcugbmdenpxny` is PAUSED, so
+> nothing here works until it is restored — and the signup blocker fix
+> (`014_fix_auth_signup_blocker.sql`) must be applied (or Auth restarted via the
+> Dashboard) and signup verified before any of this is testable. The edge
+> function auth fixes are code-only and have **never been deployed**; the live
+> functions are still the vulnerable versions. See `DEPLOYMENT.md`.
+
 ```bash
+export SUPABASE_ACCESS_TOKEN=sbp_…   # Personal Access Token; service keys do NOT work
 ./scripts/deploy-edge-functions.sh --all --verify
 ```
 **Check:** all nine functions listed in `supabase/functions/` deploy, and the
 probes report `401` for missing and tampered tokens.
 
-> **⚠ Two functions have no caller authentication.** `notifications` and
-> `security-monitor` never read the `Authorization` header, and the deploy uses
-> `--no-verify-jwt`. Fix this **before** you hand out the URL — see
-> `docs/API.md` §7. If you cannot fix it now, do not expose them through a
-> public URL.
+> **⚠ Until the above runs, `notifications` and `security-monitor` (and every
+> other function) are unpatched in production.** Their caller-authentication
+> fixes exist only in this repository (see `docs/API.md` §7). If you cannot
+> deploy them now, do not expose them through a public URL.
 
 ### 10. Create your first admin
-The signup trigger forces `STUDENT` (migration 013) and `/api/auth/register`
-rejects any other role — by design. So bootstrap the first admin out of band:
+The signup trigger creates every account as `STUDENT` and ignores any role in
+the signup metadata. `013_signup_role_lockdown.sql` first enforced this;
+`014_fix_auth_signup_blocker.sql` then (re-)creates `handle_new_user()` with
+the robust 14-digit `enrollment_id` but **accidentally re-trusts the metadata
+role**; `016_company_role.sql` re-creates it again so that EVERY signup is
+`STUDENT` and no role is ever taken from `raw_user_meta_data` (no
+FACULTY/CLASS_INCHARGE/ADMIN/SUPER_ADMIN/COMPANY branch exists in the
+function), and `/api/auth/register` rejects any other role — by design.
+Privileged roles (staff and company alike) are provisioned out of band only,
+via service-role SQL such as `UPDATE profiles SET role = 'ADMIN' WHERE user_id = '<uuid>' ...`
+(the header of `016_company_role.sql` has the exact snippets). So bootstrap the
+first admin out of band:
 
 ```bash
-supabase/seed_users.mjs    # creates demo users — see LOGIN_CREDENTIALS.md
+supabase/seed_users.mjs    # creates demo users — credentials are NOT in git; see LOGIN_CREDENTIALS.md (untracked, 2026-11-13)
 ```
 or directly in SQL:
 ```sql

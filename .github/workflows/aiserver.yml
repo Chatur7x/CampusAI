@@ -1,5 +1,5 @@
 # =============================================================
-# AISMS - AI Server CI/CD
+# AISMS - AI Server CI (build & verify only — deploys live in deploy-prod.yml)
 # =============================================================
 name: CI/AI-Server
 
@@ -41,13 +41,19 @@ jobs:
           cache-dependency-path: ai-server/requirements-ci.txt
 
       - name: Install system dependencies
+        # Ubuntu 24.04 (noble) renamed libgl1-mesa-glx → libglx-mesa0 and
+        # libglib2.0-0 → libglib2.0-0t64; the mesa-glx package no longer exists.
+        # Matches the runtime set in ai-server/Dockerfile (plus libglx-mesa0,
+        # which noble splits out of libgl1 for the GLX provider).
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgl1-mesa-glx libglib2.0-0 curl
+          sudo apt-get install -y --no-install-recommends libgl1 libglx-mesa0 libglib2.0-0t64 curl
 
       - name: Install dependencies
-        run: pip install -r requirements-ci.txt || pip install -r requirements.txt || echo "Using stubs"
+        run: pip install -r requirements-ci.txt || pip install -r requirements.txt
 
+      # Lint is advisory: the ai-server tree carries ~200 pre-existing ruff
+      # findings (mostly import-convention), so ruff reports but does not gate.
       - name: Lint with ruff
         run: |
           pip install ruff
@@ -55,7 +61,7 @@ jobs:
 
       - name: Syntax check all modules
         run: |
-          python -m py_compile main.py || true
+          python -m py_compile main.py
           echo "All modules pass syntax check"
 
       - name: Verify FastAPI app loads
@@ -83,27 +89,3 @@ jobs:
           SUPABASE_SERVICE_KEY: placeholder-key
           CAMPUS_LAT: "17.5"
           CAMPUS_LNG: "78.5"
-
-  deploy-production:
-    name: Deploy to Railway (Production)
-    runs-on: ubuntu-latest
-    needs: [aiserver-check]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Railway
-        uses: ferrybin/railway-action@v1
-        with:
-          railway-token: ${{ secrets.RAILWAY_TOKEN }}
-          project-id: ${{ secrets.RAILWAY_PROJECT_ID }}
-          service: ai-server
-          environment: production
-          directory: ai-server
-
-      - name: Health check
-        run: |
-          sleep 20
-          curl -f https://aisms-ai-server.up.railway.app/health || echo "Health endpoint"
