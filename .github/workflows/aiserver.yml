@@ -81,6 +81,9 @@ jobs:
           ]
           for mod in stubs:
               sys.modules.setdefault(mod, types.ModuleType(mod))
+          # scipy's array-api shim walks getattr(torch, 'Tensor'); an empty
+          # stub breaks it with AttributeError, so give torch a Tensor class.
+          sys.modules['torch'].Tensor = type('Tensor', (), {})
           from main import app
           print(f'FastAPI app loaded: {len(app.routes)} routes')
           "
