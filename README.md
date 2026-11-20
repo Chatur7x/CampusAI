@@ -8,7 +8,7 @@
 
 ## Why This Exists
 
-Traditional attendance systems rely on manual roll calls or basic biometric scanners — both are easy to game and hard to analyze. CampusAI replaces all of that with a camera-based face recognition system backed by liveness detection (so you can't just hold up a photo), geolocation validation (so you have to actually be on campus), and a blockchain audit trail (so nobody can quietly edit records after the fact).
+Traditional attendance systems rely on manual roll calls or basic biometric scanners — both are easy to game and hard to analyze. CampusAI combines camera-based face recognition, liveness checks intended to help detect presentation attacks, geolocation validation, and a blockchain audit trail.
 
 On top of attendance, the platform gives faculty real-time analytics about their classes, lets students track their own attendance health, and gives administrators a bird's-eye view of the entire institution.
 
@@ -25,6 +25,12 @@ On top of attendance, the platform gives faculty real-time analytics about their
 | **Edge Functions** | Supabase Edge Functions (Deno) | Serverless API endpoints for attendance, timetable, notices, analytics |
 | **Legacy Backend** | Node.js + Express + Prisma | Optional REST API with Socket.IO (kept for reference) |
 | **DevOps** | Docker + GitHub Actions + Vercel + Railway | CI/CD pipeline, containerized deployment |
+
+---
+
+## Measurement Results
+
+The current face-match evaluation, test-suite summary, local verification-endpoint timing, and measurement limitations are documented in [`results/RESULTS.md`](results/RESULTS.md) and [`results/RESULTS_LATENCY_LIVENESS.md`](results/RESULTS_LATENCY_LIVENESS.md). The accuracy evaluation uses a small public-photo sample and digital spoof composites; the latency run used a local test setup. Real-camera liveness and physical photo/screen attack resistance have **not been measured**. These reports are scoped measurements, not production performance claims.
 
 ---
 
@@ -575,7 +581,7 @@ The full pipeline is defined in `.github/workflows/ci.yml`; the deploy path in
 
 - **No fake data** — every page fetches from real APIs. Student dashboards pull live attendance, faculty analytics compute from actual records, admin stats are aggregated from the database.
 - **Blockchain audit trail** — attendance records are chained using SHA-256. You can verify that no record has been tampered with after the fact.
-- **Anti-spoofing** — liveness detection uses eye blink analysis and texture checks. You can't mark attendance with a photograph.
+- **Liveness checks** — the AI pipeline includes blink and texture signals intended to help identify presentation attacks. Physical spoof resistance has not been established by the current evaluation; see [Measurement Results](#measurement-results).
 - **Dual-naming compatibility** — the entire stack handles both camelCase and snake_case column names gracefully, because real-world databases are messy.
 - **Graceful degradation** — if the AI server is down, the app still works for everything except face-based features. If email isn't configured, notifications still appear in-app.
 
