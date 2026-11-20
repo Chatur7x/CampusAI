@@ -1,0 +1,11 @@
+foreach ($category in 'enrolled','genuine','spoof_photo','spoof_screen') {
+  $path = Join-Path 'eval_data' $category
+  $people = Get-ChildItem -LiteralPath $path -Directory
+  $images = Get-ChildItem -LiteralPath $path -Recurse -File -Filter '*.jpg'
+  [PSCustomObject]@{Folder=$category; People=$people.Count; Images=$images.Count}
+}
+$enrolled = @(Get-ChildItem eval_data/enrolled -Directory | Select-Object -ExpandProperty Name)
+foreach ($category in 'genuine','spoof_photo','spoof_screen') {
+  $foreign = @(Get-ChildItem (Join-Path eval_data $category) -Directory | Where-Object Name -NotIn $enrolled)
+  [PSCustomObject]@{IdentityCheck=$category; UnknownPersonIDs=$foreign.Count}
+}

@@ -1,0 +1,1 @@
+.venv-eval/Scripts/python.exe scripts/evaluate_face_verification.py --data eval_data --seed 20261118 --bootstrap 1000 --out results

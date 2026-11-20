@@ -1,0 +1,25 @@
+.................................x..............sssssssssssssssssss..... [ 27%]
+........................................................................ [ 55%]
+........................................................................ [ 82%]
+.............................................                            [100%]
+============================== warnings summary ===============================
+C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:47
+  C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:47: PendingDeprecationWarning: The set_bad function will be deprecated in a future version. Use cmap.with_extremes(bad=...) or Colormap(bad=...) instead.
+    red_blue.set_bad(gray_rgb.tolist(), 1.0)
+
+C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:48
+  C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:48: PendingDeprecationWarning: The set_over function will be deprecated in a future version. Use cmap.with_extremes(over=...) or Colormap(over=...) instead.
+    red_blue.set_over(gray_rgb.tolist(), 1.0)
+
+C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:49
+  C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:49: PendingDeprecationWarning: The set_under function will be deprecated in a future version. Use cmap.with_extremes(under=...) or Colormap(under=...) instead.
+    red_blue.set_under(gray_rgb.tolist(), 1.0)  # "under" is incorrectly used instead of "bad" in the scatter plot
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [8] tests\ai\test_live_http.py:47: AI server not reachable at http://127.0.0.1:8011. Start it with:  cd ai-server && uvicorn main:app --port 8011
+SKIPPED [8] tests\ai\test_live_http.py:53: AI server not reachable at http://127.0.0.1:8011. Start it with:  cd ai-server && uvicorn main:app --port 8011
+SKIPPED [1] tests\ai\test_live_http.py:59: AI server not reachable at http://127.0.0.1:8011. Start it with:  cd ai-server && uvicorn main:app --port 8011
+SKIPPED [1] tests\ai\test_live_http.py:65: AI server not reachable at http://127.0.0.1:8011. Start it with:  cd ai-server && uvicorn main:app --port 8011
+SKIPPED [1] tests\ai\test_live_http.py:72: AI server not reachable at http://127.0.0.1:8011. Start it with:  cd ai-server && uvicorn main:app --port 8011
+241 passed, 19 skipped, 1 xfailed, 3 warnings in 245.82s (0:04:05)

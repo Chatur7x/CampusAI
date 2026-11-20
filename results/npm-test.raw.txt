@@ -1,0 +1,214 @@
+
+> campusai@1.0.0 test
+> npm run test:backend && npm run test:integration && npm run test:ai
+
+
+> campusai@1.0.0 test:backend
+> node --test "tests/backend/*.test.mjs"
+
+✔ authenticate requires a Bearer header (3.1288ms)
+✔ authenticate rejects blacklisted tokens before verifying them (0.3059ms)
+✔ authenticate re-reads the role from the database on every request (0.2576ms)
+✔ authenticate rejects deactivated accounts (0.2682ms)
+✔ authenticate never leaks the underlying error to the client (0.3278ms)
+✔ requireRole fails closed when there is no user (0.2602ms)
+✔ requireRole compares against an explicit allowlist (0.2877ms)
+✔ requireOwnershipOrRole is exported but never mounted (4.219ms)
+✔ signing and verification both pin the algorithm (1.203ms)
+✔ access and refresh tokens use different secrets (0.7659ms)
+✔ a short JWT secret is rejected at startup (0.3828ms)
+✔ the global error handler does not echo the error (0.4048ms)
+✔ the 404 handler does not echo the path (0.3894ms)
+✔ helmet and the extra security headers are both mounted (0.2614ms)
+✔ security headers include nosniff and frame denial (0.3818ms)
+✔ CSRF middleware is defined but not mounted (0.3061ms)
+✔ no controller sets an auth cookie (2.3321ms)
+✔ the upload root is resolved once and used for containment checks (1.2051ms)
+✔ behavioral probe runs and reports every check (19730.8409ms)
+✔ create/update validation rejects an unenumerated role with 400 (1062.4476ms)
+✔ validation positive controls: valid body passes, incomplete body fails (985.7213ms)
+✔ validation errors name the field but do not echo the submitted value (1137.3236ms)
+✔ verifyToken rejects alg=none and wrong-secret tokens, accepts its own (1096.7656ms)
+✔ H2: face mark rejects an unauthenticated caller (3.9471ms)
+✔ H2: face mark permits the student themself (0.7548ms)
+✔ H2: face mark verifies class ownership, not just role (1.1914ms)
+✔ H2: face mark fails closed when the caller has no faculty row (0.642ms)
+✔ H2: manual mark verifies class ownership (0.3682ms)
+✔ H2: bulk mark verifies class ownership (2.3542ms)
+✔ M2: registerFace compares students-row id, not the auth id (0.6351ms)
+✔ M2: getLeaveStats lets a student read only their own stats (0.3475ms)
+✔ M2: leave approval verifies class ownership (0.6553ms)
+✔ M2: leave approval fails closed without a faculty row (1.9277ms)
+✔ M2: leave cancel is scoped to the caller own student id (0.6749ms)
+✔ M1: getRoleByEmail is scoped to the caller own profile (0.489ms)
+✔ M1: a foreign email is indistinguishable from an unknown one (0.4712ms)
+✔ H3: attendanceService.mark has no direct-table insert fallback (0.6102ms)
+✔ H3: attendanceService.mark fails loudly when the edge function is down (0.3529ms)
+✔ H3: attendanceService.markBulk routes through the backend (0.3774ms)
+✔ H3: attendanceService.update routes through the edge function (0.2871ms)
+✔ H3: leaveService.approve routes through the backend (0.3135ms)
+✔ H3: leaveService.reject routes through the backend (0.1965ms)
+✔ H3: leaveService.cancel routes through the backend (0.1664ms)
+✔ H3: leaveService.getPending routes through the backend (0.3818ms)
+✔ H3: profileService.update rejects cross-user writes (0.2368ms)
+✔ H3: profileService.update writes with the session id (0.2217ms)
+✔ H3: role and email stay out of the profile write allowlist (0.4633ms)
+✔ M3: uploadAvatar rejects cross-user uploads (0.2324ms)
+✔ M3: uploadAvatar has a MIME allowlist (0.2734ms)
+✔ M3: uploadAvatar derives the extension from the type, not the filename (0.2129ms)
+✔ geo: the attendance row is bound to the session user (0.1705ms)
+✔ geo: the field_tracking row is bound to the session user (0.1594ms)
+✔ geo: both writers use the resolved session id, not the argument (0.2378ms)
+✔ the router was parsed (2.0365ms)
+✔ every route except the credential endpoints requires authentication (3.4372ms)
+✔ the public route list is not stale (0.4202ms)
+✔ no public route leaks a data read (0.7817ms)
+✔ every mutating route either validates its body or is listed as body-less (0.5893ms)
+✔ the body-less exemption list is not stale (0.4317ms)
+✔ M1: /auth/role requires authentication (0.3017ms)
+✔ M1: /auth/role is rate limited (0.247ms)
+✔ M1: the auth routes are rate limited (0.4744ms)
+✔ notice reads are open to any authenticated user, writes are admin-only (0.4681ms)
+✔ only staff may mark attendance manually or in bulk (0.7706ms)
+✔ bulk attendance validates the correction payload (0.4475ms)
+✔ every attendance write pins the status to a known enum (0.3181ms)
+✔ only students may create or cancel leave requests (0.288ms)
+✔ only staff may approve leave requests (0.2141ms)
+✔ leave approval validates the decision status (0.3632ms)
+✔ only students may read their own leave list (0.1902ms)
+✔ notices are writable by admin and faculty (0.2293ms)
+✔ department reads are open, mutations are admin-only (0.3362ms)
+✔ face registration validates its input (0.2558ms)
+✔ user management is admin-only (0.233ms)
+✔ course and class mutations are admin-only (0.2815ms)
+✔ user and course writes validate their payloads (0.3617ms)
+✔ the timetable is writable by admin only, and validates its times (0.2402ms)
+✔ the user-management exemption list matches the real routes (0.2379ms)
+✔ bulk CSV import is admin-only and rate limited (0.1801ms)
+✔ attendance export is gated (0.136ms)
+✔ the blockchain audit view is admin-only (0.2809ms)
+✔ the security dashboard is admin-only (0.5322ms)
+✔ self-service security routes stay open to any authenticated user (0.2544ms)
+✔ every upload field declares an extension allowlist (5.9647ms)
+✔ no field allows an extension the browser can execute (1.2545ms)
+✔ the file filter checks the extension against the allowlist (0.3971ms)
+✔ the file filter checks the MIME against the allowlist (0.4465ms)
+✔ the file filter rejects an unknown upload field (0.4005ms)
+✔ stored filenames never reuse the client filename (0.5124ms)
+✔ the upload directory is resolved to an absolute path (0.4083ms)
+✔ file bytes are verified against a signature (0.3177ms)
+✔ PNG and JPEG signatures are in the allowlist (0.3482ms)
+✔ markup content is rejected even when the extension is allowed (0.6205ms)
+✔ rejected files are deleted from disk (0.7072ms)
+✔ the temp path must stay inside the upload root (0.2877ms)
+✔ file count is capped at one per request (0.3646ms)
+✔ serving uses attachment disposition so the browser never renders it (0.6032ms)
+✔ serving sets nosniff and a sandboxing CSP (0.391ms)
+✔ serving refuses a path outside the upload root (2.4059ms)
+✔ the upload error handler does not echo the raw error text (0.655ms)
+✔ the reported size limit comes from config (0.2951ms)
+✔ both bulk upload routes run verifyUpload and the upload rate limiter (3.5458ms)
+✔ the csv upload rule denies zip/xlsx and ole2 magic even with a .csv extension (1.1262ms)
+✔ sniffFile rejects a zip/ole2 renamed to .csv but accepts real CSV (14997.4807ms)
+ℹ tests 104
+ℹ suites 0
+ℹ pass 104
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 24734.5796
+
+> campusai@1.0.0 test:integration
+> node --test "tests/integration/*.test.mjs"
+
+✔ verify endpoint response contains no face_data or embedding payload (2025.0919ms)
+✔ no logger in attendanceController prints the student row or embedding (2.3685ms)
+✔ embedding access goes through the single-purpose helper only (3.4218ms)
+✔ success response body shape: attendance + verification + blockchain only (1.6374ms)
+✔ every edge function reads the Authorization header (2.6619ms)
+✔ every edge function verifies the JWT rather than trusting the header (0.4107ms)
+✔ every edge function rejects a caller with no token before doing any work (1.8718ms)
+✔ no edge function returns a raw caught error message (0.629ms)
+✔ no edge function returns a raw PostgREST/upload error message (1.9859ms)
+✔ notifications authenticates the caller (0.2337ms)
+✔ notifications authorizes the caller, not just authenticates it (0.2061ms)
+✔ notifications scopes the role lookup to the calling user (0.193ms)
+✔ notifications gates the action switch behind auth (0.3213ms)
+✔ notifications rejects an unknown type instead of reporting success (0.4671ms)
+✔ security-monitor authenticates the caller (0.2751ms)
+✔ security-monitor authorizes the caller (0.1951ms)
+✔ security-monitor scopes the role lookup to the calling user (0.163ms)
+✔ security-monitor gates every destructive action behind auth (0.5031ms)
+✔ security-monitor never returns error.message (0.3977ms)
+✔ attendance keeps its class-ownership gate (0.2781ms)
+✔ the writable-column allowlists are still in place (0.2515ms)
+﹣ live: notifications rejects a request with no token (0.1462ms) # set SUPABASE_URL + ANON_KEY + STUDENT_JWT
+﹣ live: notifications rejects a tampered token (0.1653ms) # set SUPABASE_URL + ANON_KEY + STUDENT_JWT
+﹣ live: notifications refuses a non-admin student (0.0979ms) # set STUDENT_JWT to run
+﹣ live: security-monitor rejects a request with no token (0.084ms) # set SUPABASE_URL + ANON_KEY + STUDENT_JWT
+﹣ live: security-monitor rejects a tampered token (0.1267ms) # set SUPABASE_URL + ANON_KEY + STUDENT_JWT
+﹣ live: security-monitor refuses a non-admin student (0.1109ms) # set STUDENT_JWT to run
+✔ attendance edge function verifies a JWT before anything else (2.8867ms)
+✔ attendance edge function pins the status enum (0.3714ms)
+✔ attendance edge function checks class ownership, not just role (0.3974ms)
+✔ staffOwnsStudent fails closed when there is no faculty row (0.3888ms)
+✔ attendance edge function never returns a raw PostgREST error (0.3257ms)
+✔ notices edge function never returns a raw PostgREST error (0.2352ms)
+✔ timetable edge function never returns a raw PostgREST error (0.4149ms)
+✔ the PUT handler scopes the update to a record the caller may amend (0.3318ms)
+✔ notices edge function scopes role and faculty lookups to the caller (0.3567ms)
+✔ notices edge function allows only named fields on update (0.8644ms)
+✔ timetable edge function allows only named columns on write (0.3301ms)
+✔ notices edge function requires authentication (0.2885ms)
+✔ timetable edge function scopes role and faculty lookups to the caller (0.1811ms)
+✔ timetable edge function requires authentication (0.1638ms)
+✔ every frontend backend call maps to a registered route (4.6258ms)
+✔ the verb used by each frontend call exists on the backend (1.6641ms)
+✔ the frontend parser actually found the calls (0.6495ms)
+✔ the leave routes the frontend depends on all exist (0.3692ms)
+✔ face schemas bound the image payload (0.2019ms)
+✔ face schemas bound the geofence coordinates (0.2515ms)
+✔ session codes are pinned to six digits (0.1338ms)
+✔ session radius and duration are bounded (0.1424ms)
+✔ the geo validator rejects out-of-range coordinates (0.1411ms)
+✔ every AI router mounts an auth dependency (2.8587ms)
+✔ the face and attendance routers also carry a rate limit (1.6354ms)
+﹣ live: a tampered token is rejected by the attendance function (0.1754ms) # set STUDENT_JWT to run
+﹣ live: a student cannot mark attendance through the edge function (0.1795ms) # set SUPABASE_URL + ANON_KEY + STUDENT_JWT
+﹣ live: faculty from another class cannot mark attendance (0.0933ms) # set FACULTY_JWT to run
+﹣ live: the AI server refuses an unauthenticated face verify (0.1218ms) # set AI_BASE_URL
+✔ no frontend .select(...) string contains face_data (327.4853ms)
+✔ no frontend students query uses select('*') (229.1376ms)
+✔ STUDENT_PUBLIC_COLS has no face_data in api.ts (2.1237ms)
+ℹ tests 59
+ℹ suites 0
+ℹ pass 49
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 10
+ℹ todo 0
+ℹ duration_ms 2181.5188
+
+> campusai@1.0.0 test:ai
+> python -m pytest tests/ai -q
+
+.................................x..............sssssssssssssssssss..... [ 27%]
+........................................................................ [ 55%]
+........................................................................ [ 82%]
+.............................................                            [100%]
+============================== warnings summary ===============================
+C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:47
+  C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:47: PendingDeprecationWarning: The set_bad function will be deprecated in a future version. Use cmap.with_extremes(bad=...) or Colormap(bad=...) instead.
+    red_blue.set_bad(gray_rgb.tolist(), 1.0)
+
+C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:48
+  C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:48: PendingDeprecationWarning: The set_over function will be deprecated in a future version. Use cmap.with_extremes(over=...) or Colormap(over=...) instead.
+    red_blue.set_over(gray_rgb.tolist(), 1.0)
+
+C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:49
+  C:\Users\chatu\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\shap\plots\colors\_colors.py:49: PendingDeprecationWarning: The set_under function will be deprecated in a future version. Use cmap.with_extremes(under=...) or Colormap(under=...) instead.
+    red_blue.set_under(gray_rgb.tolist(), 1.0)  # "under" is incorrectly used instead of "bad" in the scatter plot
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+241 passed, 19 skipped, 1 xfailed, 3 warnings in 102.30s (0:01:42)

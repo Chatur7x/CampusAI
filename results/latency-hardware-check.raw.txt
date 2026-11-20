@@ -1,0 +1,7 @@
+cpu_models=Intel(R) Core(TM) Ultra 5 125H
+gpu_devices=Intel(R) Arc(TM) Graphics
+onnxruntime_providers=AzureExecutionProvider,CPUExecutionProvider
+cuda_provider_present=False
+server_gpu_enabled=false
+server_url=http://127.0.0.1:8011
+same_machine=true

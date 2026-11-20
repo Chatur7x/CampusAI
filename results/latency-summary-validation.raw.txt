@@ -1,0 +1,9 @@
+measured_rows=100
+status_counts=200:100
+non_2xx=0
+auth_rejections=0
+p50_ms=6819.3919
+p95_ms=13071.4263
+p99_ms=14478.1765
+mean_ms=7445.228411
+saved_summary_matches=True

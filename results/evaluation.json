@@ -1,0 +1,103 @@
+{
+  "dataset_kind": "Public LFW face photos with digital photo and screen presentation composites; not real app-camera captures",
+  "seed": 20261118,
+  "bootstrap_resamples": 1000,
+  "people": 50,
+  "folder_counts": {
+    "enrolled": {
+      "people": 50,
+      "images": 50,
+      "failure_to_acquire": 0,
+      "failure_to_acquire_rate": 0.0
+    },
+    "genuine": {
+      "people": 50,
+      "images": 50,
+      "failure_to_acquire": 0,
+      "failure_to_acquire_rate": 0.0
+    },
+    "spoof_photo": {
+      "people": 50,
+      "images": 50,
+      "failure_to_acquire": 0,
+      "failure_to_acquire_rate": 0.0
+    },
+    "spoof_screen": {
+      "people": 50,
+      "images": 50,
+      "failure_to_acquire": 0,
+      "failure_to_acquire_rate": 0.0
+    }
+  },
+  "base_threshold": 0.55,
+  "threshold_note": "This report uses the fixed configured base threshold. Production verification adapts threshold per record using enrollment count and age.",
+  "same_image_self_similarity": 0.9999999999999999,
+  "pair_counts_and_rates": {
+    "genuine_pairs": 50,
+    "genuine_failure_to_acquire_pairs": 0,
+    "genuine_acceptance_rate": 0.86,
+    "impostor_pairs": 2450,
+    "impostor_failure_to_acquire_pairs": 0,
+    "impostor_acceptance_rate": 0.0,
+    "spoof_photo_pairs": 50,
+    "spoof_photo_failure_to_acquire_pairs": 0,
+    "spoof_photo_acceptance_rate": 0.86,
+    "spoof_screen_pairs": 50,
+    "spoof_screen_failure_to_acquire_pairs": 0,
+    "spoof_screen_acceptance_rate": 0.84,
+    "far": 0.0,
+    "frr": 0.14
+  },
+  "roc_uses_acquired_genuine_and_impostor_pairs_only": true,
+  "eer": 0.020000000000000018,
+  "eer_threshold": 0.3736296004268338,
+  "bootstrap_95_percent_intervals": {
+    "far": [
+      0.0,
+      0.0
+    ],
+    "frr": [
+      0.06,
+      0.24
+    ],
+    "spoof_photo_acceptance_rate": [
+      0.74,
+      0.94
+    ],
+    "spoof_screen_acceptance_rate": [
+      0.74,
+      0.94
+    ],
+    "eer": [
+      0.0,
+      0.10016652789342215
+    ],
+    "eer_threshold": [
+      0.07494468394203688,
+      0.4031027420330876
+    ],
+    "enrolled_failure_to_acquire_rate": [
+      0.0,
+      0.0
+    ],
+    "genuine_failure_to_acquire_rate": [
+      0.0,
+      0.0
+    ],
+    "spoof_photo_failure_to_acquire_rate": [
+      0.0,
+      0.0
+    ],
+    "spoof_screen_failure_to_acquire_rate": [
+      0.0,
+      0.0
+    ]
+  },
+  "liveness": "NOT MEASURED: generated static images were not run through the real app",
+  "limitations": [
+    "The identity images are public LFW photos; spoof folders contain digital presentation composites, not photographs of physical print or screen attacks.",
+    "The images are not captures from the CampusAI app camera and are not a same-person, different-day collection.",
+    "Cosine-based spoof acceptance excludes liveness by design.",
+    "The sample is small and does not support claims about attendance accuracy or real-world spoof resistance."
+  ]
+}

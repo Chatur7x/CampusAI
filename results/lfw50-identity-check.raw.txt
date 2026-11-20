@@ -1,0 +1,3 @@
+IdentityCheck=genuine PersonIDs=50 UnknownPersonIDs=0
+IdentityCheck=spoof_photo PersonIDs=50 UnknownPersonIDs=0
+IdentityCheck=spoof_screen PersonIDs=50 UnknownPersonIDs=0

@@ -1,0 +1,20 @@
+{
+  "warmup_count": 10,
+  "measured_count": 100,
+  "p50_ms": "6819.3919",
+  "p95_ms": "13071.4263",
+  "p99_ms": "14478.1765",
+  "mean_ms": "7445.228411",
+  "non_2xx_count": 0,
+  "auth_rejection_count": 0,
+  "seed": 20261118,
+  "identity_count": 12,
+  "token_length_min": 1106.0,
+  "token_length_max": 1106.0,
+  "server_url": "http://127.0.0.1:8011",
+  "same_machine": true,
+  "gpu_enabled": false,
+  "status_counts": [
+    "200:100"
+  ]
+}

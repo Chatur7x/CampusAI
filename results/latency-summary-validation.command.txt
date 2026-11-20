@@ -1,0 +1,1 @@
+Recompute latency summary exclusively from measured latency_raw.csv rows using nearest-rank percentiles and exact decimal elapsed_ms; compare with saved benchmark summary.

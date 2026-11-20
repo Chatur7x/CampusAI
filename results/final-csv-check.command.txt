@@ -1,0 +1,18 @@
+$ErrorActionPreference = 'Stop'
+$checks = @(
+  @{ Path = 'results/latency_raw.csv'; Required = @('request_id','status_code','elapsed_ms') },
+  @{ Path = 'results/local_embedding_acquisition.csv'; Required = @('person_id','face_detected','registered','reason') },
+  @{ Path = 'results/liveness_log.csv'; Required = @('attempt_id','person_id','attack_type','passed_liveness') }
+)
+foreach ($c in $checks) {
+  $rows = @(Import-Csv -LiteralPath $c.Path)
+  $headers = @((Get-Content -LiteralPath $c.Path -TotalCount 1).Split(',') | ForEach-Object { $_.Trim('"') })
+  $missing = @($c.Required | Where-Object { $_ -notin $headers })
+  Write-Output ("FILE={0}; COLUMNS={1}; REQUIRED_COLUMNS_PRESENT={2}; ROWS={3}" -f $c.Path, ($headers -join ','), ($missing.Count -eq 0), $rows.Count)
+  if ($missing.Count -gt 0) { throw ("Missing required columns: " + ($missing -join ',')) }
+  if ($rows.Count -gt 0) { $rows | Select-Object -First 3 | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip 1 } else { Write-Output 'SAMPLE_ROWS=NOT AVAILABLE (zero data rows)' }
+}
+$lat = @(Import-Csv results/latency_raw.csv)
+$warmups = @($lat | Where-Object { $_.request_id -like 'warmup_*' }).Count
+$measured = @($lat | Where-Object { $_.request_id -like 'measured_*' }).Count
+Write-Output ("LATENCY_WARMUPS={0}; LATENCY_MEASURED={1}" -f $warmups, $measured)

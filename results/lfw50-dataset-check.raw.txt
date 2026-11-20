@@ -1,0 +1,12 @@
+
+Folder       People Images
+------       ------ ------
+enrolled         50     50
+genuine          50     50
+spoof_photo      50     50
+spoof_screen     50     50
+                          
+                          
+                          
+
+

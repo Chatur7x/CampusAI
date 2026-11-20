@@ -1,0 +1,12 @@
+FILE=results/latency_raw.csv; COLUMNS=request_id,status_code,elapsed_ms; REQUIRED_COLUMNS_PRESENT=True; ROWS=110
+"warmup_001","200","7292.9368"
+"warmup_002","200","8064.3381"
+"warmup_003","200","7616.8682"
+FILE=results/local_embedding_acquisition.csv; COLUMNS=person_id,face_detected,registered,reason; REQUIRED_COLUMNS_PRESENT=True; ROWS=12
+"p01","true","true",""
+"p02","true","true",""
+"p03","true","true",""
+FILE=results/liveness_log.csv; COLUMNS=attempt_id,person_id,attack_type,passed_liveness; REQUIRED_COLUMNS_PRESENT=True; ROWS=0
+SAMPLE_ROWS=NOT AVAILABLE (zero data rows)
+LATENCY_WARMUPS=10; LATENCY_MEASURED=100
+

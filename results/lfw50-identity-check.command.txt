@@ -1,0 +1,6 @@
+$enrolled = @(Get-ChildItem eval_data/enrolled -Directory | Select-Object -ExpandProperty Name)
+foreach ($category in 'genuine','spoof_photo','spoof_screen') {
+  $ids = @(Get-ChildItem (Join-Path eval_data $category) -Directory | Select-Object -ExpandProperty Name)
+  $foreign = @($ids | Where-Object { $_ -notin $enrolled })
+  Write-Output "IdentityCheck=$category PersonIDs=$($ids.Count) UnknownPersonIDs=$($foreign.Count)"
+}

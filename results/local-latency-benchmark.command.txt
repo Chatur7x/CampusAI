@@ -1,0 +1,1 @@
+PowerShell run results/run_local_latency_benchmark.ps1; local Supabase tokens fetched in memory; call POST http://127.0.0.1:8011/api/face/verify with 10 warmups and 100 measured genuine eval probes; random seed 20261118; save each request status/time to results/latency_raw.csv.

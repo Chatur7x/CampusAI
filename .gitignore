@@ -56,6 +56,10 @@ tmp_*.txt
 # Backups (may contain real data — never commit)
 backups/
 
+# Face evaluation images contain sensitive biometric data — never commit
+eval_data/
+.venv-eval/
+
 # Supabase local
 supabase/.temp/
 

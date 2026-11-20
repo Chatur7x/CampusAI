@@ -1,0 +1,1 @@
+Record processor, graphics devices, ONNX providers from the exact benchmark runtime, and local machine identity without reading credentials.
